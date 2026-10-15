@@ -1,0 +1,1899 @@
+﻿{
+    "categories":  [
+                       {
+                           "category":  "SOUP",
+                           "order":  1
+                       },
+                       {
+                           "category":  "STARTERS",
+                           "order":  2
+                       },
+                       {
+                           "category":  "SEA FOOD",
+                           "order":  3
+                       },
+                       {
+                           "category":  "KABAB",
+                           "order":  4
+                       },
+                       {
+                           "category":  "MAIN COURSE",
+                           "order":  5
+                       },
+                       {
+                           "category":  "ANDE KA FUNDA",
+                           "order":  6
+                       },
+                       {
+                           "category":  "RICE AND NOODLES",
+                           "order":  7
+                       },
+                       {
+                           "category":  "BIRYANI AND PULAO",
+                           "order":  8
+                       },
+                       {
+                           "category":  "ROTI",
+                           "order":  9
+                       },
+                       {
+                           "category":  "SALAD",
+                           "order":  10
+                       },
+                       {
+                           "category":  "DESSERTS /MOCKTAL",
+                           "order":  11
+                       },
+                       {
+                           "category":  "BIRYANI",
+                           "order":  12
+                       },
+                       {
+                           "category":  "SOFT DRINKS",
+                           "order":  13
+                       }
+                   ],
+    "itemsCount":  230,
+    "items":  [
+                  {
+                      "code":  "1",
+                      "name":  "CHICKEN MANCHOW SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  130,
+                      "hallRate":  130
+                  },
+                  {
+                      "code":  "2",
+                      "name":  "CHICKEN HOT AND SOUR SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  130,
+                      "hallRate":  130
+                  },
+                  {
+                      "code":  "3",
+                      "name":  "CHICKEN LEMON CORIANDER SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  130,
+                      "hallRate":  130
+                  },
+                  {
+                      "code":  "4",
+                      "name":  "CHICKEN TOMYOM SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  150,
+                      "hallRate":  150
+                  },
+                  {
+                      "code":  "5",
+                      "name":  "CHICKEN CLER SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  140,
+                      "hallRate":  140
+                  },
+                  {
+                      "code":  "6",
+                      "name":  "VEG MANCHAOW SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  110,
+                      "hallRate":  110
+                  },
+                  {
+                      "code":  "7",
+                      "name":  "VEG HOT AND SOUR SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  110,
+                      "hallRate":  110
+                  },
+                  {
+                      "code":  "8",
+                      "name":  "VEG LEMON CORIANDER SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  110,
+                      "hallRate":  110
+                  },
+                  {
+                      "code":  "9",
+                      "name":  "VEG TOMYOM SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  120,
+                      "hallRate":  120
+                  },
+                  {
+                      "code":  "10",
+                      "name":  "VEG CLER SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  120,
+                      "hallRate":  120
+                  },
+                  {
+                      "code":  "128",
+                      "name":  "CHICKEN SWEET CORN SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  130,
+                      "hallRate":  130
+                  },
+                  {
+                      "code":  "156",
+                      "name":  "TOMATO SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  110,
+                      "hallRate":  110
+                  },
+                  {
+                      "code":  "188",
+                      "name":  "LAMB CLER SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  180,
+                      "hallRate":  180
+                  },
+                  {
+                      "code":  "213",
+                      "name":  "CHICKEN GARLIC SOUP",
+                      "category":  "SOUP",
+                      "categoryOrder":  1,
+                      "acRate":  150,
+                      "hallRate":  150
+                  },
+                  {
+                      "code":  "11",
+                      "name":  "CHICKEN SATAY",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "12",
+                      "name":  "CHICKEN SHANGHAI",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "13",
+                      "name":  "CHICKEN KUNG PAO",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "14",
+                      "name":  "CHILLI BASIL CHICKEN",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "15",
+                      "name":  "CHICKEN MANCHURIAN",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  260,
+                      "hallRate":  260
+                  },
+                  {
+                      "code":  "16",
+                      "name":  "CHICKEN CHILLY",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  260,
+                      "hallRate":  260
+                  },
+                  {
+                      "code":  "17",
+                      "name":  "THREE PEPPER CHICKEN",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "18",
+                      "name":  "CHICKEN CRISPY",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "19",
+                      "name":  "CHICKEN LOLLIPOP",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "20",
+                      "name":  "CHICKEN FRIED KABAB",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  270,
+                      "hallRate":  270
+                  },
+                  {
+                      "code":  "42",
+                      "name":  "CRISPY CORN WATER CHESTNUT",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  220,
+                      "hallRate":  220
+                  },
+                  {
+                      "code":  "43",
+                      "name":  "PANEER KUNG PAO",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "44",
+                      "name":  "PANEER SATAY",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "45",
+                      "name":  "PANEER SHANGHAI",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "46",
+                      "name":  "PANEER MANCHURIAN",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  260,
+                      "hallRate":  260
+                  },
+                  {
+                      "code":  "47",
+                      "name":  "VEG MANCHURIAN",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  200,
+                      "hallRate":  200
+                  },
+                  {
+                      "code":  "48",
+                      "name":  "CRISPY POTATO SWEET GRILL SOURCE",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  180,
+                      "hallRate":  180
+                  },
+                  {
+                      "code":  "49",
+                      "name":  "BABY CORN CHILLY",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  250,
+                      "hallRate":  250
+                  },
+                  {
+                      "code":  "50",
+                      "name":  "BABY CORN MANCHURAIN",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  270,
+                      "hallRate":  270
+                  },
+                  {
+                      "code":  "51",
+                      "name":  "MASHROOM CHILLY",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  250,
+                      "hallRate":  250
+                  },
+                  {
+                      "code":  "52",
+                      "name":  "MASHROOM MANCHURAIN",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  270,
+                      "hallRate":  270
+                  },
+                  {
+                      "code":  "117",
+                      "name":  "CHICKEN SEEK KABAB",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  330,
+                      "hallRate":  330
+                  },
+                  {
+                      "code":  "118",
+                      "name":  "VEG SEEK KABAB",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  210,
+                      "hallRate":  210
+                  },
+                  {
+                      "code":  "119",
+                      "name":  "FRENCH FRIES",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  100,
+                      "hallRate":  100
+                  },
+                  {
+                      "code":  "138",
+                      "name":  "PATTAYA CHICKEN",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  250,
+                      "hallRate":  250
+                  },
+                  {
+                      "code":  "139",
+                      "name":  "BUTTER GARLIC CHICKEN",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "140",
+                      "name":  "VEG HONG CHILLY LOTE",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  260,
+                      "hallRate":  260
+                  },
+                  {
+                      "code":  "153",
+                      "name":  "ROASTED PAPAD",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  30,
+                      "hallRate":  30
+                  },
+                  {
+                      "code":  "154",
+                      "name":  "FRY PAPAD",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  30,
+                      "hallRate":  30
+                  },
+                  {
+                      "code":  "155",
+                      "name":  "MASALA PAPAD",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  50,
+                      "hallRate":  50
+                  },
+                  {
+                      "code":  "165",
+                      "name":  "SHANGHAI CHICKEN (1 KG)",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  1250,
+                      "hallRate":  1250
+                  },
+                  {
+                      "code":  "166",
+                      "name":  "PANEER CHILLI",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  260,
+                      "hallRate":  260
+                  },
+                  {
+                      "code":  "175",
+                      "name":  "PRAWNS FULL",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  850,
+                      "hallRate":  850
+                  },
+                  {
+                      "code":  "176",
+                      "name":  "PRAWNS HALF",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  450,
+                      "hallRate":  450
+                  },
+                  {
+                      "code":  "177",
+                      "name":  "CRISPY GARLIC FISH",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  400,
+                      "hallRate":  400
+                  },
+                  {
+                      "code":  "178",
+                      "name":  "SHANGHAI FISH",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  400,
+                      "hallRate":  400
+                  },
+                  {
+                      "code":  "179",
+                      "name":  "CHICKEN DRAGON ROLL",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  80,
+                      "hallRate":  80
+                  },
+                  {
+                      "code":  "182",
+                      "name":  "HONEY CHICKEN CHILLY",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "185",
+                      "name":  "CHICKEN OYSTER SAUCE",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  320,
+                      "hallRate":  320
+                  },
+                  {
+                      "code":  "186",
+                      "name":  "CRUMB FRIED FISH",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  420,
+                      "hallRate":  420
+                  },
+                  {
+                      "code":  "187",
+                      "name":  "VEG MANCHURIAN",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  200,
+                      "hallRate":  200
+                  },
+                  {
+                      "code":  "191",
+                      "name":  "CHICKEN MANCHURIAN SAMEY GARAVY",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "193",
+                      "name":  "CHICKEN TERIYAKI",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  350,
+                      "hallRate":  350
+                  },
+                  {
+                      "code":  "194",
+                      "name":  "MUTTON OF YOUR CHOICE",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  420,
+                      "hallRate":  420
+                  },
+                  {
+                      "code":  "206",
+                      "name":  "MUTTON MAKING KG",
+                      "category":  "STARTERS",
+                      "categoryOrder":  2,
+                      "acRate":  800,
+                      "hallRate":  800
+                  },
+                  {
+                      "code":  "109",
+                      "name":  "PRAWNS",
+                      "category":  "SEA FOOD",
+                      "categoryOrder":  3,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "110",
+                      "name":  "FISH",
+                      "category":  "SEA FOOD",
+                      "categoryOrder":  3,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "111",
+                      "name":  "PAMPHLET",
+                      "category":  "SEA FOOD",
+                      "categoryOrder":  3,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "211",
+                      "name":  "FISH MAKING",
+                      "category":  "SEA FOOD",
+                      "categoryOrder":  3,
+                      "acRate":  200,
+                      "hallRate":  200
+                  },
+                  {
+                      "code":  "215",
+                      "name":  "TERIYAKI FISH",
+                      "category":  "SEA FOOD",
+                      "categoryOrder":  3,
+                      "acRate":  450,
+                      "hallRate":  450
+                  },
+                  {
+                      "code":  "216",
+                      "name":  "PRAWNS SHANGHAI",
+                      "category":  "SEA FOOD",
+                      "categoryOrder":  3,
+                      "acRate":  450,
+                      "hallRate":  450
+                  },
+                  {
+                      "code":  "217",
+                      "name":  "PRAWNS BUTTER GARLIC",
+                      "category":  "SEA FOOD",
+                      "categoryOrder":  3,
+                      "acRate":  450,
+                      "hallRate":  450
+                  },
+                  {
+                      "code":  "218",
+                      "name":  "PRAWNS TERIYAKI",
+                      "category":  "SEA FOOD",
+                      "categoryOrder":  3,
+                      "acRate":  500,
+                      "hallRate":  500
+                  },
+                  {
+                      "code":  "21",
+                      "name":  "CHICKEN TANDOORI HALF",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  270,
+                      "hallRate":  270
+                  },
+                  {
+                      "code":  "22",
+                      "name":  "CHICKEN TANDOORI FULL",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  540,
+                      "hallRate":  540
+                  },
+                  {
+                      "code":  "23",
+                      "name":  "SPL CHICKEN BANJARA KABAB",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "24",
+                      "name":  "CHICKEN KALIMIRI KABAB",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "25",
+                      "name":  "CHICKEN MALAI KABAB",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "26",
+                      "name":  "CHICKEN BARA CHOPS (W.B)",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  340,
+                      "hallRate":  340
+                  },
+                  {
+                      "code":  "27",
+                      "name":  "GRILLCHICKEN HALF",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  300,
+                      "hallRate":  300
+                  },
+                  {
+                      "code":  "28",
+                      "name":  "GRILL CHICKEN FULL",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  600,
+                      "hallRate":  600
+                  },
+                  {
+                      "code":  "29",
+                      "name":  "TANGADI KABAB (2PIS)",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  210,
+                      "hallRate":  210
+                  },
+                  {
+                      "code":  "30",
+                      "name":  "TANGADI KABAB (4PIS)",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  420,
+                      "hallRate":  420
+                  },
+                  {
+                      "code":  "53",
+                      "name":  "MUSHROOM TIKKA",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  250,
+                      "hallRate":  250
+                  },
+                  {
+                      "code":  "54",
+                      "name":  "PANEER TIKKA",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "55",
+                      "name":  "PANEER ACHARI TIKKA",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "56",
+                      "name":  "MUSHROOM RASBHARI",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  260,
+                      "hallRate":  260
+                  },
+                  {
+                      "code":  "57",
+                      "name":  "VEG SHEEK KABAB",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  210,
+                      "hallRate":  210
+                  },
+                  {
+                      "code":  "121",
+                      "name":  "C T R",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  140,
+                      "hallRate":  140
+                  },
+                  {
+                      "code":  "144",
+                      "name":  "PAHADI KABAB",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "183",
+                      "name":  "RED GRILD BASA  FISH",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  400,
+                      "hallRate":  400
+                  },
+                  {
+                      "code":  "184",
+                      "name":  "YELLOW GRILD BASA FISH",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  400,
+                      "hallRate":  400
+                  },
+                  {
+                      "code":  "196",
+                      "name":  "CHICKEN ANGARA KABAB",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "207",
+                      "name":  "LAHAM  ROAST",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  400,
+                      "hallRate":  400
+                  },
+                  {
+                      "code":  "208",
+                      "name":  "LAHAM BADAMI",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  400,
+                      "hallRate":  400
+                  },
+                  {
+                      "code":  "210",
+                      "name":  "LAHAM AFGANI",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  400,
+                      "hallRate":  400
+                  },
+                  {
+                      "code":  "214",
+                      "name":  "LAHAM CILANTRO",
+                      "category":  "KABAB",
+                      "categoryOrder":  4,
+                      "acRate":  400,
+                      "hallRate":  400
+                  },
+                  {
+                      "code":  "58",
+                      "name":  "KAJU PANEER MASALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  270,
+                      "hallRate":  270
+                  },
+                  {
+                      "code":  "59",
+                      "name":  "PANEER KADAI",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  270,
+                      "hallRate":  270
+                  },
+                  {
+                      "code":  "60",
+                      "name":  "PANEER MAKHANWALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  270,
+                      "hallRate":  270
+                  },
+                  {
+                      "code":  "61",
+                      "name":  "MUTTON HANDI HALF",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  400,
+                      "hallRate":  400
+                  },
+                  {
+                      "code":  "62",
+                      "name":  "MUTTON HANDI FULL",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  780,
+                      "hallRate":  780
+                  },
+                  {
+                      "code":  "63",
+                      "name":  "MUTTON MALVANI (5 PIS)",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  430,
+                      "hallRate":  430
+                  },
+                  {
+                      "code":  "64",
+                      "name":  "MUTTON MALVANI (10 PIS)",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  820,
+                      "hallRate":  820
+                  },
+                  {
+                      "code":  "65",
+                      "name":  "MUTTON DHANIYA WALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  390,
+                      "hallRate":  390
+                  },
+                  {
+                      "code":  "66",
+                      "name":  "MUTTON ROGAN JOSH",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  390,
+                      "hallRate":  390
+                  },
+                  {
+                      "code":  "67",
+                      "name":  "MUTTON MASALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  380,
+                      "hallRate":  380
+                  },
+                  {
+                      "code":  "68",
+                      "name":  "BUTTER CHICKEN (BL)",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "69",
+                      "name":  "BUTTER CHICKEN (W.B)",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  270,
+                      "hallRate":  270
+                  },
+                  {
+                      "code":  "70",
+                      "name":  "CHICKEN MALVANI W.B(5 PIS)",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  380,
+                      "hallRate":  380
+                  },
+                  {
+                      "code":  "71",
+                      "name":  "CHICKEN MALVANI W.B(10PIS)",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  740,
+                      "hallRate":  740
+                  },
+                  {
+                      "code":  "72",
+                      "name":  "CHICKEN DHANIYA WALA 3 PIS",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  220,
+                      "hallRate":  220
+                  },
+                  {
+                      "code":  "73",
+                      "name":  "CHICKEN DHANIYA WALA 5 PIS",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "74",
+                      "name":  "CHICKEN HANDI 5 PIS HALF",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  340,
+                      "hallRate":  340
+                  },
+                  {
+                      "code":  "75",
+                      "name":  "CHICKEN HANDI 10 PIS FULL",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  620,
+                      "hallRate":  620
+                  },
+                  {
+                      "code":  "76",
+                      "name":  "MURG MUSALLAM HALF",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  400,
+                      "hallRate":  400
+                  },
+                  {
+                      "code":  "77",
+                      "name":  "MURG MUSALLAM",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  780,
+                      "hallRate":  780
+                  },
+                  {
+                      "code":  "78",
+                      "name":  "CHICKEN AWADHI 3 PIS",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  220,
+                      "hallRate":  220
+                  },
+                  {
+                      "code":  "79",
+                      "name":  "CHICKEN AWADHI 5 PIS",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "80",
+                      "name":  "CHICKEN CHANGEZI 3 PIS",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  220,
+                      "hallRate":  220
+                  },
+                  {
+                      "code":  "81",
+                      "name":  "CHICKEN CHANGEZI 5 PIS",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "130",
+                      "name":  "DAL FRY",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  140,
+                      "hallRate":  140
+                  },
+                  {
+                      "code":  "131",
+                      "name":  "DAL KOLHAPURI",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  160,
+                      "hallRate":  160
+                  },
+                  {
+                      "code":  "132",
+                      "name":  "DAL TADKA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  150,
+                      "hallRate":  150
+                  },
+                  {
+                      "code":  "133",
+                      "name":  "VEG KADAI",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  220,
+                      "hallRate":  220
+                  },
+                  {
+                      "code":  "134",
+                      "name":  "VEG MAKHANWALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  230,
+                      "hallRate":  230
+                  },
+                  {
+                      "code":  "135",
+                      "name":  "VEG KOLHAPURI",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  220,
+                      "hallRate":  220
+                  },
+                  {
+                      "code":  "137",
+                      "name":  "AKBARI TANGADI MASALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  300,
+                      "hallRate":  300
+                  },
+                  {
+                      "code":  "145",
+                      "name":  "MUTTON KASTURI KALI",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  340,
+                      "hallRate":  340
+                  },
+                  {
+                      "code":  "146",
+                      "name":  "CHICKEN KASTURI KALI",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  250,
+                      "hallRate":  250
+                  },
+                  {
+                      "code":  "147",
+                      "name":  "MUTTON KALI MIRI KA SALAN",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  350,
+                      "hallRate":  350
+                  },
+                  {
+                      "code":  "148",
+                      "name":  "CHICKEN KALI MIRI KA SALAN",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  260,
+                      "hallRate":  260
+                  },
+                  {
+                      "code":  "149",
+                      "name":  "MUTTON RAJDHANI",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  340,
+                      "hallRate":  340
+                  },
+                  {
+                      "code":  "150",
+                      "name":  "CHICKEN RAJDHANI",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  250,
+                      "hallRate":  250
+                  },
+                  {
+                      "code":  "151",
+                      "name":  "MUTTON BHUNA MASALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  360,
+                      "hallRate":  360
+                  },
+                  {
+                      "code":  "152",
+                      "name":  "CHICKEN PATYALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  270,
+                      "hallRate":  270
+                  },
+                  {
+                      "code":  "158",
+                      "name":  "KAJU MASALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  270,
+                      "hallRate":  270
+                  },
+                  {
+                      "code":  "160",
+                      "name":  "MUTTON DHANYAWALA (3PIS)",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  300,
+                      "hallRate":  300
+                  },
+                  {
+                      "code":  "161",
+                      "name":  "INDIAN GRAVY",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  130,
+                      "hallRate":  130
+                  },
+                  {
+                      "code":  "162",
+                      "name":  "PANEER TIKKA MASALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  300,
+                      "hallRate":  300
+                  },
+                  {
+                      "code":  "192",
+                      "name":  "GRAVY",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  30,
+                      "hallRate":  30
+                  },
+                  {
+                      "code":  "197",
+                      "name":  "CHICKEN MASALA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  290,
+                      "hallRate":  290
+                  },
+                  {
+                      "code":  "199",
+                      "name":  "EXTRA",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  20,
+                      "hallRate":  20
+                  },
+                  {
+                      "code":  "203",
+                      "name":  "CHICKEN TIKKA MASALA (B.L)",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  330,
+                      "hallRate":  330
+                  },
+                  {
+                      "code":  "212",
+                      "name":  "MUTTON ROGAN JOSH 1 KG",
+                      "category":  "MAIN COURSE",
+                      "categoryOrder":  5,
+                      "acRate":  1550,
+                      "hallRate":  1550
+                  },
+                  {
+                      "code":  "122",
+                      "name":  "OMLET",
+                      "category":  "ANDE KA FUNDA",
+                      "categoryOrder":  6,
+                      "acRate":  45,
+                      "hallRate":  45
+                  },
+                  {
+                      "code":  "125",
+                      "name":  "BOILED EGG",
+                      "category":  "ANDE KA FUNDA",
+                      "categoryOrder":  6,
+                      "acRate":  40,
+                      "hallRate":  40
+                  },
+                  {
+                      "code":  "126",
+                      "name":  "EGG MASALA",
+                      "category":  "ANDE KA FUNDA",
+                      "categoryOrder":  6,
+                      "acRate":  150,
+                      "hallRate":  150
+                  },
+                  {
+                      "code":  "157",
+                      "name":  "EGG CURRY",
+                      "category":  "ANDE KA FUNDA",
+                      "categoryOrder":  6,
+                      "acRate":  130,
+                      "hallRate":  130
+                  },
+                  {
+                      "code":  "164",
+                      "name":  "EGG BHURJI",
+                      "category":  "ANDE KA FUNDA",
+                      "categoryOrder":  6,
+                      "acRate":  110,
+                      "hallRate":  110
+                  },
+                  {
+                      "code":  "31",
+                      "name":  "CHICKEN FRIED RICE",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  180,
+                      "hallRate":  180
+                  },
+                  {
+                      "code":  "32",
+                      "name":  "VEG FRIED RICE",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  160,
+                      "hallRate":  160
+                  },
+                  {
+                      "code":  "33",
+                      "name":  "CHICKEN HAKKA NOODLES",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  180,
+                      "hallRate":  180
+                  },
+                  {
+                      "code":  "34",
+                      "name":  "VEG HAKKA NOODLES",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  160,
+                      "hallRate":  160
+                  },
+                  {
+                      "code":  "35",
+                      "name":  "CHICKEN CHILLY GARILC RICE",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  190,
+                      "hallRate":  190
+                  },
+                  {
+                      "code":  "36",
+                      "name":  "VEG CHILLY GARLIC RICE",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  170,
+                      "hallRate":  170
+                  },
+                  {
+                      "code":  "37",
+                      "name":  "CHICKEN SCHEZWAN NOODLES",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  180,
+                      "hallRate":  180
+                  },
+                  {
+                      "code":  "38",
+                      "name":  "VEG SCHEZWAN NOODLES",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  160,
+                      "hallRate":  160
+                  },
+                  {
+                      "code":  "39",
+                      "name":  "EGG FRIED RICE",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  150,
+                      "hallRate":  150
+                  },
+                  {
+                      "code":  "40",
+                      "name":  "THAI CURRY WITH STEAM RICE",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  300,
+                      "hallRate":  300
+                  },
+                  {
+                      "code":  "41",
+                      "name":  "THAI CURRY WITH STEAM RICE (NON VEG)",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  350,
+                      "hallRate":  350
+                  },
+                  {
+                      "code":  "120",
+                      "name":  "CHICKEN SHEZWAN FRIED RICE",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  180,
+                      "hallRate":  180
+                  },
+                  {
+                      "code":  "124",
+                      "name":  "CHICKEN TRIPPLE SCHEZWAN FRIED RICE",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  240,
+                      "hallRate":  240
+                  },
+                  {
+                      "code":  "141",
+                      "name":  "BURNT GARLIC RICE (VEG)",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  160,
+                      "hallRate":  160
+                  },
+                  {
+                      "code":  "142",
+                      "name":  "BURNT GARLIC RICE (CHICKEN)",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  180,
+                      "hallRate":  180
+                  },
+                  {
+                      "code":  "143",
+                      "name":  "VEG TRIPPLE SHEZWAN FRIED RICE",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  220,
+                      "hallRate":  220
+                  },
+                  {
+                      "code":  "180",
+                      "name":  "VEG SCHEZWAN FRIED RICE",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  160,
+                      "hallRate":  160
+                  },
+                  {
+                      "code":  "198",
+                      "name":  "CHILLI GARLIC NOODLES",
+                      "category":  "RICE AND NOODLES",
+                      "categoryOrder":  7,
+                      "acRate":  200,
+                      "hallRate":  200
+                  },
+                  {
+                      "code":  "86",
+                      "name":  "EGG BIRYANI",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  160,
+                      "hallRate":  160
+                  },
+                  {
+                      "code":  "87",
+                      "name":  "DAL KHICHDI",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  160,
+                      "hallRate":  160
+                  },
+                  {
+                      "code":  "89",
+                      "name":  "GHEE RICE",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  150,
+                      "hallRate":  150
+                  },
+                  {
+                      "code":  "90",
+                      "name":  "PANEER KAJU BIRYANI",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  200,
+                      "hallRate":  200
+                  },
+                  {
+                      "code":  "91",
+                      "name":  "VEG BIRYANI",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  160,
+                      "hallRate":  160
+                  },
+                  {
+                      "code":  "92",
+                      "name":  "PANEER BIRYANI",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  200,
+                      "hallRate":  200
+                  },
+                  {
+                      "code":  "93",
+                      "name":  "JEERA RICE",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  130,
+                      "hallRate":  130
+                  },
+                  {
+                      "code":  "94",
+                      "name":  "STEAM RICE",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  110,
+                      "hallRate":  110
+                  },
+                  {
+                      "code":  "167",
+                      "name":  "JEERA RICE (HALF)",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  100,
+                      "hallRate":  100
+                  },
+                  {
+                      "code":  "190",
+                      "name":  "VEG BIRYANI 1 KG",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  800,
+                      "hallRate":  800
+                  },
+                  {
+                      "code":  "195",
+                      "name":  "MUTTON MANDI HALF",
+                      "category":  "BIRYANI AND PULAO",
+                      "categoryOrder":  8,
+                      "acRate":  1125,
+                      "hallRate":  1125
+                  },
+                  {
+                      "code":  "95",
+                      "name":  "ROTI",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  30,
+                      "hallRate":  30
+                  },
+                  {
+                      "code":  "96",
+                      "name":  "BUTTER ROTI",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  40,
+                      "hallRate":  40
+                  },
+                  {
+                      "code":  "97",
+                      "name":  "BUTTER NAAN",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  50,
+                      "hallRate":  50
+                  },
+                  {
+                      "code":  "98",
+                      "name":  "PIAIN NAAN",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  40,
+                      "hallRate":  40
+                  },
+                  {
+                      "code":  "99",
+                      "name":  "KULCHA",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  40,
+                      "hallRate":  40
+                  },
+                  {
+                      "code":  "100",
+                      "name":  "BUTTER KULCHA",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  50,
+                      "hallRate":  50
+                  },
+                  {
+                      "code":  "101",
+                      "name":  "GARLIC NAAN BUTTER",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  70,
+                      "hallRate":  70
+                  },
+                  {
+                      "code":  "102",
+                      "name":  "CHEESE CHILLI GARLIC NAAN",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  80,
+                      "hallRate":  80
+                  },
+                  {
+                      "code":  "127",
+                      "name":  "LACCHA PARATHA",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  50,
+                      "hallRate":  50
+                  },
+                  {
+                      "code":  "136",
+                      "name":  "BROWN ROTI",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  30,
+                      "hallRate":  30
+                  },
+                  {
+                      "code":  "159",
+                      "name":  "BROWN BUTTER ROTI",
+                      "category":  "ROTI",
+                      "categoryOrder":  9,
+                      "acRate":  40,
+                      "hallRate":  40
+                  },
+                  {
+                      "code":  "107",
+                      "name":  "MIX VEG RAITA",
+                      "category":  "SALAD",
+                      "categoryOrder":  10,
+                      "acRate":  60,
+                      "hallRate":  60
+                  },
+                  {
+                      "code":  "108",
+                      "name":  "BUNDI RAITA",
+                      "category":  "SALAD",
+                      "categoryOrder":  10,
+                      "acRate":  60,
+                      "hallRate":  60
+                  },
+                  {
+                      "code":  "123",
+                      "name":  "GREEN SALAD",
+                      "category":  "SALAD",
+                      "categoryOrder":  10,
+                      "acRate":  80,
+                      "hallRate":  80
+                  },
+                  {
+                      "code":  "163",
+                      "name":  "CURD",
+                      "category":  "SALAD",
+                      "categoryOrder":  10,
+                      "acRate":  35,
+                      "hallRate":  35
+                  },
+                  {
+                      "code":  "103",
+                      "name":  "GAJAR KA HALWA",
+                      "category":  "DESSERTS /MOCKTAL",
+                      "categoryOrder":  11,
+                      "acRate":  80,
+                      "hallRate":  80
+                  },
+                  {
+                      "code":  "104",
+                      "name":  "CARAMEL PUDDING",
+                      "category":  "DESSERTS /MOCKTAL",
+                      "categoryOrder":  11,
+                      "acRate":  70,
+                      "hallRate":  70
+                  },
+                  {
+                      "code":  "105",
+                      "name":  "ROYAL FALOODA",
+                      "category":  "DESSERTS /MOCKTAL",
+                      "categoryOrder":  11,
+                      "acRate":  125,
+                      "hallRate":  125
+                  },
+                  {
+                      "code":  "106",
+                      "name":  "CHOCOLATE FALOODA",
+                      "category":  "DESSERTS /MOCKTAL",
+                      "categoryOrder":  11,
+                      "acRate":  125,
+                      "hallRate":  125
+                  },
+                  {
+                      "code":  "112",
+                      "name":  "BLUE LAGOON",
+                      "category":  "DESSERTS /MOCKTAL",
+                      "categoryOrder":  11,
+                      "acRate":  90,
+                      "hallRate":  90
+                  },
+                  {
+                      "code":  "113",
+                      "name":  "VIRGIN MOJITO",
+                      "category":  "DESSERTS /MOCKTAL",
+                      "categoryOrder":  11,
+                      "acRate":  90,
+                      "hallRate":  90
+                  },
+                  {
+                      "code":  "114",
+                      "name":  "FRESH LIME SODA",
+                      "category":  "DESSERTS /MOCKTAL",
+                      "categoryOrder":  11,
+                      "acRate":  60,
+                      "hallRate":  60
+                  },
+                  {
+                      "code":  "115",
+                      "name":  "FRESH LIME WATER",
+                      "category":  "DESSERTS /MOCKTAL",
+                      "categoryOrder":  11,
+                      "acRate":  40,
+                      "hallRate":  40
+                  },
+                  {
+                      "code":  "189",
+                      "name":  "BUTTER MILK",
+                      "category":  "DESSERTS /MOCKTAL",
+                      "categoryOrder":  11,
+                      "acRate":  45,
+                      "hallRate":  45
+                  },
+                  {
+                      "code":  "82",
+                      "name":  "CHICKEN BIRYANI 3 PIS",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  160,
+                      "hallRate":  160
+                  },
+                  {
+                      "code":  "83",
+                      "name":  "CHICKEN BIRYANI (5 PIS)",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  200,
+                      "hallRate":  200
+                  },
+                  {
+                      "code":  "84",
+                      "name":  "MUTTON BIRYANI (3 PIS )",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  230,
+                      "hallRate":  230
+                  },
+                  {
+                      "code":  "85",
+                      "name":  "MUTTON BIRYANI (5 PIS)",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  280,
+                      "hallRate":  280
+                  },
+                  {
+                      "code":  "168",
+                      "name":  "CHICKEN BIRYANI ( 1KG)",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  1050,
+                      "hallRate":  1050
+                  },
+                  {
+                      "code":  "169",
+                      "name":  "MUTTON BIRYANI (1KG)",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  1550,
+                      "hallRate":  1550
+                  },
+                  {
+                      "code":  "170",
+                      "name":  "CHICKEN BIRYANI (HALF KG)",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  525,
+                      "hallRate":  525
+                  },
+                  {
+                      "code":  "171",
+                      "name":  "MUTTON BIRYANI (HALF KG)",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  775,
+                      "hallRate":  775
+                  },
+                  {
+                      "code":  "172",
+                      "name":  "CHICKEN BIRYANI (1 KG)",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  1050,
+                      "hallRate":  1050
+                  },
+                  {
+                      "code":  "173",
+                      "name":  "MUTTON BIRYANI ( 1 KG)",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  1550,
+                      "hallRate":  1550
+                  },
+                  {
+                      "code":  "174",
+                      "name":  "KHUSHKA",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  130,
+                      "hallRate":  130
+                  },
+                  {
+                      "code":  "181",
+                      "name":  "MUTTON MANDI FULL",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  2250,
+                      "hallRate":  2250
+                  },
+                  {
+                      "code":  "200",
+                      "name":  "EXTRA RAITA",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  15,
+                      "hallRate":  15
+                  },
+                  {
+                      "code":  "205",
+                      "name":  "EXTRA RICE",
+                      "category":  "BIRYANI",
+                      "categoryOrder":  12,
+                      "acRate":  40,
+                      "hallRate":  40
+                  },
+                  {
+                      "code":  "116",
+                      "name":  "MINERAL WATER 1 LTR",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  20,
+                      "hallRate":  20
+                  },
+                  {
+                      "code":  "129",
+                      "name":  "SOFT DRINK",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  20,
+                      "hallRate":  20
+                  },
+                  {
+                      "code":  "201",
+                      "name":  "EXTRA GLASS",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  150,
+                      "hallRate":  150
+                  },
+                  {
+                      "code":  "204",
+                      "name":  "ALKALINE WATER",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  50,
+                      "hallRate":  50
+                  },
+                  {
+                      "code":  "Code",
+                      "name":  "Counter",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "1",
+                      "name":  "KITCHEN",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  1,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "2",
+                      "name":  "PANTRY",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  2,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "3",
+                      "name":  "CONTINENTAL",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  3,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "1",
+                      "name":  "SOUP",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "2",
+                      "name":  "STARTERS",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "3",
+                      "name":  "SEAFOOD",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "4",
+                      "name":  "KABAB",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "5",
+                      "name":  "SALAD",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "6",
+                      "name":  "MAIN COURSE",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "7",
+                      "name":  "ROTI",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "8",
+                      "name":  "RICE AND NOODLES",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "9",
+                      "name":  "BIRYANI",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "10",
+                      "name":  "MOCKTAIL \u0026 DESSERT",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  },
+                  {
+                      "code":  "11",
+                      "name":  "SOFT DRINK \u0026 WATER",
+                      "category":  "SOFT DRINKS",
+                      "categoryOrder":  13,
+                      "acRate":  0,
+                      "hallRate":  0
+                  }
+              ]
+}

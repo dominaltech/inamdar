@@ -1,0 +1,333 @@
+/* Retro Windows POS Design System - Menson's POS Replica */
+
+:root {
+  --win-bg: #ece9d8;
+  --win-dark-gray: #d4d0c8;
+  --win-light: #ffffff;
+  --win-shadow: #808080;
+  --win-dark-shadow: #404040;
+  --win-blue-start: #0a246a;
+  --win-blue-end: #a6caf0;
+  --win-text: #000000;
+  --win-text-disabled: #888888;
+  --win-highlight-bg: #0a246a;
+  --win-highlight-text: #ffffff;
+  --win-red: #c00000;
+  --win-desktop: #3a6ea5;
+  --font-system: Tahoma, "MS Sans Serif", "Segoe UI", Arial, sans-serif;
+  --font-mono: "Lucida Console", "Courier New", Courier, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  font-family: var(--font-system);
+  font-size: 12px;
+  background-color: var(--win-desktop);
+  color: var(--win-text);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* 3D Bevel Utilities */
+.win-bevel-outset {
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+  box-shadow: 1px 1px 0px #000000;
+}
+
+.win-bevel-inset {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  background-color: #ffffff;
+}
+
+.win-bevel-thin-inset {
+  border-top: 1px solid #7f9db9;
+  border-left: 1px solid #7f9db9;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  background-color: #ffffff;
+}
+
+/* Window Frames */
+.win-window {
+  background-color: var(--win-bg);
+  border-top: 3px solid #0055ea;
+  border-left: 3px solid #0055ea;
+  border-right: 3px solid #002277;
+  border-bottom: 3px solid #002277;
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.win-titlebar {
+  background: linear-gradient(90deg, #0055ea 0%, #0860f2 50%, #5494f8 100%);
+  color: #ffffff;
+  padding: 3px 6px;
+  font-weight: bold;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+}
+
+.win-titlebar-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.3px;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6);
+}
+
+.win-close-btn {
+  width: 18px;
+  height: 18px;
+  background: #d4d0c8;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #404040;
+  border-bottom: 1px solid #404040;
+  font-weight: bold;
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+  cursor: pointer;
+  color: #000;
+}
+
+.win-close-btn:hover {
+  background: #e04343;
+  color: #fff;
+}
+
+/* Buttons */
+.win-btn {
+  background-color: #ece9d8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+  box-shadow: 1px 1px 0px #000000;
+  padding: 4px 12px;
+  font-family: var(--font-system);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.win-btn:active {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+.win-btn:focus {
+  outline: 1px dotted #000000;
+  outline-offset: -4px;
+}
+
+/* Inputs */
+.win-input {
+  font-family: var(--font-system);
+  font-size: 13px;
+  font-weight: bold;
+  padding: 3px 6px;
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  background-color: #ffffff;
+  color: #000000;
+  outline: none;
+}
+
+.win-input:focus {
+  background-color: #ffffdd; /* Subtle classic yellow focus tint */
+}
+
+/* Menu Bar */
+.win-menubar {
+  display: flex;
+  background-color: #ece9d8;
+  border-bottom: 1px solid #999999;
+  padding: 1px 2px;
+}
+
+.win-menu-item {
+  padding: 3px 8px;
+  cursor: pointer;
+  position: relative;
+  font-size: 12px;
+}
+
+.win-menu-item:hover, .win-menu-item.active {
+  background-color: #0a246a;
+  color: #ffffff;
+}
+
+/* Dropdown Menu */
+.win-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ece9d8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  min-width: 190px;
+  z-index: 1000;
+  padding: 2px;
+}
+
+.win-dropdown-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #000000;
+}
+
+.win-dropdown-row:hover {
+  background-color: #0a246a;
+  color: #ffffff;
+}
+
+.win-dropdown-hotkey {
+  color: #555555;
+  font-weight: bold;
+  margin-left: 16px;
+}
+
+.win-dropdown-row:hover .win-dropdown-hotkey {
+  color: #ffffaa;
+}
+
+/* Status Bar */
+.win-statusbar {
+  display: flex;
+  align-items: center;
+  background-color: #ece9d8;
+  border-top: 1px solid #999999;
+  height: 24px;
+  padding: 2px 4px;
+  gap: 4px;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.win-status-pane {
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  padding: 2px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Modal Backdrops */
+.win-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+/* Order Grid Table */
+.order-table-container {
+  background-color: #ffffff;
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  overflow-y: auto;
+  height: calc(100% - 70px);
+}
+
+.order-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.order-table th {
+  background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%);
+  border-right: 1px solid #a0a0a0;
+  border-bottom: 1px solid #a0a0a0;
+  padding: 4px 6px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.order-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid #eeeeee;
+  border-right: 1px solid #f0f0f0;
+  white-space: nowrap;
+}
+
+.order-row-selected {
+  background-color: #0a246a !important;
+  color: #ffffff !important;
+}
+
+.order-row-cancelled {
+  color: #c00000 !important;
+  font-weight: bold;
+}
+
+/* Thermal Receipt Styling */
+.thermal-receipt {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.35;
+  background: #ffffff;
+  color: #000000;
+  padding: 16px;
+  width: 310px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  margin: 0 auto;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .thermal-receipt-printable, .thermal-receipt-printable * {
+    visibility: visible;
+  }
+  .thermal-receipt-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    box-shadow: none;
+    padding: 0;
+  }
+}
