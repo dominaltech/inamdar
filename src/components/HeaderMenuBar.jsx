@@ -9,6 +9,7 @@ export default function HeaderMenuBar() {
     setIsCancelMode,
     setShowShiftModal,
     printCashMemo,
+    openSettleModal,
     settleBill,
     activeTableId
   } = usePos();
@@ -49,7 +50,7 @@ export default function HeaderMenuBar() {
         setShowShiftModal(true);
         break;
       case 'SETTLEMENT':
-        settleBill(activeTableId);
+        openSettleModal(activeTableId);
         break;
       case 'REPORTS':
         setScreenMode('REPORTS');
@@ -107,7 +108,7 @@ export default function HeaderMenuBar() {
               </div>
               <div className="win-dropdown-row" onClick={() => handleAction('SETTLEMENT')}>
                 <span>Settlement</span>
-                <span className="win-dropdown-hotkey">F12</span>
+                <span className="win-dropdown-hotkey">F11</span>
               </div>
               <div className="win-dropdown-row">
                 <span>Item Not Available</span>
@@ -120,7 +121,7 @@ export default function HeaderMenuBar() {
               </div>
               <div className="win-dropdown-row" onClick={() => handleAction('LOGIN')}>
                 <span>Change User</span>
-                <span className="win-dropdown-hotkey">F11</span>
+                <span className="win-dropdown-hotkey">Esc</span>
               </div>
               <div className="win-dropdown-row">
                 <span>Upload Data</span>

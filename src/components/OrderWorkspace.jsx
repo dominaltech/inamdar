@@ -23,6 +23,7 @@ export default function OrderWorkspace() {
     setPendingCancelDetails,
     printKOT,
     printCashMemo,
+    openSettleModal,
   } = usePos();
 
   // Active entry row inputs
@@ -498,54 +499,165 @@ export default function OrderWorkspace() {
             </div>
 
             {/* Right: Real-time Live Section Panels (Matching Screenshot 2 exactly!) */}
-            <div style={{ width: '220px', background: '#f5f5f5', display: 'flex', flexDirection: 'column', fontSize: '11px' }}>
+            <div style={{ width: '220px', background: '#f5f5f5', display: 'flex', flexDirection: 'column', fontSize: '11px', borderLeft: '2px inset #ffffff' }}>
               {/* AC Section */}
               <div style={{ borderBottom: '1px solid #ccc', padding: '4px 6px' }}>
-                <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '2px' }}>
+                <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '3px' }}>
                   AC
                 </div>
-                <div style={{ color: '#000', lineHeight: '1.4' }}>
-                  {acTableNums.length > 0 ? acTableNums.join(', ') + ',' : 'None'}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', lineHeight: '1.4' }}>
+                  {acTableNums.length > 0 ? (
+                    acTableNums.map(num => (
+                      <span
+                        key={num}
+                        onClick={() => switchTable(num)}
+                        title={`Click to view dishes for Table ${num}`}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '1px 5px',
+                          fontWeight: 'bold',
+                          background: activeTableId === num ? '#0a246a' : '#e4ebf5',
+                          color: activeTableId === num ? '#ffffff' : '#000000',
+                          border: '1px solid',
+                          borderColor: activeTableId === num ? '#001a4d' : '#b0c4de',
+                          borderRadius: '2px',
+                        }}
+                      >
+                        {num}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: '#888' }}>None</span>
+                  )}
                 </div>
               </div>
 
               {/* FAMILY AC Section */}
               <div style={{ borderBottom: '1px solid #ccc', padding: '4px 6px' }}>
-                <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '2px' }}>
+                <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '3px' }}>
                   FAMILY AC
                 </div>
-                <div style={{ color: '#000', lineHeight: '1.4' }}>
-                  {familyAcTableNums.length > 0 ? familyAcTableNums.join(', ') + ',' : 'None'}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', lineHeight: '1.4' }}>
+                  {familyAcTableNums.length > 0 ? (
+                    familyAcTableNums.map(num => (
+                      <span
+                        key={num}
+                        onClick={() => switchTable(num)}
+                        title={`Click to view dishes for Family Table ${num}`}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '1px 5px',
+                          fontWeight: 'bold',
+                          background: activeTableId === num ? '#0a246a' : '#e4ebf5',
+                          color: activeTableId === num ? '#ffffff' : '#000000',
+                          border: '1px solid',
+                          borderColor: activeTableId === num ? '#001a4d' : '#b0c4de',
+                          borderRadius: '2px',
+                        }}
+                      >
+                        {num}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: '#888' }}>None</span>
+                  )}
                 </div>
               </div>
 
               {/* HOME DELIVERY Section */}
               <div style={{ borderBottom: '1px solid #ccc', padding: '4px 6px' }}>
-                <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '2px' }}>
+                <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '3px' }}>
                   HOME DELIVERY ({deliveryTableNums.length})
                 </div>
-                <div style={{ color: '#000', lineHeight: '1.4' }}>
-                  {deliveryTableNums.length > 0 ? deliveryTableNums.join(', ') : 'None'}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  {deliveryTableNums.length > 0 ? (
+                    deliveryTableNums.map(name => (
+                      <div
+                        key={name}
+                        onClick={() => switchTable(name)}
+                        title={`Click to view dishes for ${name}`}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '2px 6px',
+                          fontWeight: 'bold',
+                          background: activeTableId === name ? '#0a246a' : '#ffffff',
+                          color: activeTableId === name ? '#ffffff' : '#000000',
+                          border: '1px solid',
+                          borderColor: activeTableId === name ? '#001a4d' : '#cccccc',
+                          borderRadius: '2px',
+                        }}
+                      >
+                        {name}
+                      </div>
+                    ))
+                  ) : (
+                    <span style={{ color: '#888' }}>None</span>
+                  )}
                 </div>
               </div>
 
               {/* PARCEL Section */}
               <div style={{ borderBottom: '1px solid #ccc', padding: '4px 6px' }}>
-                <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '2px' }}>
+                <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '3px' }}>
                   PARCEL ({parcelTableNums.length})
                 </div>
-                <div style={{ color: '#000', lineHeight: '1.4' }}>
-                  {parcelTableNums.length > 0 ? parcelTableNums.join(', ') : 'None'}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', lineHeight: '1.4' }}>
+                  {parcelTableNums.length > 0 ? (
+                    parcelTableNums.map(num => (
+                      <span
+                        key={num}
+                        onClick={() => switchTable(num)}
+                        title={`Click to view dishes for Parcel ${num}`}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '1px 5px',
+                          fontWeight: 'bold',
+                          background: activeTableId === num ? '#0a246a' : '#f0f0f0',
+                          color: activeTableId === num ? '#ffffff' : '#000000',
+                          border: '1px solid',
+                          borderColor: activeTableId === num ? '#001a4d' : '#cccccc',
+                          borderRadius: '2px',
+                        }}
+                      >
+                        {num}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: '#888' }}>None</span>
+                  )}
                 </div>
               </div>
 
               {/* Unsettled Bills in Red (Matching Screenshot 2) */}
-              <div style={{ padding: '4px 6px', background: '#fff' }}>
-                <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#c00000', marginBottom: '2px' }}>
+              <div style={{ padding: '4px 6px', background: '#fff', flex: 1, overflowY: 'auto' }}>
+                <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#c00000', marginBottom: '3px' }}>
                   Unsettled Bills ({unsettledBills.length})
                 </div>
-                <div style={{ color: '#000', fontSize: '11px', lineHeight: '1.4' }}>
-                  {unsettledBills.map(b => `${b.table}(${b.billNo}, ${b.amount})`).join(', ')}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {unsettledBills.length > 0 ? (
+                    unsettledBills.map((b, i) => (
+                      <span
+                        key={i}
+                        onClick={() => switchTable(b.table)}
+                        title={`Click to view Table ${b.table} bill ${b.billNo} (₹${b.amount})`}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '2px 5px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          background: activeTableId === b.table ? '#c00000' : '#ffeaea',
+                          color: activeTableId === b.table ? '#ffffff' : '#990000',
+                          border: '1px solid',
+                          borderColor: activeTableId === b.table ? '#660000' : '#ffb3b3',
+                          borderRadius: '2px',
+                        }}
+                      >
+                        {b.table}({b.billNo}, {b.amount})
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: '#888' }}>None</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -586,6 +698,14 @@ export default function OrderWorkspace() {
                 onClick={() => printCashMemo(activeTableId)}
               >
                 Bill (F6)
+              </button>
+              <button
+                className="win-btn"
+                style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', background: '#dcf5dc', color: '#006600' }}
+                onClick={() => openSettleModal(activeTableId)}
+                title="Settle bill via Cash, UPI, or Card"
+              >
+                Settle (F11)
               </button>
             </div>
           </div>

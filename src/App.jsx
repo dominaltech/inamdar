@@ -9,6 +9,7 @@ import LoginModal from './components/LoginModal';
 import TableShiftModal from './components/TableShiftModal';
 import CancelAuthModal from './components/CancelAuthModal';
 import ThermalPrintModal from './components/ThermalPrintModal';
+import SettlementModal from './components/SettlementModal';
 import InfoModal from './components/InfoModal';
 
 function PosAppContent() {
@@ -33,6 +34,7 @@ function PosAppContent() {
       <TableShiftModal />
       <CancelAuthModal />
       <ThermalPrintModal />
+      <SettlementModal />
       <InfoModal />
     </div>
   );

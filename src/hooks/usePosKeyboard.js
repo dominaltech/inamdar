@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { usePos } from '../context/PosContext';
 
-export function usePosKeyboard() {
+export default function usePosKeyboard() {
   const {
     screenMode,
     setScreenMode,
@@ -13,23 +13,22 @@ export function usePosKeyboard() {
     showShiftModal,
     showCancelAuthModal,
     setShowCancelAuthModal,
+    showSettleModal,
+    setShowSettleModal,
+    openSettleModal,
     printData,
     setPrintData,
     infoDialog,
     setInfoDialog,
-    settleBill,
     activeTableId,
-    printCashMemo,
   } = usePos();
 
   useEffect(() => {
     function handleKeyDown(e) {
-      // Don't intercept when certain native inputs need specific keys, but function keys are always global:
-      
-      // F11: Change User / Login
+      // 1. F11: Settle Bill (Opens Settlement Popup with Cash, UPI, Card)
       if (e.key === 'F11') {
         e.preventDefault();
-        setShowLoginModal(prev => !prev);
+        openSettleModal(activeTableId);
         return;
       }
 
@@ -49,29 +48,66 @@ export function usePosKeyboard() {
         return;
       }
 
-      // F12: Settlement
+      // F12: Also Settle Bill
       if (e.key === 'F12') {
         e.preventDefault();
-        settleBill(activeTableId);
+        openSettleModal(activeTableId);
         return;
       }
 
-      // If a modal is open, let modal handle Esc or Enter
-      const anyModalOpen = showLoginModal || showShiftModal || showCancelAuthModal || printData || infoDialog;
-      if (anyModalOpen) {
-        if (e.key === 'Escape') {
-          if (showLoginModal) setShowLoginModal(false);
-          if (showShiftModal) setShowShiftModal(false);
-          if (showCancelAuthModal) setShowCancelAuthModal(false);
-          if (printData) setPrintData(null);
-          if (infoDialog) setInfoDialog(null);
+      // 2. Escape:
+      // If any sub-modal is open, close it. If on normal screen, Esc opens Login Page!
+      if (e.key === 'Escape') {
+        if (showSettleModal) {
+          e.preventDefault();
+          setShowSettleModal(false);
+          return;
         }
+        if (showShiftModal) {
+          e.preventDefault();
+          setShowShiftModal(false);
+          return;
+        }
+        if (showCancelAuthModal) {
+          e.preventDefault();
+          setShowCancelAuthModal(false);
+          return;
+        }
+        if (printData) {
+          e.preventDefault();
+          setPrintData(null);
+          return;
+        }
+        if (infoDialog) {
+          e.preventDefault();
+          setInfoDialog(null);
+          return;
+        }
+        if (isCancelMode) {
+          e.preventDefault();
+          setIsCancelMode(false);
+          return;
+        }
+        if (showLoginModal) {
+          e.preventDefault();
+          setShowLoginModal(false);
+          return;
+        }
+
+        // When no dialog is open on main screen: Esc opens Login Page!
+        e.preventDefault();
+        setShowLoginModal(true);
+        return;
+      }
+
+      // If a modal is open, don't execute background hotkeys
+      const anyModalOpen = showLoginModal || showShiftModal || showCancelAuthModal || showSettleModal || printData || infoDialog;
+      if (anyModalOpen) {
         return;
       }
 
       // '*' key (Numpad Multiply / Star): Table Shift
       if (e.key === '*' || (e.key === '8' && e.shiftKey)) {
-        // If not actively typing inside a text input or if user wants shift:
         const target = e.target;
         const isTypingText = target && (target.tagName === 'INPUT' || target.tagName === 'SELECT') && target.value.length > 0;
         if (!isTypingText) {
@@ -91,14 +127,6 @@ export function usePosKeyboard() {
           return;
         }
       }
-
-      // Escape key to reset cancel mode
-      if (e.key === 'Escape') {
-        if (isCancelMode) {
-          e.preventDefault();
-          setIsCancelMode(false);
-        }
-      }
     }
 
     window.addEventListener('keydown', handleKeyDown);
@@ -114,11 +142,15 @@ export function usePosKeyboard() {
     showShiftModal,
     showCancelAuthModal,
     setShowCancelAuthModal,
+    showSettleModal,
+    setShowSettleModal,
+    openSettleModal,
     printData,
     setPrintData,
     infoDialog,
     setInfoDialog,
-    settleBill,
     activeTableId,
   ]);
 }
+
+export { usePosKeyboard };

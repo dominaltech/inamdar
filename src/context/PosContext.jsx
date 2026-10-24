@@ -39,6 +39,8 @@ export function PosProvider({ children }) {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [showCancelAuthModal, setShowCancelAuthModal] = useState(false);
+  const [showSettleModal, setShowSettleModal] = useState(false);
+  const [settleTableId, setSettleTableId] = useState('2');
   const [pendingCancelDetails, setPendingCancelDetails] = useState(null);
   const [printData, setPrintData] = useState(null); // { type: 'KOT' | 'BILL', data: ... }
   const [infoDialog, setInfoDialog] = useState(null); // { title, message }
@@ -288,8 +290,31 @@ export function PosProvider({ children }) {
     setPrintData({ type: 'BILL', data: memoSlip });
   };
 
-  // Settle bill
-  const settleBill = (tableId) => {
+  // Open settle modal
+  const openSettleModal = (tableId = activeTableId) => {
+    const targetId = tableId || activeTableId;
+    const table = tables[targetId];
+    if (!table || table.items.length === 0) {
+      setInfoDialog({
+        title: "Dominal's POS 9.99.451",
+        message: `Table ${targetId} has no active items to settle!`,
+      });
+      return;
+    }
+    setSettleTableId(targetId);
+    setShowSettleModal(true);
+  };
+
+  // Settle bill directly
+  const settleBill = (tableId = activeTableId) => {
+    openSettleModal(tableId);
+  };
+
+  // Settle bill with selected payment mode
+  const settleBillWithPayment = (tableId, paymentMode) => {
+    const table = tables[tableId];
+    const netAmount = table ? table.items.reduce((s, it) => s + it.amount, 0) : 0;
+
     setTables(prev => ({
       ...prev,
       [tableId]: {
@@ -300,9 +325,10 @@ export function PosProvider({ children }) {
       }
     }));
     setUnsettledBills(prev => prev.filter(b => b.table !== tableId));
+    setShowSettleModal(false);
     setInfoDialog({
-      title: 'Settlement Complete',
-      message: `Table ${tableId} bill settled and closed successfully.`,
+      title: "Dominal's POS 9.99.451",
+      message: `Table ${tableId} bill (₹${netAmount.toFixed(2)}) settled via ${paymentMode} successfully.`,
     });
   };
 
@@ -330,6 +356,8 @@ export function PosProvider({ children }) {
       printKOT,
       printCashMemo,
       settleBill,
+      openSettleModal,
+      settleBillWithPayment,
       // Modals
       showLoginModal,
       setShowLoginModal,
@@ -337,6 +365,10 @@ export function PosProvider({ children }) {
       setShowShiftModal,
       showCancelAuthModal,
       setShowCancelAuthModal,
+      showSettleModal,
+      setShowSettleModal,
+      settleTableId,
+      setSettleTableId,
       pendingCancelDetails,
       setPendingCancelDetails,
       printData,
