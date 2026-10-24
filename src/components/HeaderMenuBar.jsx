@@ -108,7 +108,7 @@ export default function HeaderMenuBar() {
               </div>
               <div className="win-dropdown-row" onClick={() => handleAction('SETTLEMENT')}>
                 <span>Settlement</span>
-                <span className="win-dropdown-hotkey">F11</span>
+                <span className="win-dropdown-hotkey">F12</span>
               </div>
               <div className="win-dropdown-row">
                 <span>Item Not Available</span>
@@ -121,7 +121,7 @@ export default function HeaderMenuBar() {
               </div>
               <div className="win-dropdown-row" onClick={() => handleAction('LOGIN')}>
                 <span>Change User</span>
-                <span className="win-dropdown-hotkey">Esc</span>
+                <span className="win-dropdown-hotkey">F11</span>
               </div>
               <div className="win-dropdown-row">
                 <span>Upload Data</span>

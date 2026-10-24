@@ -705,7 +705,7 @@ export default function OrderWorkspace() {
                 onClick={() => openSettleModal(activeTableId)}
                 title="Settle bill via Cash, UPI, or Card"
               >
-                Settle (F11)
+                Settle (F12)
               </button>
             </div>
           </div>

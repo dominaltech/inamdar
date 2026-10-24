@@ -25,10 +25,10 @@ export default function usePosKeyboard() {
 
   useEffect(() => {
     function handleKeyDown(e) {
-      // 1. F11: Settle Bill (Opens Settlement Popup with Cash, UPI, Card)
+      // 1. F11: Login / Change User Screen
       if (e.key === 'F11') {
         e.preventDefault();
-        openSettleModal(activeTableId);
+        setShowLoginModal(prev => !prev);
         return;
       }
 
@@ -48,7 +48,7 @@ export default function usePosKeyboard() {
         return;
       }
 
-      // F12: Also Settle Bill
+      // F12: Settle Bill (Opens Settlement Popup with Cash, UPI, Card)
       if (e.key === 'F12') {
         e.preventDefault();
         openSettleModal(activeTableId);
