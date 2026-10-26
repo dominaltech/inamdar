@@ -32,7 +32,7 @@ export default function CancelAuthModal() {
     cancelItemFromTable(tableId, itemCode, qty, reason, authorizedBy);
     setShowCancelAuthModal(false);
     setInfoDialog({
-      title: "Dominal's POS 9.99.451",
+      title: "Dominal's POS",
       message: `Item cancellation authorized by ${authorizedBy}. Cancellation KOT sent to kitchen.`,
     });
   };

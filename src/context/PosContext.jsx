@@ -170,7 +170,7 @@ export function PosProvider({ children }) {
 
     setActiveTableId(cleanTo);
     setInfoDialog({
-      title: "Dominal's POS 9.99.451",
+      title: "Dominal's POS",
       message: `Table ${cleanFrom} transferred to ${cleanTo}`,
     });
     return true;
@@ -296,7 +296,7 @@ export function PosProvider({ children }) {
     const table = tables[targetId];
     if (!table || table.items.length === 0) {
       setInfoDialog({
-        title: "Dominal's POS 9.99.451",
+        title: "Dominal's POS",
         message: `Table ${targetId} has no active items to settle!`,
       });
       return;
@@ -327,7 +327,7 @@ export function PosProvider({ children }) {
     setUnsettledBills(prev => prev.filter(b => b.table !== tableId));
     setShowSettleModal(false);
     setInfoDialog({
-      title: "Dominal's POS 9.99.451",
+      title: "Dominal's POS",
       message: `Table ${tableId} bill (₹${netAmount.toFixed(2)}) settled via ${paymentMode} successfully.`,
     });
   };

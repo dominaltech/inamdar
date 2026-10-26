@@ -73,7 +73,7 @@ export default function HeaderMenuBar() {
       {/* Application Title Bar without OS minimize/close buttons */}
       <div className="win-titlebar" style={{ height: '22px', padding: '1px 8px' }}>
         <div className="win-titlebar-title" style={{ fontSize: '11px', letterSpacing: '0.2px' }}>
-          <span>Dominal's POS 9.99.451 - INAMDAR RESTAURANT &amp; TAKEAWAY, SOLAPUR [Terminal : Server] [Computer : SERVER]</span>
+          <span>Dominal's POS - INAMDAR RESTAURANT &amp; TAKEAWAY, SOLAPUR [Terminal : Server] [Computer : SERVER]</span>
         </div>
       </div>
 

@@ -31,7 +31,7 @@ export default function InfoModal() {
       <div className="win-window" style={{ width: '340px', background: '#ece9d8' }}>
         <div className="win-titlebar">
           <div className="win-titlebar-title">
-            <span>{infoDialog.title || "Dominal's POS 9.99.451"}</span>
+            <span>{infoDialog.title || "Dominal's POS"}</span>
           </div>
           <button className="win-close-btn" onClick={handleClose}>✕</button>
         </div>
