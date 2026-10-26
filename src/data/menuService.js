@@ -94,3 +94,23 @@ export function sortItemsByCourse(items) {
     return (Number(a.code) || 0) - (Number(b.code) || 0);
   });
 }
+
+// Determines if an item goes to the Cook/Kitchen KDS or to the Pantry/Counter/Bar
+// Sweets/Desserts, Mineral Water, Soft Drinks are NOT cook work!
+export function isKitchenItem(item) {
+  if (!item) return true;
+  const cat = (item.category || '').toUpperCase();
+  const name = (item.name || '').toUpperCase();
+
+  if (
+    cat.includes('DESSERT') ||
+    cat.includes('MOCKTAL') ||
+    cat.includes('SOFT DRINK') ||
+    name.includes('MINERAL WATER') ||
+    name.includes('COLD DRINK') ||
+    name.includes('SODA')
+  ) {
+    return false;
+  }
+  return true;
+}

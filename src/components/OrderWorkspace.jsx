@@ -19,11 +19,13 @@ export default function OrderWorkspace() {
     unsettledBills,
     switchTable,
     addItemToActiveTable,
+    removeStagedItem,
     setShowCancelAuthModal,
     setPendingCancelDetails,
     printKOT,
     printCashMemo,
     openSettleModal,
+    getNextParcelTable,
   } = usePos();
 
   // Active entry row inputs
@@ -39,8 +41,9 @@ export default function OrderWorkspace() {
   const [searchResults, setSearchResults] = useState([]);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
 
-  // Field focus references
+  // Field focus references for seamless Enter progression
   const tableInputRef = useRef(null);
+  const employeeSelectRef = useRef(null);
   const codeInputRef = useRef(null);
   const qtyInputRef = useRef(null);
   const rateInputRef = useRef(null);
@@ -61,12 +64,20 @@ export default function OrderWorkspace() {
   // Update search results when codeQuery changes
   useEffect(() => {
     if (!codeQuery.trim()) {
-      setSearchResults([]);
-      setSelectedItem(null);
+      // In Cancel Mode: show all active dishes on current table by default!
+      if (isCancelMode) {
+        const tableDishes = currentTableData.items.filter(it => it.qty > 0);
+        setSearchResults(tableDishes);
+        setHighlightedIndex(0);
+      } else {
+        setSearchResults([]);
+        setSelectedItem(null);
+      }
       return;
     }
 
     if (isCancelMode) {
+      // Strictly filter to dishes ordered on this table (Rule 4 & cancel order video)
       const tableItems = currentTableData.items.filter(it => it.qty > 0);
       const matches = tableItems.filter(it => 
         it.code.startsWith(codeQuery.trim()) || 
@@ -81,7 +92,7 @@ export default function OrderWorkspace() {
     }
   }, [codeQuery, isCancelMode, currentTableData.items]);
 
-  // Handle table field enter
+  // Handle table field enter -> Steps to Employee dropdown!
   const handleTableKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -89,12 +100,27 @@ export default function OrderWorkspace() {
       if (!val) return;
 
       if (val === '0') {
-        switchTable('0');
+        const nextParcel = getNextParcelTable();
+        switchTable(nextParcel);
+        setTableInput(nextParcel);
       } else if (val === '00') {
-        switchTable('00 - MOOSA (22)');
+        const custName = prompt("Enter Home Delivery Customer Name:", "MOOSA") || "GUEST";
+        const delivKey = `00 - ${custName.toUpperCase()}`;
+        switchTable(delivKey);
+        setTableInput(delivKey);
       } else {
         switchTable(val);
       }
+      // Progression: Table ➔ Employee!
+      employeeSelectRef.current?.focus();
+    }
+  };
+
+  // Handle employee field enter -> Steps to Code input!
+  const handleEmployeeKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Progression: Employee ➔ Code!
       codeInputRef.current?.focus();
     }
   };
@@ -113,7 +139,7 @@ export default function OrderWorkspace() {
       }
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      // Double Enter on empty field triggers KOT or Cash Memo Print!
+      // Double Enter on empty field fires KOT or Cash Memo!
       if (!codeQuery.trim()) {
         if (screenMode === 'ORDER') {
           printKOT(activeTableId);
@@ -140,15 +166,22 @@ export default function OrderWorkspace() {
     setRateInput(String(applicableRate));
     setSearchResults([]);
 
-    if (isCancelMode) {
-      qtyInputRef.current?.focus();
-    } else {
-      qtyInputRef.current?.focus();
-      qtyInputRef.current?.select();
+    // Set default Qty and advance focus: Code ➔ Qty!
+    setQtyInput('1');
+    qtyInputRef.current?.focus();
+    qtyInputRef.current?.select();
+  };
+
+  // Qty enter -> Progression: Qty ➔ Rate!
+  const handleQtyKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      rateInputRef.current?.focus();
     }
   };
 
-  const handleQtyKeyDown = (e) => {
+  // Rate enter -> Progression: Rate ➔ Customization (or Reason in cancel mode)!
+  const handleRateKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (isCancelMode) {
@@ -159,6 +192,7 @@ export default function OrderWorkspace() {
     }
   };
 
+  // Customization enter -> Commits row and loops back: Customization ➔ Code!
   const handleCustomKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -181,6 +215,7 @@ export default function OrderWorkspace() {
     setQtyInput('1');
     setRateInput('');
     setCustomizationInput('');
+    // Continuous blind entry: loops focus back to Code input!
     codeInputRef.current?.focus();
   };
 
@@ -204,21 +239,24 @@ export default function OrderWorkspace() {
   const totalQtyCount = currentTableData.items.reduce((s, it) => s + (it.qty > 0 ? it.qty : 0), 0);
   const netAmount = currentTableData.items.reduce((sum, it) => sum + it.amount, 0);
 
-  // Group active tables for the integrated right status pane (matching Screenshot 2)
+  // Staged / unprinted items count
+  const stagedCount = currentTableData.items.filter(it => it.isStaged && it.qty > 0).length;
+
+  // Group active tables for the integrated right status pane
   const acTableNums = Object.values(tables)
-    .filter(t => t.section === 'AC' && t.items.length > 0 && !t.id.startsWith('0'))
+    .filter(t => t.section === 'AC' && t.items && t.items.some(it => it.qty > 0) && !t.id.startsWith('0'))
     .map(t => t.id);
 
   const familyAcTableNums = Object.values(tables)
-    .filter(t => t.section === 'FAMILY AC' && t.items.length > 0)
+    .filter(t => t.section === 'FAMILY AC' && t.items && t.items.some(it => it.qty > 0))
     .map(t => t.id);
 
   const parcelTableNums = Object.values(tables)
-    .filter(t => t.section === 'PARCEL' && t.items.length > 0)
+    .filter(t => t.section === 'PARCEL' && t.items && t.items.some(it => it.qty > 0))
     .map(t => t.id);
 
   const deliveryTableNums = Object.values(tables)
-    .filter(t => t.section === 'HOME DELIVERY' && t.items.length > 0)
+    .filter(t => t.section === 'HOME DELIVERY' && t.items && t.items.some(it => it.qty > 0))
     .map(t => t.id);
 
   // Window title depending on state
@@ -233,13 +271,13 @@ export default function OrderWorkspace() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#6c8fa8', // Classic POS desktop background seen behind windows
+      background: '#6c8fa8',
       padding: '10px'
     }}>
-      {/* Centered, Authentic Sized Window Frame (Width ~840px, Height ~540px) */}
+      {/* Centered, Authentic Sized Window Frame (Width ~850px, Height ~530px) */}
       <div className="win-window" style={{
-        width: '840px',
-        height: '520px',
+        width: '850px',
+        height: '530px',
         display: 'flex',
         flexDirection: 'column',
         boxShadow: '3px 3px 10px rgba(0,0,0,0.4)',
@@ -256,6 +294,11 @@ export default function OrderWorkspace() {
           <div className="win-titlebar-title" style={{ fontSize: '12px' }}>
             <span>{windowTitle}</span>
             {isCancelMode && <span style={{ color: '#ffff00', marginLeft: '10px' }}>[CANCELLATION MODE]</span>}
+            {stagedCount > 0 && (
+              <span style={{ color: '#ffff99', marginLeft: '10px', fontSize: '11px' }}>
+                ({stagedCount} unprinted items staged - Press ↵↵ to Fire KOT)
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', gap: '6px', fontSize: '11px' }}>
             <span style={{ cursor: 'pointer', color: '#fff', textDecoration: 'underline' }} onClick={() => setScreenMode(screenMode === 'ORDER' ? 'CASH_MEMO' : 'ORDER')}>
@@ -280,7 +323,7 @@ export default function OrderWorkspace() {
                     onChange={(e) => setTableInput(e.target.value)}
                     onKeyDown={handleTableKeyDown}
                     className="win-input"
-                    style={{ width: '48px', height: '24px', textAlign: 'center', fontSize: '13px' }}
+                    style={{ width: '90px', height: '24px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}
                   />
                   <div style={{
                     marginLeft: '2px',
@@ -291,7 +334,7 @@ export default function OrderWorkspace() {
                     color: '#fff',
                     padding: '0 4px',
                     cursor: 'pointer'
-                  }} onClick={() => setActiveSubTable(s => s === 'A' ? 'B' : 'A')}>
+                  }} onClick={() => setActiveSubTable(s => s === 'A' ? 'B' : (s === 'B' ? 'C' : 'A'))}>
                     <span>{activeSubTable}</span>
                   </div>
                 </div>
@@ -300,8 +343,10 @@ export default function OrderWorkspace() {
               <div>
                 <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px' }}>Employee</span>
                 <select
+                  ref={employeeSelectRef}
                   value={activeEmployee}
                   onChange={(e) => setActiveEmployee(e.target.value)}
+                  onKeyDown={handleEmployeeKeyDown}
                   className="win-input"
                   style={{ width: '150px', height: '24px', fontSize: '12px' }}
                 >
@@ -309,6 +354,10 @@ export default function OrderWorkspace() {
                     <option key={emp.id} value={emp.name}>{emp.name}</option>
                   ))}
                 </select>
+              </div>
+
+              <div style={{ fontSize: '11px', marginTop: '14px', color: '#0033aa', fontWeight: 'bold' }}>
+                Section: {currentTableData.section}
               </div>
             </div>
 
@@ -333,7 +382,7 @@ export default function OrderWorkspace() {
             </div>
           </div>
 
-          {/* Quick Item Input Row (Fast blind typing) */}
+          {/* Quick Item Input Row: Strict progression Table ➔ Employee ➔ Code ➔ Qty ➔ Rate ➔ Customization */}
           <div style={{
             display: 'flex',
             gap: '3px',
@@ -342,7 +391,7 @@ export default function OrderWorkspace() {
             padding: '3px 4px',
             border: '1px solid #999'
           }}>
-            <div style={{ width: '70px', position: 'relative' }}>
+            <div style={{ width: '80px', position: 'relative' }}>
               <input
                 ref={codeInputRef}
                 type="text"
@@ -351,7 +400,7 @@ export default function OrderWorkspace() {
                 onKeyDown={handleCodeKeyDown}
                 placeholder="Code/CTM"
                 className="win-input"
-                style={{ width: '100%', height: '22px', fontSize: '11px' }}
+                style={{ width: '100%', height: '22px', fontSize: '11px', fontWeight: 'bold' }}
               />
               {/* Autocomplete dropdown */}
               {searchResults.length > 0 && (
@@ -359,12 +408,13 @@ export default function OrderWorkspace() {
                   position: 'absolute',
                   top: '100%',
                   left: 0,
-                  width: '320px',
-                  maxHeight: '200px',
+                  width: '340px',
+                  maxHeight: '210px',
                   overflowY: 'auto',
                   background: '#ffffff',
                   zIndex: 800,
-                  padding: '2px'
+                  padding: '2px',
+                  boxShadow: '2px 2px 6px rgba(0,0,0,0.3)'
                 }}>
                   {searchResults.map((item, idx) => (
                     <div
@@ -380,7 +430,7 @@ export default function OrderWorkspace() {
                         justifyContent: 'space-between'
                       }}
                     >
-                      <span style={{ fontWeight: 'bold', width: '30px' }}>{item.code}</span>
+                      <span style={{ fontWeight: 'bold', width: '35px' }}>{item.code}</span>
                       <span style={{ flex: 1 }}>{item.name}</span>
                       <span style={{ width: '45px', textAlign: 'right' }}>₹{currentTableData.section.includes('AC') ? (item.acRate || item.rate) : (item.hallRate || item.rate)}</span>
                     </div>
@@ -394,7 +444,7 @@ export default function OrderWorkspace() {
                 type="text"
                 readOnly
                 value={selectedItem?.name || ''}
-                placeholder="Dish name (Type Code, Shortcode CTM/CB, or text)"
+                placeholder="Dish name (Type Code, Acronym e.g. CTM/CB, or Text)"
                 className="win-input"
                 style={{ width: '100%', height: '22px', background: '#f4f4f4', fontSize: '11px' }}
               />
@@ -409,7 +459,7 @@ export default function OrderWorkspace() {
                 onKeyDown={handleQtyKeyDown}
                 placeholder="Qty"
                 className="win-input"
-                style={{ width: '100%', height: '22px', textAlign: 'center', fontSize: '11px' }}
+                style={{ width: '100%', height: '22px', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}
               />
             </div>
 
@@ -419,21 +469,23 @@ export default function OrderWorkspace() {
                 type="text"
                 readOnly
                 value={rateInput}
+                onKeyDown={handleRateKeyDown}
                 placeholder="Rate"
                 className="win-input"
-                style={{ width: '100%', height: '22px', textAlign: 'right', background: '#f4f4f4', fontSize: '11px' }}
+                style={{ width: '100%', height: '22px', textAlign: 'right', background: '#f4f4f4', fontSize: '11px', cursor: 'pointer' }}
+                title="Press Enter to proceed to Customization"
               />
             </div>
 
             {isCancelMode ? (
-              <div style={{ width: '160px' }}>
+              <div style={{ width: '170px' }}>
                 <select
                   ref={cancelReasonRef}
                   value={cancelReasonInput}
                   onChange={(e) => setCancelReasonInput(e.target.value)}
                   onKeyDown={handleCancelReasonKeyDown}
                   className="win-input"
-                  style={{ width: '100%', height: '22px', fontSize: '10px', color: '#c00000' }}
+                  style={{ width: '100%', height: '22px', fontSize: '10px', color: '#c00000', fontWeight: 'bold' }}
                 >
                   {CANCEL_REASONS.map(r => (
                     <option key={r} value={r}>{r}</option>
@@ -448,7 +500,7 @@ export default function OrderWorkspace() {
                   value={customizationInput}
                   onChange={(e) => setCustomizationInput(e.target.value)}
                   onKeyDown={handleCustomKeyDown}
-                  placeholder="Enter ↵"
+                  placeholder="Custom / ↵"
                   className="win-input"
                   style={{ width: '100%', height: '22px', fontSize: '11px' }}
                 />
@@ -456,7 +508,7 @@ export default function OrderWorkspace() {
             )}
           </div>
 
-          {/* Main Body Split: Left Items Grid + Right Live Tables Board (As in Screenshot 2) */}
+          {/* Main Body Split: Left Items Grid + Right Live Tables Board */}
           <div style={{ flex: 1, display: 'flex', border: '1px solid #7f9db9', background: '#fff', overflow: 'hidden' }}>
             
             {/* Left: Ordered Items Grid */}
@@ -469,27 +521,62 @@ export default function OrderWorkspace() {
                     <th style={{ width: '45px', textAlign: 'right' }}>Qty</th>
                     <th style={{ width: '55px', textAlign: 'right' }}>Rate</th>
                     <th style={{ width: '65px', textAlign: 'right' }}>Amount</th>
+                    <th style={{ width: '80px', textAlign: 'center' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {currentTableData.items.length === 0 ? (
                     <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', padding: '40px 10px', color: '#999999' }}>
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '40px 10px', color: '#999999' }}>
                         No items for Table {activeTableId}. Type item code or acronym (e.g. CTM, CB, 1) and press Enter.
                       </td>
                     </tr>
                   ) : (
                     currentTableData.items.map((row, idx) => {
                       const isCancelled = row.qty < 0 || row.isCancelled;
+                      const isStaged = row.isStaged;
+
                       return (
-                        <tr key={idx} className={isCancelled ? 'order-row-cancelled' : ''}>
+                        <tr key={idx} className={isCancelled ? 'order-row-cancelled' : (isStaged ? 'order-row-staged' : '')}>
                           <td style={{ color: isCancelled ? '#c00000' : '#0033aa', fontWeight: 'bold' }}>
                             {row.code}
                           </td>
-                          <td>{row.name}</td>
+                          <td>
+                            {row.name}
+                            {row.customization && <span style={{ color: '#666', fontStyle: 'italic', marginLeft: '6px' }}>({row.customization})</span>}
+                          </td>
                           <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{row.qty}</td>
                           <td style={{ textAlign: 'right' }}>{row.rate}</td>
                           <td style={{ textAlign: 'right' }}>{row.amount.toFixed(2)}</td>
+                          <td style={{ textAlign: 'center', fontSize: '10px' }}>
+                            {isCancelled ? (
+                              <span style={{ color: '#c00000', fontWeight: 'bold' }}>CANCELLED</span>
+                            ) : isStaged ? (
+                              <span style={{
+                                color: '#b45309',
+                                background: '#fef3c7',
+                                padding: '1px 4px',
+                                borderRadius: '2px',
+                                fontWeight: 'bold',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}>
+                                [NEW]
+                                <span
+                                  onClick={() => removeStagedItem(idx)}
+                                  style={{ cursor: 'pointer', color: '#aa0000', fontWeight: 'bold', marginLeft: '2px' }}
+                                  title="Delete unstaged item"
+                                >
+                                  ✕
+                                </span>
+                              </span>
+                            ) : (
+                              <span style={{ color: '#006600', fontWeight: 'bold' }}>
+                                KOT #{row.kotNo || '✓'}
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })
@@ -498,7 +585,7 @@ export default function OrderWorkspace() {
               </table>
             </div>
 
-            {/* Right: Real-time Live Section Panels (Matching Screenshot 2 exactly!) */}
+            {/* Right: Real-time Live Section Panels */}
             <div style={{ width: '220px', background: '#f5f5f5', display: 'flex', flexDirection: 'column', fontSize: '11px', borderLeft: '2px inset #ffffff' }}>
               {/* AC Section */}
               <div style={{ borderBottom: '1px solid #ccc', padding: '4px 6px' }}>
@@ -628,7 +715,7 @@ export default function OrderWorkspace() {
                 </div>
               </div>
 
-              {/* Unsettled Bills in Red (Matching Screenshot 2) */}
+              {/* Unsettled Bills in Red */}
               <div style={{ padding: '4px 6px', background: '#fff', flex: 1, overflowY: 'auto' }}>
                 <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#c00000', marginBottom: '3px' }}>
                   Unsettled Bills ({unsettledBills.length})
@@ -638,8 +725,11 @@ export default function OrderWorkspace() {
                     unsettledBills.map((b, i) => (
                       <span
                         key={i}
-                        onClick={() => switchTable(b.table)}
-                        title={`Click to view Table ${b.table} bill ${b.billNo} (₹${b.amount})`}
+                        onClick={() => {
+                          switchTable(b.table);
+                          openSettleModal(b.table);
+                        }}
+                        title={`Click to settle Table ${b.table} bill ${b.billNo} (₹${b.amount})`}
                         style={{
                           cursor: 'pointer',
                           padding: '2px 5px',
@@ -663,7 +753,7 @@ export default function OrderWorkspace() {
             </div>
           </div>
 
-          {/* Bottom Summary Bar (Matching Screenshot 2: Items : Qty : Net Amt : Tax) */}
+          {/* Bottom Summary Bar */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -687,10 +777,16 @@ export default function OrderWorkspace() {
             <div style={{ display: 'flex', gap: '6px' }}>
               <button
                 className="win-btn"
-                style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 'bold' }}
+                style={{
+                  padding: '2px 8px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  background: stagedCount > 0 ? '#ffea88' : '#e0dcc8',
+                  borderColor: stagedCount > 0 ? '#b45309' : '#999'
+                }}
                 onClick={() => printKOT(activeTableId)}
               >
-                KOT (↵↵)
+                KOT (↵↵){stagedCount > 0 ? ` (${stagedCount})` : ''}
               </button>
               <button
                 className="win-btn"

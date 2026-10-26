@@ -302,6 +302,11 @@ body {
   font-weight: bold;
 }
 
+.order-row-staged {
+  background-color: #fffbeb !important;
+  color: #92400e;
+}
+
 /* Thermal Receipt Styling */
 .thermal-receipt {
   font-family: var(--font-mono);

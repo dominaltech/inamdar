@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
 
 export default function TableShiftModal() {
-  const { showShiftModal, setShowShiftModal, tables, transferTable, activeTableId } = usePos();
+  const { showShiftModal, setShowShiftModal, tables, transferTable, activeTableId, setInfoDialog } = usePos();
   const [sourceTable, setSourceTable] = useState('');
   const [targetTable, setTargetTable] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
@@ -32,6 +32,13 @@ export default function TableShiftModal() {
     kotNos: [],
   };
 
+  const isTargetOccupied = Boolean(
+    targetTable.trim() &&
+    tables[targetTable.trim()] &&
+    tables[targetTable.trim()].items &&
+    tables[targetTable.trim()].items.some(it => it.qty > 0)
+  );
+
   const totalQty = currentSourceData.items.reduce((s, it) => s + (it.qty > 0 ? it.qty : 0), 0);
   const totalItems = currentSourceData.items.filter(it => it.qty > 0).length;
 
@@ -47,8 +54,19 @@ export default function TableShiftModal() {
   const handleTargetKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (!targetTable.trim()) return;
-      // Double enter / enter on target opens confirmation dialog
+      const tgt = targetTable.trim();
+      if (!tgt) return;
+
+      // Rule 8: If target table is occupied, error and do not merge!
+      if (isTargetOccupied) {
+        setInfoDialog({
+          title: "Transfer Blocked",
+          message: `Error: Table ${tgt} is already OCCUPIED! Merging is prohibited.`,
+        });
+        return;
+      }
+
+      // If available, open confirmation dialog
       setShowConfirm(true);
       setTimeout(() => {
         yesButtonRef.current?.focus();
@@ -60,14 +78,16 @@ export default function TableShiftModal() {
 
   const handleConfirmYes = () => {
     setShowConfirm(false);
-    transferTable(sourceTable, targetTable);
-    setShowShiftModal(false);
+    const success = transferTable(sourceTable, targetTable);
+    if (success) {
+      setShowShiftModal(false);
+    }
   };
 
   return (
     <div className="win-modal-backdrop">
       {/* Previously Ordered Items Window */}
-      <div className="win-window" style={{ width: '620px', minHeight: '360px' }}>
+      <div className="win-window" style={{ width: '640px', minHeight: '360px' }}>
         <div className="win-titlebar" style={{ background: 'linear-gradient(90deg, #1b62b7 0%, #4a90e2 100%)' }}>
           <div className="win-titlebar-title">
             <span>Previously Ordered Items</span>
@@ -99,16 +119,31 @@ export default function TableShiftModal() {
                 className="win-input"
                 style={{ width: '60px', textAlign: 'center' }}
               />
-              <span style={{
-                background: '#0a246a',
-                color: '#ffffff',
-                padding: '2px 8px',
-                fontSize: '11px',
-                fontWeight: 'bold',
-                borderRadius: '2px'
-              }}>
-                &lt;New&gt;
-              </span>
+              {targetTable.trim() ? (
+                isTargetOccupied ? (
+                  <span style={{
+                    background: '#c00000',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    borderRadius: '2px'
+                  }}>
+                    [Occupied - Blocked]
+                  </span>
+                ) : (
+                  <span style={{
+                    background: '#008000',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    borderRadius: '2px'
+                  }}>
+                    &lt;New&gt;
+                  </span>
+                )
+              ) : null}
             </div>
 
             <div style={{ textAlign: 'right', fontSize: '11px' }}>
@@ -171,7 +206,7 @@ export default function TableShiftModal() {
       {/* Retro Windows Confirm Transfer Prompt */}
       {showConfirm && (
         <div className="win-modal-backdrop" style={{ zIndex: 1050 }}>
-          <div className="win-window" style={{ width: '320px', background: '#ece9d8' }}>
+          <div className="win-window" style={{ width: '330px', background: '#ece9d8' }}>
             <div className="win-titlebar">
               <div className="win-titlebar-title">
                 <span>Confirm</span>

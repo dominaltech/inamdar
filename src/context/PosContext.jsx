@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { DEFAULT_USERS, EMPLOYEES, INITIAL_TABLES, INITIAL_UNSETTLED_BILLS } from '../data/initialData';
-import { MENU_BY_CODE, sortItemsByCourse } from '../data/menuService';
+import { MENU_BY_CODE, sortItemsByCourse, isKitchenItem } from '../data/menuService';
 
 const PosContext = createContext(null);
 
@@ -31,9 +31,27 @@ export function PosProvider({ children }) {
     return saved ? JSON.parse(saved) : INITIAL_UNSETTLED_BILLS;
   });
 
-  // Counters
-  const [kotCounter, setKotCounter] = useState(32);
-  const [billCounter, setBillCounter] = useState(18);
+  // Daily settled transactions journal
+  const [dailyTransactions, setDailyTransactions] = useState(() => {
+    const saved = localStorage.getItem('inamdar_daily_transactions');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Past bills record for instant duplicate reprint
+  const [pastBills, setPastBills] = useState(() => {
+    const saved = localStorage.getItem('inamdar_past_bills');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Counters (Sequential throughout the day)
+  const [kotCounter, setKotCounter] = useState(() => {
+    const saved = localStorage.getItem('inamdar_kot_counter');
+    return saved ? Number(saved) : 32;
+  });
+  const [billCounter, setBillCounter] = useState(() => {
+    const saved = localStorage.getItem('inamdar_bill_counter');
+    return saved ? Number(saved) : 18;
+  });
 
   // Modals
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -42,7 +60,7 @@ export function PosProvider({ children }) {
   const [showSettleModal, setShowSettleModal] = useState(false);
   const [settleTableId, setSettleTableId] = useState('2');
   const [pendingCancelDetails, setPendingCancelDetails] = useState(null);
-  const [printData, setPrintData] = useState(null); // { type: 'KOT' | 'BILL', data: ... }
+  const [printData, setPrintData] = useState(null); // { type: 'KOT' | 'BILL' | 'CANCEL_KOT', data: ... }
   const [infoDialog, setInfoDialog] = useState(null); // { title, message }
 
   // Persist to local storage
@@ -53,6 +71,35 @@ export function PosProvider({ children }) {
   useEffect(() => {
     localStorage.setItem('inamdar_unsettled_bills', JSON.stringify(unsettledBills));
   }, [unsettledBills]);
+
+  useEffect(() => {
+    localStorage.setItem('inamdar_daily_transactions', JSON.stringify(dailyTransactions));
+  }, [dailyTransactions]);
+
+  useEffect(() => {
+    localStorage.setItem('inamdar_past_bills', JSON.stringify(pastBills));
+  }, [pastBills]);
+
+  useEffect(() => {
+    localStorage.setItem('inamdar_kot_counter', String(kotCounter));
+  }, [kotCounter]);
+
+  useEffect(() => {
+    localStorage.setItem('inamdar_bill_counter', String(billCounter));
+  }, [billCounter]);
+
+  // Helper: Find next available parcel table (0, 0B, 0C, 0D, ...)
+  const getNextParcelTable = () => {
+    const suffixes = ['', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+    for (const s of suffixes) {
+      const key = `0${s}`;
+      const t = tables[key];
+      if (!t || !t.items || t.items.length === 0) {
+        return key;
+      }
+    }
+    return `0${String.fromCharCode(65 + Math.floor(Math.random() * 20))}`;
+  };
 
   // Active table data
   const currentTableData = tables[activeTableId] || {
@@ -66,8 +113,15 @@ export function PosProvider({ children }) {
 
   // Switch active table
   const switchTable = (tableId) => {
-    const cleanId = String(tableId).trim().toUpperCase();
+    let cleanId = String(tableId).trim().toUpperCase();
     if (!cleanId) return;
+
+    // Automatic Parcel sequence: '0' -> auto find next available parcel (0, 0B, 0C, ...)
+    if (cleanId === '0') {
+      cleanId = getNextParcelTable();
+    } else if (cleanId === '00') {
+      cleanId = '00 - GUEST';
+    }
 
     setActiveTableId(cleanId);
     if (!tables[cleanId]) {
@@ -92,7 +146,7 @@ export function PosProvider({ children }) {
     }
   };
 
-  // Add line item to active table
+  // Add line item to active table (marked as isStaged: true until KOT is fired)
   const addItemToActiveTable = (item) => {
     setTables(prev => {
       const existing = prev[activeTableId] || {
@@ -109,7 +163,7 @@ export function PosProvider({ children }) {
       const amount = qty * rate;
 
       const newItem = {
-        code: item.code,
+        code: String(item.code),
         name: item.name,
         qty: qty,
         rate: rate,
@@ -117,6 +171,9 @@ export function PosProvider({ children }) {
         category: item.category || 'UNCATEGORIZED',
         categoryOrder: item.categoryOrder ?? 99,
         customization: item.customization || '',
+        isStaged: true, // Pending / unfired item
+        status: 'STAGED',
+        createdAt: Date.now(),
       };
 
       return {
@@ -130,7 +187,25 @@ export function PosProvider({ children }) {
     });
   };
 
+  // Remove an unstaged/staged item before KOT is fired
+  const removeStagedItem = (index) => {
+    setTables(prev => {
+      const table = prev[activeTableId];
+      if (!table) return prev;
+      const newItems = table.items.filter((_, i) => i !== index);
+      return {
+        ...prev,
+        [activeTableId]: {
+          ...table,
+          items: newItems,
+          status: newItems.length === 0 ? 'AVAILABLE' : table.status,
+        }
+      };
+    });
+  };
+
   // Table shift logic (transfers all active items to destination table)
+  // Per Rule 8: If target table is ALREADY OCCUPIED, show error - DO NOT MERGE!
   const transferTable = (fromId, toId) => {
     const cleanFrom = String(fromId).trim().toUpperCase();
     const cleanTo = String(toId).trim().toUpperCase();
@@ -140,9 +215,19 @@ export function PosProvider({ children }) {
       return false;
     }
 
+    // Check if target table is already occupied
+    const targetTable = tables[cleanTo];
+    if (targetTable && targetTable.items && targetTable.items.some(it => it.qty > 0)) {
+      setInfoDialog({
+        title: 'Transfer Error',
+        message: `Error: Table ${cleanTo} is already OCCUPIED! Merging is prohibited.`,
+      });
+      return false;
+    }
+
     setTables(prev => {
       const sourceTable = prev[cleanFrom];
-      const targetTable = prev[cleanTo] || {
+      const newTarget = targetTable || {
         id: cleanTo,
         section: parseInt(cleanTo) > 20 ? 'FAMILY AC' : 'AC',
         waiter: sourceTable.waiter,
@@ -160,10 +245,10 @@ export function PosProvider({ children }) {
           kotNos: [],
         },
         [cleanTo]: {
-          ...targetTable,
+          ...newTarget,
           status: 'OCCUPIED',
-          items: [...(targetTable.items || []), ...(sourceTable.items || [])],
-          kotNos: [...new Set([...(targetTable.kotNos || []), ...(sourceTable.kotNos || [])])],
+          items: [...sourceTable.items],
+          kotNos: [...sourceTable.kotNos],
         }
       };
     });
@@ -176,7 +261,7 @@ export function PosProvider({ children }) {
     return true;
   };
 
-  // Order cancellation logic
+  // Order cancellation logic with Cancellation KOT slip & immediate auto-exit
   const cancelItemFromTable = (tableId, itemCode, qtyToCancel, reason, authorizedBy) => {
     const table = tables[tableId];
     if (!table) return false;
@@ -197,6 +282,8 @@ export function PosProvider({ children }) {
       authorizedBy: authorizedBy || 'MANAGER',
       category: menuItem?.category || 'UNCATEGORIZED',
       categoryOrder: menuItem?.categoryOrder ?? 99,
+      isStaged: false,
+      status: 'FIRED',
     };
 
     setTables(prev => ({
@@ -207,39 +294,108 @@ export function PosProvider({ children }) {
       }
     }));
 
-    setIsCancelMode(false);
-    return true;
-  };
-
-  // Generate KOT and trigger print preview
-  const printKOT = (tableId = activeTableId) => {
-    const table = tables[tableId];
-    if (!table || table.items.length === 0) return;
-
-    // Filter out items that are net cancelled or already handled
-    const activeItems = table.items.filter(it => it.qty > 0);
-    if (activeItems.length === 0) return;
-
-    // Auto-sort according to culinary course order
-    const sortedItems = sortItemsByCourse(activeItems);
-    const nextOrdNo = kotCounter;
-    setKotCounter(c => c + 1);
-
-    const kotSlip = {
-      ordNo: nextOrdNo,
+    // Generate Cancellation KOT Slip to Kitchen/Pantry thermal printer!
+    const cancelSlip = {
+      ordNo: table.kotNos?.[table.kotNos.length - 1] || kotCounter,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(),
       tableNo: tableId,
       section: table.section,
       employee: table.waiter || activeEmployee,
-      items: sortedItems,
-      totalItems: sortedItems.reduce((acc, it) => acc + (it.qty || 1), 0),
+      cancelledItem: {
+        code: String(itemCode),
+        name: menuItem ? menuItem.name : 'CANCELLED ITEM',
+        qty: Math.abs(Number(qtyToCancel)),
+        rate: rate,
+        reason: reason || 'CANCELLED BY GUEST',
+        authorizedBy: authorizedBy || 'MANAGER',
+      },
+      department: isKitchenItem(menuItem) ? 'KITCHEN' : 'PANTRY / COUNTER',
+    };
+
+    // Auto-exit cancel mode back to normal New Order screen (Rule 10)
+    setIsCancelMode(false);
+
+    // Show thermal print slip for Cancellation KOT
+    setPrintData({ type: 'CANCEL_KOT', data: cancelSlip });
+    return true;
+  };
+
+  // Generate KOT and trigger print preview
+  // Rule 2: Only newly added staged items are assigned the new KOT and printed!
+  const printKOT = (tableId = activeTableId) => {
+    const table = tables[tableId];
+    if (!table || table.items.length === 0) return;
+
+    // Check if there are newly staged items
+    const stagedItems = table.items.filter(it => it.isStaged && it.qty > 0);
+
+    let itemsToPrint = [];
+    let currentKotNo = kotCounter;
+
+    if (stagedItems.length > 0) {
+      // Fire newly added items with next sequential KOT number
+      currentKotNo = kotCounter;
+      setKotCounter(c => c + 1);
+
+      // Mark staged items as fired
+      setTables(prev => {
+        const tbl = prev[tableId];
+        if (!tbl) return prev;
+        const updatedItems = tbl.items.map(it => {
+          if (it.isStaged) {
+            return {
+              ...it,
+              isStaged: false,
+              status: 'FIRED',
+              kotNo: currentKotNo,
+              firedAt: Date.now(),
+            };
+          }
+          return it;
+        });
+
+        return {
+          ...prev,
+          [tableId]: {
+            ...tbl,
+            items: updatedItems,
+            kotNos: [...new Set([...(tbl.kotNos || []), currentKotNo])],
+          }
+        };
+      });
+
+      itemsToPrint = sortItemsByCourse(stagedItems);
+    } else {
+      // If no new staged items, reprint latest/all active items
+      const activeItems = table.items.filter(it => it.qty > 0);
+      if (activeItems.length === 0) return;
+      itemsToPrint = sortItemsByCourse(activeItems);
+      currentKotNo = table.kotNos?.[table.kotNos.length - 1] || kotCounter;
+    }
+
+    // Separate Kitchen vs Bar/Pantry items (Rule 18)
+    const kitchenItems = itemsToPrint.filter(isKitchenItem);
+    const pantryItems = itemsToPrint.filter(it => !isKitchenItem(it));
+
+    const kotSlip = {
+      ordNo: currentKotNo,
+      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(),
+      tableNo: tableId,
+      section: table.section,
+      employee: table.waiter || activeEmployee,
+      items: itemsToPrint,
+      kitchenItems,
+      pantryItems,
+      totalItems: itemsToPrint.reduce((acc, it) => acc + (it.qty || 1), 0),
     };
 
     setPrintData({ type: 'KOT', data: kotSlip });
   };
 
   // Generate Cash Memo bill and trigger print preview
+  // Rule 12: When F6 is pressed, sends table to Unsettled Bills!
   const printCashMemo = (tableId = activeTableId) => {
     const table = tables[tableId];
     if (!table || table.items.length === 0) return;
@@ -281,7 +437,10 @@ export function PosProvider({ children }) {
       totalAmount: totalAmount,
     };
 
-    // Add to unsettled bills
+    // Save to past bills for duplicate reprint
+    setPastBills(prev => [memoSlip, ...prev.filter(b => b.billNo !== nextBillNo)]);
+
+    // Add to unsettled bills (Rule 12 & 14)
     setUnsettledBills(prev => {
       const filtered = prev.filter(b => b.table !== tableId);
       return [...filtered, { table: tableId, billNo: String(nextBillNo), amount: totalAmount }];
@@ -310,11 +469,25 @@ export function PosProvider({ children }) {
     openSettleModal(tableId);
   };
 
-  // Settle bill with selected payment mode
+  // Settle bill with selected payment mode (Rule 13: Direct amount)
   const settleBillWithPayment = (tableId, paymentMode) => {
     const table = tables[tableId];
     const netAmount = table ? table.items.reduce((s, it) => s + it.amount, 0) : 0;
+    const unsettled = unsettledBills.find(b => b.table === tableId);
+    const billNum = unsettled ? unsettled.billNo : String(billCounter);
 
+    // Record into daily settled transactions journal
+    const transaction = {
+      billNo: billNum,
+      tableId,
+      amount: netAmount,
+      paymentMode,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      timestamp: Date.now(),
+    };
+    setDailyTransactions(prev => [transaction, ...prev]);
+
+    // Free the table
     setTables(prev => ({
       ...prev,
       [tableId]: {
@@ -328,8 +501,48 @@ export function PosProvider({ children }) {
     setShowSettleModal(false);
     setInfoDialog({
       title: "Dominal's POS",
-      message: `Table ${tableId} bill (₹${netAmount.toFixed(2)}) settled via ${paymentMode} successfully.`,
+      message: `Table ${tableId} bill #${billNum} (₹${netAmount.toFixed(2)}) settled via ${paymentMode} successfully.`,
     });
+  };
+
+  // Reprint past bill (Rule 15)
+  const reprintBill = (billNumber) => {
+    const bill = pastBills.find(b => String(b.billNo) === String(billNumber));
+    if (bill) {
+      setPrintData({ type: 'BILL', data: bill });
+      return true;
+    }
+    setInfoDialog({
+      title: "Reprint Error",
+      message: `Bill #${billNumber} not found in recent records!`,
+    });
+    return false;
+  };
+
+  // End of Day / Close Day (Rule 16)
+  // Must settle all unsettled bills and clear running tables first; then resets KOT and Bill numbers for new day.
+  const closeDay = () => {
+    const hasUnsettled = unsettledBills.length > 0;
+    const hasActiveTables = Object.values(tables).some(t => t.items && t.items.some(it => it.qty > 0));
+
+    if (hasUnsettled || hasActiveTables) {
+      setInfoDialog({
+        title: "Day Close Blocked",
+        message: "Cannot Close Day! Please settle all unsettled bills and clear active tables first.",
+      });
+      return false;
+    }
+
+    if (window.confirm("Are you sure you want to perform End of Day Close? All daily counters will reset for the new day.")) {
+      setKotCounter(1);
+      setBillCounter(1);
+      setInfoDialog({
+        title: "Day Closed Successfully",
+        message: "All accounts finalized. KOT Number and Bill Number have been reset to 1 for the new day.",
+      });
+      return true;
+    }
+    return false;
   };
 
   return (
@@ -349,15 +562,21 @@ export function PosProvider({ children }) {
       tables,
       currentTableData,
       unsettledBills,
+      dailyTransactions,
+      pastBills,
       switchTable,
       addItemToActiveTable,
+      removeStagedItem,
       transferTable,
       cancelItemFromTable,
       printKOT,
       printCashMemo,
+      reprintBill,
       settleBill,
       openSettleModal,
       settleBillWithPayment,
+      closeDay,
+      getNextParcelTable,
       // Modals
       showLoginModal,
       setShowLoginModal,

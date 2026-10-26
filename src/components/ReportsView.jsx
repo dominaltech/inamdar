@@ -2,8 +2,15 @@ import React, { useState } from 'react';
 import { usePos } from '../context/PosContext';
 
 export default function ReportsView() {
-  const { setScreenMode } = usePos();
-  const [reportDate, setReportDate] = useState('30/03/26');
+  const { setScreenMode, dailyTransactions } = usePos();
+  const [reportDate, setReportDate] = useState('Today');
+
+  // Calculate live numbers from today's settled transactions
+  const liveCash = dailyTransactions.filter(t => t.paymentMode === 'Cash').reduce((s, t) => s + t.amount, 0);
+  const liveUpi = dailyTransactions.filter(t => t.paymentMode === 'UPI').reduce((s, t) => s + t.amount, 0);
+  const liveCard = dailyTransactions.filter(t => t.paymentMode === 'Card').reduce((s, t) => s + t.amount, 0);
+  const liveTotalSales = liveCash + liveUpi + liveCard;
+  const liveTotalBills = dailyTransactions.length;
   const [halls, setHalls] = useState({
     Ac: true,
     FamilyAc: true,
@@ -98,12 +105,13 @@ export default function ReportsView() {
                 </div>
                 <table style={{ width: '100%', fontSize: '11px' }}>
                   <tbody>
-                    <tr><td>Gross Sale</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>10,63,915.00</td></tr>
-                    <tr><td>Discount</td><td style={{ textAlign: 'right', color: '#c00000' }}>1,521.00</td></tr>
+                    <tr><td>Gross Sale</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{liveTotalSales.toFixed(2)}</td></tr>
+                    <tr><td>Discount</td><td style={{ textAlign: 'right', color: '#c00000' }}>0.00</td></tr>
                     <tr style={{ borderTop: '1px solid #ddd' }}>
-                      <td style={{ fontWeight: 'bold' }}>Net Sale</td>
-                      <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#006600', fontSize: '13px' }}>10,62,394.00</td>
+                      <td style={{ fontWeight: 'bold' }}>Today's Net Sale</td>
+                      <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#006600', fontSize: '13px' }}>₹{liveTotalSales.toFixed(2)}</td>
                     </tr>
+                    <tr><td>Settled Bills Count</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>{liveTotalBills}</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -111,16 +119,17 @@ export default function ReportsView() {
               {/* Cashier Details */}
               <div className="win-bevel-thin-inset" style={{ padding: '6px', background: '#fff' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '11px', color: '#0a246a', borderBottom: '1px solid #ccc', paddingBottom: '2px', marginBottom: '4px' }}>
-                  Cashier Details
+                  Cashier Details (Today's Collections)
                 </div>
                 <table style={{ width: '100%', fontSize: '11px' }}>
                   <tbody>
-                    <tr><td>Cash</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>10,38,763.00</td></tr>
-                    <tr><td>Digital</td><td style={{ textAlign: 'right' }}>0.00</td></tr>
-                    <tr><td>Online Payment</td><td style={{ textAlign: 'right' }}>14,731.00</td></tr>
-                    <tr><td>UPI</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>8,900.00</td></tr>
-                    <tr><td>Pay Out</td><td style={{ textAlign: 'right' }}>0.00</td></tr>
-                    <tr><td>Pay In</td><td style={{ textAlign: 'right' }}>0.00</td></tr>
+                    <tr><td>Cash</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{liveCash.toFixed(2)}</td></tr>
+                    <tr><td>UPI / QR</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{liveUpi.toFixed(2)}</td></tr>
+                    <tr><td>Credit / Debit Card</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{liveCard.toFixed(2)}</td></tr>
+                    <tr style={{ borderTop: '1px solid #ddd' }}>
+                      <td style={{ fontWeight: 'bold' }}>Total Collected</td>
+                      <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#006600' }}>₹{liveTotalSales.toFixed(2)}</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>

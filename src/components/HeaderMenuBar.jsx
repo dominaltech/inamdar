@@ -11,7 +11,9 @@ export default function HeaderMenuBar() {
     printCashMemo,
     openSettleModal,
     settleBill,
-    activeTableId
+    activeTableId,
+    closeDay,
+    reprintBill
   } = usePos();
 
   const [activeMenu, setActiveMenu] = useState(null);
@@ -55,6 +57,16 @@ export default function HeaderMenuBar() {
       case 'REPORTS':
         setScreenMode('REPORTS');
         break;
+      case 'DUPLICATE_BILL': {
+        const billNo = window.prompt("Enter Bill Number to reprint duplicate copy:", "");
+        if (billNo) {
+          reprintBill(billNo.trim());
+        }
+        break;
+      }
+      case 'CLOSE_DAY':
+        closeDay();
+        break;
       case 'PRINT_BILL':
         printCashMemo(activeTableId);
         break;
@@ -91,7 +103,7 @@ export default function HeaderMenuBar() {
                 <span>Billing</span>
                 <span className="win-dropdown-hotkey">F6</span>
               </div>
-              <div className="win-dropdown-row" onClick={() => handleAction('PRINT_BILL')}>
+              <div className="win-dropdown-row" onClick={() => handleAction('DUPLICATE_BILL')}>
                 <span>Duplicate Bills</span>
               </div>
               <div className="win-dropdown-row">
@@ -129,14 +141,11 @@ export default function HeaderMenuBar() {
               <div className="win-dropdown-row">
                 <span>Reset Admin Password</span>
               </div>
-              <div className="win-dropdown-row">
-                <span>Mail Dayclose Reports</span>
-              </div>
-              <div className="win-dropdown-row">
-                <span>AppUpdate &gt;</span>
-              </div>
               <div className="win-dropdown-row" onClick={() => handleAction('REPORTS')}>
-                <span>Close Day</span>
+                <span>Dayclose Summary Reports</span>
+              </div>
+              <div className="win-dropdown-row" onClick={() => handleAction('CLOSE_DAY')}>
+                <span style={{ fontWeight: 'bold', color: '#c00000' }}>Close Day</span>
               </div>
               <div className="win-dropdown-row">
                 <span>Upload Dashboard Data</span>
