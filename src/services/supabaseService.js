@@ -447,9 +447,110 @@ export function subscribeToSupabaseRealtime({ onTableUpdate, onIncomingKot, onBi
     .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, payload => {
       if (onBillUpdate) onBillUpdate(payload);
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, payload => {
+      // Menu changes propagate live
+      console.log('Realtime Menu update:', payload);
+    })
     .subscribe();
 
   return () => {
     supabase.removeChannel(channel);
   };
 }
+
+// 12. Fetch Dynamic Menu Items from Supabase
+export async function fetchLiveMenuItems() {
+  if (!isSupabaseConfigured()) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('menu_items')
+      .select('*')
+      .order('category_order', { ascending: true });
+
+    if (error) {
+      console.warn('fetchLiveMenuItems error:', error);
+      return null;
+    }
+
+    return (data || []).map(row => ({
+      code: String(row.code),
+      name: (row.name || '').toUpperCase(),
+      category: row.category || 'UNCATEGORIZED',
+      categoryOrder: Number(row.category_order) || 99,
+      acRate: Number(row.ac_rate) || 0,
+      hallRate: Number(row.hall_rate) || Number(row.ac_rate) || 0,
+      isKitchen: row.is_kitchen ?? true,
+      isAvailable: row.is_available ?? true,
+    }));
+  } catch (err) {
+    console.warn('fetchLiveMenuItems exception:', err);
+    return null;
+  }
+}
+
+// 13. Save / Upsert Menu Item in Supabase
+export async function saveMenuItemInSupabase(item) {
+  if (!isSupabaseConfigured()) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('menu_items')
+      .upsert({
+        code: String(item.code),
+        name: (item.name || '').toUpperCase(),
+        category: item.category || 'UNCATEGORIZED',
+        category_order: Number(item.categoryOrder) || 99,
+        ac_rate: Number(item.acRate) || 0,
+        hall_rate: Number(item.hallRate) || Number(item.acRate) || 0,
+        is_kitchen: item.isKitchen ?? true,
+        is_available: item.isAvailable ?? true,
+      }, { onConflict: 'code' })
+      .select();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error('saveMenuItemInSupabase error:', err);
+    return null;
+  }
+}
+
+// 14. Fetch Credit Accounts
+export async function fetchLiveCreditAccounts() {
+  if (!isSupabaseConfigured()) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('credit_accounts')
+      .select('*')
+      .order('customer_name', { ascending: true });
+
+    if (error) {
+      console.warn('fetchLiveCreditAccounts error:', error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.warn('fetchLiveCreditAccounts exception:', err);
+    return null;
+  }
+}
+
+// 15. Record Audit Action in Supabase
+export async function logAuditActionInSupabase({ actionType, details, tableId, billNo, operatorName = '1. Operator' }) {
+  if (!isSupabaseConfigured()) return null;
+
+  try {
+    await supabase.from('audit_logs').insert([{
+      action_type: actionType,
+      details: details,
+      table_id: tableId ? String(tableId) : null,
+      bill_no: billNo ? String(billNo) : null,
+      operator_name: operatorName,
+    }]);
+  } catch (err) {
+    console.warn('logAuditActionInSupabase exception:', err);
+  }
+}
+

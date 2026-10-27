@@ -8,7 +8,6 @@ export default function OrderWorkspace() {
     screenMode,
     setScreenMode,
     isCancelMode,
-    setIsCancelMode,
     activeTableId,
     activeSubTable,
     setActiveSubTable,
@@ -349,6 +348,8 @@ export default function OrderWorkspace() {
                 <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
                   <input
                     ref={tableInputRef}
+                    id="pos-table-input"
+                    placeholder="Table"
                     type="text"
                     value={tableInput}
                     onChange={(e) => {
@@ -613,6 +614,7 @@ export default function OrderWorkspace() {
               <div style={{ width: '120px' }}>
                 <input
                   ref={customInputRef}
+                  id="pos-custom-input"
                   type="text"
                   value={customizationInput}
                   onChange={(e) => setCustomizationInput(e.target.value)}

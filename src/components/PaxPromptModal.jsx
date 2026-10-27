@@ -54,6 +54,7 @@ export default function PaxPromptModal() {
           <div style={{ flex: 1 }}>
             <input
               ref={inputRef}
+              id="pos-pax-input"
               type="number"
               min="1"
               max="99"

@@ -387,12 +387,17 @@ The Counter POS acts as the central control terminal:
    - Updates `tables` (`status: 'BILLED'`).
    - Prints Cash Memo slip.
 
-3. **Settlement (`F12`)**:
-   - Updates `bills` (`status: 'SETTLED'`, `payment_mode: 'Cash' | 'UPI' | 'Card'`).
+3. **Settlement (`F12`) & 18 Payment Modes**:
+   - Updates `bills` (`status: 'SETTLED'`, `payment_mode`: Cash, Digital Payments, Online Payment, Swiggy, Zomato, UPI, Bill On Hold, Debit Card, Room Post, Cheque, Sodexo, Ticket, Bills Returned, Void, Guest, Complimentary, Staff, No Charge KOTs).
    - Inserts row into `daily_transactions`.
    - Clears `tables` (`status: 'AVAILABLE'`).
+   - Syncs with `credit_accounts` for customer ledger accounts.
 
-4. **End of Day Close (`Close Day`)**:
+4. **Audit Trail & Cancellation Logs**:
+   - Logs cancellations into `cancellations_audit` with supervisor PIN.
+   - Logs system actions into `audit_logs`.
+
+5. **End of Day Close (`Close Day`)**:
    - Confirms all tables are `AVAILABLE` and all bills are `SETTLED`.
    - Resets `pos_counters` (`daily_kot_counter = 1`, `daily_bill_counter = 1`).
 
@@ -406,5 +411,8 @@ To initialize this schema in your Supabase project:
 3. Open `supabase/migrations/20261027_init_inamdar_pos_schema.sql` from this repository.
 4. Copy and paste the entire script into the SQL Editor.
 5. Click **Run**.
-6. Verify in the **Table Editor** that all 9 tables have been created and 215 menu items are seeded.
-7. Copy your `Project URL` and `anon public key` from **Project Settings ➔ API** and place them into your `.env` file.
+6. Verify in the **Table Editor** that all 11 tables have been created:
+   - `staff_users`, `pos_counters`, `menu_items`, `tables`, `kots`, `order_items`, `bills`, `daily_transactions`, `cancellations_audit`, `credit_accounts`, `audit_logs`.
+7. Verify that all 215 menu items are seeded.
+8. Copy your `Project URL` and `anon public key` from **Project Settings ➔ API** and place them into your `.env` file or POS Cloud Settings.
+

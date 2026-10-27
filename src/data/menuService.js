@@ -18,7 +18,8 @@ export const CATEGORY_ORDER = {
 };
 
 // Generate common acronyms for dishes
-function generateAcronyms(name) {
+export function generateAcronyms(name) {
+  if (!name) return [];
   const clean = name.trim().toUpperCase();
   const words = clean.split(/\s+/).filter(Boolean);
   const acronyms = [];
@@ -59,26 +60,71 @@ function generateAcronyms(name) {
   return Array.from(new Set(acronyms));
 }
 
-export const MENU_ITEMS = (rawMenuData.items || []).map(item => {
-  const acronyms = generateAcronyms(item.name);
+// Initial item parsing helper
+function parseItem(item) {
+  const acronyms = generateAcronyms(item.name || '');
   return {
     code: String(item.code),
-    name: item.name.toUpperCase(),
+    name: (item.name || '').toUpperCase(),
     category: item.category || 'UNCATEGORIZED',
-    categoryOrder: CATEGORY_ORDER[item.category] || 99,
-    acRate: Number(item.acRate) || 0,
-    hallRate: Number(item.hallRate) || Number(item.acRate) || 0,
+    categoryOrder: item.categoryOrder ?? (CATEGORY_ORDER[item.category] || 99),
+    acRate: Number(item.acRate ?? item.ac_rate) || 0,
+    hallRate: Number(item.hallRate ?? item.hall_rate ?? item.acRate ?? item.ac_rate) || 0,
+    isKitchen: item.isKitchen ?? item.is_kitchen ?? isKitchenItem(item),
+    isAvailable: item.isAvailable ?? item.is_available ?? true,
     acronyms,
   };
-});
+}
 
-export const MENU_BY_CODE = new Map(MENU_ITEMS.map(item => [item.code, item]));
+// In-Memory Live Menu Store (Instant 0ms numpad search)
+function getInitialMenu() {
+  try {
+    const cached = localStorage.getItem('inamdar_cached_menu');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map(parseItem);
+      }
+    }
+  } catch (e) {
+    console.warn('Cached menu parse error:', e);
+  }
+  return (rawMenuData.items || []).map(parseItem);
+}
+
+export let MENU_ITEMS = getInitialMenu();
+export let MENU_BY_CODE = new Map(MENU_ITEMS.map(item => [item.code, item]));
+
+// Dynamic updater called when Supabase menu loads or updates
+export function loadDynamicMenuItems(items) {
+  if (!items || !Array.isArray(items) || items.length === 0) return MENU_ITEMS;
+
+  MENU_ITEMS = items.map(parseItem);
+  MENU_BY_CODE = new Map(MENU_ITEMS.map(item => [item.code, item]));
+
+  try {
+    localStorage.setItem('inamdar_cached_menu', JSON.stringify(MENU_ITEMS));
+  } catch (e) {
+    console.warn('Failed to cache dynamic menu:', e);
+  }
+
+  return MENU_ITEMS;
+}
+
+export function getAllMenuItems() {
+  return MENU_ITEMS;
+}
+
+export function getMenuItemByCode(code) {
+  return MENU_BY_CODE.get(String(code));
+}
 
 export function searchMenuItems(query) {
   if (!query || !query.trim()) return [];
   const q = query.trim().toUpperCase();
 
   return MENU_ITEMS.filter(item => {
+    if (!item.isAvailable) return false;
     if (item.code === q || item.code.startsWith(q)) return true;
     if (item.acronyms.some(acr => acr === q || acr.startsWith(q))) return true;
     if (item.name.includes(q)) return true;
@@ -96,7 +142,6 @@ export function sortItemsByCourse(items) {
 }
 
 // Determines if an item goes to the Cook/Kitchen KDS or to the Pantry/Counter/Bar
-// Sweets/Desserts, Mineral Water, Soft Drinks are NOT cook work!
 export function isKitchenItem(item) {
   if (!item) return true;
   const cat = (item.category || '').toUpperCase();

@@ -200,8 +200,8 @@ export default function DetailsOfBillModal() {
                         >
                           <td>{b.billNo}</td>
                           <td>{b.table}</td>
-                          <td style={{ textAlign: 'right' }}>{b.disc || 0}</td>
-                          <td style={{ textAlign: 'right' }}>{b.amount.toFixed(0)}</td>
+                          <td style={{ textAlign: 'right' }}>{Number(b.disc || 0).toFixed(0)}</td>
+                          <td style={{ textAlign: 'right' }}>{(Number(b.amount) || 0).toFixed(0)}</td>
                           <td style={{ textAlign: 'center' }}>{b.employeeNo || 1}</td>
                           <td>{b.isSettled ? (b.paymentType || 'Cash') : 'Cash'}</td>
                           <td>{b.hall || 'AC'}</td>

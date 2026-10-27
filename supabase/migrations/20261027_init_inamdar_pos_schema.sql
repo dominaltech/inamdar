@@ -114,7 +114,7 @@ CREATE TABLE bills (
     total_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
     total_items INT NOT NULL DEFAULT 0,
     total_qty NUMERIC(10, 2) NOT NULL DEFAULT 0,
-    payment_mode TEXT DEFAULT NULL CHECK (payment_mode IN ('Cash', 'UPI', 'Card', 'Credit', NULL)),
+    payment_mode TEXT DEFAULT NULL,
     status TEXT NOT NULL DEFAULT 'UNSETTLED' CHECK (status IN ('UNSETTLED', 'SETTLED')),
     cashier_name TEXT DEFAULT '1. Operator',
     bill_date TEXT NOT NULL,
@@ -126,13 +126,13 @@ CREATE TABLE bills (
 CREATE INDEX idx_bills_status ON bills(status, table_id);
 CREATE INDEX idx_bills_created ON bills(created_at DESC);
 
--- 10. DAILY SETTLED TRANSACTIONS JOURNAL
+-- 10. DAILY SETTLED TRANSACTIONS JOURNAL (Supports all 18 Settlement Modes)
 CREATE TABLE daily_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     bill_no TEXT NOT NULL,
     table_id TEXT NOT NULL,
     amount NUMERIC(10, 2) NOT NULL,
-    payment_mode TEXT NOT NULL CHECK (payment_mode IN ('Cash', 'UPI', 'Card')),
+    payment_mode TEXT NOT NULL,
     cashier_name TEXT DEFAULT '1. Operator',
     settled_time TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -153,7 +153,30 @@ CREATE TABLE cancellations_audit (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 12. ENABLE ROW LEVEL SECURITY (Open Policies for internal POS/PWA/KDS ecosystem)
+-- 12. CUSTOMER CREDIT ACCOUNTS
+CREATE TABLE credit_accounts (
+    id TEXT PRIMARY KEY,
+    customer_name TEXT NOT NULL,
+    phone TEXT,
+    balance NUMERIC(10, 2) DEFAULT 0,
+    credit_limit NUMERIC(10, 2) DEFAULT 15000,
+    status TEXT DEFAULT 'ACTIVE',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 13. AUDIT LOGS TRAIL
+CREATE TABLE audit_logs (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    action_type TEXT NOT NULL,
+    details TEXT NOT NULL,
+    table_id TEXT,
+    bill_no TEXT,
+    operator_name TEXT NOT NULL DEFAULT '1. Operator',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. ENABLE ROW LEVEL SECURITY
 ALTER TABLE staff_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pos_counters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE menu_items ENABLE ROW LEVEL SECURITY;
@@ -163,6 +186,8 @@ ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cancellations_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE credit_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow all on staff_users" ON staff_users FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on pos_counters" ON pos_counters FOR ALL USING (true) WITH CHECK (true);
@@ -173,12 +198,20 @@ CREATE POLICY "Allow all on order_items" ON order_items FOR ALL USING (true) WIT
 CREATE POLICY "Allow all on bills" ON bills FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on daily_transactions" ON daily_transactions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on cancellations_audit" ON cancellations_audit FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on credit_accounts" ON credit_accounts FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on audit_logs" ON audit_logs FOR ALL USING (true) WITH CHECK (true);
 
--- 13. REALTIME REPLICATION (For live syncing between Desktop POS, Captain PWA, and KDS)
+-- 15. REALTIME REPLICATION (For live syncing across POS, Captain PWA, and KDS)
 BEGIN;
   DROP PUBLICATION IF EXISTS supabase_realtime;
-  CREATE PUBLICATION supabase_realtime FOR TABLE tables, kots, order_items, bills, pos_counters, menu_items;
+  CREATE PUBLICATION supabase_realtime FOR TABLE tables, kots, order_items, bills, pos_counters, menu_items, credit_accounts, daily_transactions;
 COMMIT;
+
+-- 16. SEED DATA - CREDIT ACCOUNTS
+INSERT INTO credit_accounts (id, customer_name, phone, balance, credit_limit) VALUES
+('CR-001', 'VIP GUEST - RAHUL JADHAV', '9822012345', 2450.00, 20000.00),
+('CR-002', 'SOLAPUR TEXTILES CORP', '9890123456', 5800.00, 50000.00),
+ON CONFLICT (id) DO NOTHING;
 
 -- 14. SEED DATA - POS COUNTERS
 INSERT INTO pos_counters (counter_key, counter_val) VALUES

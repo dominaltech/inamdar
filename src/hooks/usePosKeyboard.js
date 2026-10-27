@@ -28,6 +28,8 @@ export default function usePosKeyboard() {
     setBatchSettleMode,
     paxPrompt,
     setPaxPrompt,
+    activeModal,
+    closeModal,
   } = usePos();
 
   useEffect(() => {
@@ -69,6 +71,11 @@ export default function usePosKeyboard() {
       // 2. Escape:
       // If any sub-modal or popup is open, close it!
       if (e.key === 'Escape') {
+        if (activeModal) {
+          e.preventDefault();
+          closeModal();
+          return;
+        }
         if (paxPrompt) {
           e.preventDefault();
           setPaxPrompt(null);
@@ -164,7 +171,8 @@ export default function usePosKeyboard() {
         printData ||
         infoDialog ||
         screenMode === 'DISPLAY_ORDER' ||
-        screenMode === 'DETAILS_OF_BILL';
+        screenMode === 'DETAILS_OF_BILL' ||
+        Boolean(activeModal);
 
       if (anyModalOpen) {
         return;
@@ -220,6 +228,8 @@ export default function usePosKeyboard() {
     setBatchSettleMode,
     paxPrompt,
     setPaxPrompt,
+    activeModal,
+    closeModal,
   ]);
 }
 

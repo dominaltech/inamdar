@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { DEFAULT_USERS, EMPLOYEES, INITIAL_TABLES, INITIAL_UNSETTLED_BILLS, INITIAL_ALL_BILLS } from '../data/initialData';
-import { MENU_BY_CODE, sortItemsByCourse, isKitchenItem } from '../data/menuService';
+import { MENU_BY_CODE, sortItemsByCourse, isKitchenItem, loadDynamicMenuItems } from '../data/menuService';
 import { isSupabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY, saveSupabaseCredentials } from '../supabaseClient';
 import {
   fetchLiveTables,
   fetchLiveUnsettledBills,
   fetchLiveDailyTransactions,
   fetchLiveCounters,
+  fetchLiveMenuItems,
   fireKotInSupabase,
   saveBillInSupabase,
   settleBillInSupabase,
@@ -93,6 +94,11 @@ export function PosProvider({ children }) {
   const [printData, setPrintData] = useState(null); // { type: 'KOT' | 'BILL' | 'CANCEL_KOT', data: ... }
   const [infoDialog, setInfoDialog] = useState(null); // { title, message }
 
+  // Top Menu Modal Controller (Zero Dummy Elements!)
+  const [activeModal, setActiveModal] = useState(null);
+  const openModal = (modalName) => setActiveModal(modalName);
+  const closeModal = () => setActiveModal(null);
+
   // 1. Initial Cloud Sync from Supabase & Realtime Subscription
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
@@ -100,15 +106,19 @@ export function PosProvider({ children }) {
     let isMounted = true;
     async function loadCloudData() {
       try {
-        const [cloudTables, cloudBills, cloudTx, cloudCounters] = await Promise.all([
+        const [cloudTables, cloudBills, cloudTx, cloudCounters, cloudMenu] = await Promise.all([
           fetchLiveTables(),
           fetchLiveUnsettledBills(),
           fetchLiveDailyTransactions(),
           fetchLiveCounters(),
+          fetchLiveMenuItems(),
         ]);
 
         if (!isMounted) return;
 
+        if (cloudMenu && Array.isArray(cloudMenu) && cloudMenu.length > 0) {
+          loadDynamicMenuItems(cloudMenu);
+        }
         if (cloudTables && Object.keys(cloudTables).length > 0) {
           setTables(cloudTables);
         }
@@ -899,6 +909,11 @@ export function PosProvider({ children }) {
       paxPrompt,
       setPaxPrompt,
       transferKot,
+      // Zero-Dummy Top Menu Modals
+      activeModal,
+      setActiveModal,
+      openModal,
+      closeModal,
     }}>
       {children}
     </PosContext.Provider>
