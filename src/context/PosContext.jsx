@@ -1,6 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { DEFAULT_USERS, EMPLOYEES, INITIAL_TABLES, INITIAL_UNSETTLED_BILLS } from '../data/initialData';
 import { MENU_BY_CODE, sortItemsByCourse, isKitchenItem } from '../data/menuService';
+import { isSupabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY, saveSupabaseCredentials } from '../supabaseClient';
+import {
+  fetchLiveTables,
+  fetchLiveUnsettledBills,
+  fetchLiveDailyTransactions,
+  fetchLiveCounters,
+  fireKotInSupabase,
+  saveBillInSupabase,
+  settleBillInSupabase,
+  cancelItemInSupabase,
+  transferTableInSupabase,
+  closeDayInSupabase,
+  subscribeToSupabaseRealtime,
+} from '../services/supabaseService';
 
 const PosContext = createContext(null);
 
@@ -18,6 +32,9 @@ export function PosProvider({ children }) {
   const [activeTableId, setActiveTableId] = useState('2');
   const [activeSubTable, setActiveSubTable] = useState('A');
   const [activeEmployee, setActiveEmployee] = useState(EMPLOYEES[0].name);
+
+  // Cloud status
+  const [isCloudConnected, setIsCloudConnected] = useState(isSupabaseConfigured());
 
   // Tables state
   const [tables, setTables] = useState(() => {
@@ -63,7 +80,70 @@ export function PosProvider({ children }) {
   const [printData, setPrintData] = useState(null); // { type: 'KOT' | 'BILL' | 'CANCEL_KOT', data: ... }
   const [infoDialog, setInfoDialog] = useState(null); // { title, message }
 
-  // Persist to local storage
+  // 1. Initial Cloud Sync from Supabase & Realtime Subscription
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+
+    let isMounted = true;
+    async function loadCloudData() {
+      try {
+        const [cloudTables, cloudBills, cloudTx, cloudCounters] = await Promise.all([
+          fetchLiveTables(),
+          fetchLiveUnsettledBills(),
+          fetchLiveDailyTransactions(),
+          fetchLiveCounters(),
+        ]);
+
+        if (!isMounted) return;
+
+        if (cloudTables && Object.keys(cloudTables).length > 0) {
+          setTables(cloudTables);
+        }
+        if (cloudBills) {
+          setUnsettledBills(cloudBills);
+        }
+        if (cloudTx) {
+          setDailyTransactions(cloudTx);
+        }
+        if (cloudCounters) {
+          setKotCounter(cloudCounters.kotCounter);
+          setBillCounter(cloudCounters.billCounter);
+        }
+        setIsCloudConnected(true);
+      } catch (err) {
+        console.warn('Initial cloud sync notice:', err);
+      }
+    }
+
+    loadCloudData();
+
+    // Subscribe to Realtime notifications (e.g. Captain order fired from mobile)
+    const unsubscribe = subscribeToSupabaseRealtime({
+      onIncomingKot: (newKot) => {
+        console.log('Incoming KOT from Captain App:', newKot);
+        fetchLiveTables().then(tbls => {
+          if (tbls && isMounted) setTables(tbls);
+        });
+      },
+      onTableUpdate: () => {
+        fetchLiveTables().then(tbls => {
+          if (tbls && isMounted) setTables(tbls);
+        });
+      },
+      onBillUpdate: () => {
+        fetchLiveUnsettledBills().then(bills => {
+          if (bills && isMounted) setUnsettledBills(bills);
+        });
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  // 2. Persist to local storage for instant offline resilience
   useEffect(() => {
     localStorage.setItem('inamdar_tables', JSON.stringify(tables));
   }, [tables]);
@@ -116,7 +196,6 @@ export function PosProvider({ children }) {
     let cleanId = String(tableId).trim().toUpperCase();
     if (!cleanId) return;
 
-    // Automatic Parcel sequence: '0' -> auto find next available parcel (0, 0B, 0C, ...)
     if (cleanId === '0') {
       cleanId = getNextParcelTable();
     } else if (cleanId === '00') {
@@ -125,7 +204,6 @@ export function PosProvider({ children }) {
 
     setActiveTableId(cleanId);
     if (!tables[cleanId]) {
-      // Determine section automatically
       let sec = 'AC';
       const num = parseInt(cleanId);
       if (cleanId.startsWith('00')) sec = 'HOME DELIVERY';
@@ -205,7 +283,6 @@ export function PosProvider({ children }) {
   };
 
   // Table shift logic (transfers all active items to destination table)
-  // Per Rule 8: If target table is ALREADY OCCUPIED, show error - DO NOT MERGE!
   const transferTable = (fromId, toId) => {
     const cleanFrom = String(fromId).trim().toUpperCase();
     const cleanTo = String(toId).trim().toUpperCase();
@@ -215,7 +292,7 @@ export function PosProvider({ children }) {
       return false;
     }
 
-    // Check if target table is already occupied
+    // Check if target table is already occupied (Rule 8: Error, not merged!)
     const targetTable = tables[cleanTo];
     if (targetTable && targetTable.items && targetTable.items.some(it => it.qty > 0)) {
       setInfoDialog({
@@ -252,6 +329,9 @@ export function PosProvider({ children }) {
         }
       };
     });
+
+    // Cloud sync
+    transferTableInSupabase(cleanFrom, cleanTo);
 
     setActiveTableId(cleanTo);
     setInfoDialog({
@@ -294,9 +374,23 @@ export function PosProvider({ children }) {
       }
     }));
 
-    // Generate Cancellation KOT Slip to Kitchen/Pantry thermal printer!
+    const lastKotNo = table.kotNos?.[table.kotNos.length - 1] || kotCounter;
+
+    // Cloud sync
+    cancelItemInSupabase({
+      tableId,
+      itemCode,
+      itemName: menuItem?.name || 'CANCELLED ITEM',
+      qty: qtyToCancel,
+      rate,
+      reason,
+      authorizedBy,
+      kotNumber: lastKotNo,
+    });
+
+    // Generate Cancellation KOT Slip to Kitchen/Pantry thermal printer
     const cancelSlip = {
-      ordNo: table.kotNos?.[table.kotNos.length - 1] || kotCounter,
+      ordNo: lastKotNo,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(),
       tableNo: tableId,
@@ -322,23 +416,21 @@ export function PosProvider({ children }) {
   };
 
   // Generate KOT and trigger print preview
-  // Rule 2: Only newly added staged items are assigned the new KOT and printed!
   const printKOT = (tableId = activeTableId) => {
     const table = tables[tableId];
     if (!table || table.items.length === 0) return;
 
-    // Check if there are newly staged items
+    // Check for newly staged items
     const stagedItems = table.items.filter(it => it.isStaged && it.qty > 0);
 
     let itemsToPrint = [];
     let currentKotNo = kotCounter;
 
     if (stagedItems.length > 0) {
-      // Fire newly added items with next sequential KOT number
       currentKotNo = kotCounter;
       setKotCounter(c => c + 1);
 
-      // Mark staged items as fired
+      // Optimistic state update: mark staged items as fired
       setTables(prev => {
         const tbl = prev[tableId];
         if (!tbl) return prev;
@@ -366,8 +458,17 @@ export function PosProvider({ children }) {
       });
 
       itemsToPrint = sortItemsByCourse(stagedItems);
+
+      // Cloud sync to Supabase (KDS and other devices receive it live!)
+      fireKotInSupabase({
+        tableId,
+        section: table.section,
+        waiterName: table.waiter || activeEmployee,
+        kotNumber: currentKotNo,
+        items: stagedItems,
+        source: 'POS_COUNTER',
+      });
     } else {
-      // If no new staged items, reprint latest/all active items
       const activeItems = table.items.filter(it => it.qty > 0);
       if (activeItems.length === 0) return;
       itemsToPrint = sortItemsByCourse(activeItems);
@@ -395,7 +496,6 @@ export function PosProvider({ children }) {
   };
 
   // Generate Cash Memo bill and trigger print preview
-  // Rule 12: When F6 is pressed, sends table to Unsettled Bills!
   const printCashMemo = (tableId = activeTableId) => {
     const table = tables[tableId];
     if (!table || table.items.length === 0) return;
@@ -403,7 +503,6 @@ export function PosProvider({ children }) {
     const nextBillNo = billCounter;
     setBillCounter(c => c + 1);
 
-    // Calculate aggregated items (positive minus cancellations)
     const aggregated = {};
     table.items.forEach(it => {
       const code = it.code;
@@ -446,6 +545,9 @@ export function PosProvider({ children }) {
       return [...filtered, { table: tableId, billNo: String(nextBillNo), amount: totalAmount }];
     });
 
+    // Cloud sync bill
+    saveBillInSupabase(memoSlip);
+
     setPrintData({ type: 'BILL', data: memoSlip });
   };
 
@@ -487,7 +589,7 @@ export function PosProvider({ children }) {
     };
     setDailyTransactions(prev => [transaction, ...prev]);
 
-    // Free the table
+    // Free the table locally
     setTables(prev => ({
       ...prev,
       [tableId]: {
@@ -499,6 +601,16 @@ export function PosProvider({ children }) {
     }));
     setUnsettledBills(prev => prev.filter(b => b.table !== tableId));
     setShowSettleModal(false);
+
+    // Cloud sync settlement
+    settleBillInSupabase({
+      tableId,
+      billNo: billNum,
+      amount: netAmount,
+      paymentMode,
+      cashierName: currentUser?.name || '1. Operator',
+    });
+
     setInfoDialog({
       title: "Dominal's POS",
       message: `Table ${tableId} bill #${billNum} (₹${netAmount.toFixed(2)}) settled via ${paymentMode} successfully.`,
@@ -520,7 +632,6 @@ export function PosProvider({ children }) {
   };
 
   // End of Day / Close Day (Rule 16)
-  // Must settle all unsettled bills and clear running tables first; then resets KOT and Bill numbers for new day.
   const closeDay = () => {
     const hasUnsettled = unsettledBills.length > 0;
     const hasActiveTables = Object.values(tables).some(t => t.items && t.items.some(it => it.qty > 0));
@@ -536,6 +647,7 @@ export function PosProvider({ children }) {
     if (window.confirm("Are you sure you want to perform End of Day Close? All daily counters will reset for the new day.")) {
       setKotCounter(1);
       setBillCounter(1);
+      closeDayInSupabase();
       setInfoDialog({
         title: "Day Closed Successfully",
         message: "All accounts finalized. KOT Number and Bill Number have been reset to 1 for the new day.",
@@ -543,6 +655,14 @@ export function PosProvider({ children }) {
       return true;
     }
     return false;
+  };
+
+  const promptSupabaseConfig = () => {
+    const url = window.prompt("Enter Supabase Project URL:", SUPABASE_URL || "");
+    if (url === null) return;
+    const key = window.prompt("Enter Supabase Anon Public Key:", SUPABASE_ANON_KEY || "");
+    if (key === null) return;
+    saveSupabaseCredentials(url, key);
   };
 
   return (
@@ -577,6 +697,9 @@ export function PosProvider({ children }) {
       settleBillWithPayment,
       closeDay,
       getNextParcelTable,
+      // Cloud Supabase
+      isCloudConnected,
+      promptSupabaseConfig,
       // Modals
       showLoginModal,
       setShowLoginModal,

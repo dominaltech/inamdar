@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { usePos } from '../context/PosContext';
 
 export default function StatusBar() {
-  const { currentUser } = usePos();
+  const { currentUser, isCloudConnected, promptSupabaseConfig } = usePos();
   const [timeStr, setTimeStr] = useState('');
 
   useEffect(() => {
@@ -22,9 +22,25 @@ export default function StatusBar() {
 
   return (
     <div className="win-statusbar">
-      <div className="win-status-pane" style={{ minWidth: '150px' }}>
+      <div className="win-status-pane" style={{ minWidth: '130px' }}>
         SERVER [1,2,3,4]
       </div>
+      
+      {/* Live Supabase Connection Badge */}
+      <div
+        className="win-status-pane"
+        onClick={promptSupabaseConfig}
+        title="Click to configure Supabase Project URL and Key"
+        style={{
+          minWidth: '160px',
+          cursor: 'pointer',
+          color: isCloudConnected ? '#006600' : '#885500',
+          fontWeight: 'bold'
+        }}
+      >
+        {isCloudConnected ? '☁️ SUPABASE: LIVE' : '💻 MODE: LOCAL (Click to link)'}
+      </div>
+
       <div className="win-status-pane" style={{ minWidth: '120px', fontWeight: 'bold' }}>
         {currentUser?.name || '1. Operator'}
       </div>
