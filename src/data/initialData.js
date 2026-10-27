@@ -154,3 +154,71 @@ export const INITIAL_UNSETTLED_BILLS = [
   { table: '2', billNo: '10', amount: 1460 },
   { table: '0', billNo: '11', amount: 130 },
 ];
+
+export const INITIAL_ALL_BILLS = [
+  {
+    billNo: 10,
+    date: '27-10-26',
+    time: '01:45 PM',
+    tableNo: '2',
+    section: 'AC',
+    employeeNo: '1',
+    pax: 2,
+    totalAmount: 1460,
+    isSettled: false,
+    paymentMode: null,
+    items: [
+      { code: '95', name: 'ROTI', qty: 3, rate: 30, amount: 90 },
+      { code: '82', name: 'CHICKEN BIRYANI 3 PIS', qty: 5, rate: 160, amount: 800 },
+      { code: '70', name: 'CHICKEN MALVANI W.B(5 PIS)', qty: 3, rate: 380, amount: 1140 },
+    ],
+  },
+  {
+    billNo: 11,
+    date: '27-10-26',
+    time: '02:10 PM',
+    tableNo: '0',
+    section: 'PARCEL',
+    employeeNo: '1',
+    pax: 1,
+    totalAmount: 130,
+    isSettled: false,
+    paymentMode: null,
+    items: [
+      { code: '1', name: 'CHICKEN MANCHOW SOUP', qty: 1, rate: 130, amount: 130 },
+    ],
+  },
+  {
+    billNo: 8,
+    date: '27-10-26',
+    time: '12:30 PM',
+    tableNo: '4',
+    section: 'AC',
+    employeeNo: '1',
+    pax: 2,
+    totalAmount: 630,
+    isSettled: true,
+    paymentMode: 'Cash',
+    items: [
+      { code: '22', name: 'CHICKEN TANDOORI FULL', qty: 1, rate: 340, amount: 340 },
+      { code: '55', name: 'PANEER ACHARI TIKKA', qty: 1, rate: 290, amount: 290 },
+    ],
+  },
+  {
+    billNo: 9,
+    date: '27-10-26',
+    time: '01:15 PM',
+    tableNo: '25',
+    section: 'FAMILY AC',
+    employeeNo: '2',
+    pax: 4,
+    totalAmount: 600,
+    isSettled: true,
+    paymentMode: 'UPI',
+    items: [
+      { code: '5', name: 'CHICKEN CLER SOUP', qty: 2, rate: 140, amount: 280 },
+      { code: '82', name: 'CHICKEN BIRYANI 3 PIS', qty: 2, rate: 160, amount: 320 },
+    ],
+  },
+];
+

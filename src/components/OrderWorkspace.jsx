@@ -26,10 +26,12 @@ export default function OrderWorkspace() {
     printCashMemo,
     openSettleModal,
     getNextParcelTable,
+    setPaxPrompt,
   } = usePos();
 
   // Active entry row inputs
   const [tableInput, setTableInput] = useState(activeTableId);
+  const [showSubTableMenu, setShowSubTableMenu] = useState(false);
   const [codeQuery, setCodeQuery] = useState('');
   const [qtyInput, setQtyInput] = useState('1');
   const [rateInput, setRateInput] = useState('');
@@ -92,12 +94,35 @@ export default function OrderWorkspace() {
     }
   }, [codeQuery, isCancelMode, currentTableData.items]);
 
-  // Handle table field enter -> Steps to Employee dropdown!
+  // Handle table field enter -> Steps to Employee dropdown or toggles screen or prompts Pax
   const handleTableKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       const val = tableInput.trim();
-      if (!val) return;
+      
+      // vid1 & vid2: Empty Table + Enter toggles between New Order and New Cash Memo!
+      if (!val) {
+        setScreenMode(prev => prev === 'ORDER' ? 'CASH_MEMO' : 'ORDER');
+        return;
+      }
+
+      // vid1 & vid2: In Cash Memo mode, entering table triggers Number of Persons prompt
+      if (screenMode === 'CASH_MEMO') {
+        let targetTable = val;
+        if (targetTable === '0') {
+          targetTable = '0';
+        }
+        switchTable(targetTable);
+        setPaxPrompt({
+          show: true,
+          tableId: targetTable,
+          onConfirm: (pax) => {
+            printCashMemo(targetTable, pax);
+            setTableInput('');
+          }
+        });
+        return;
+      }
 
       if (val === '0') {
         const nextParcel = getNextParcelTable();
@@ -144,7 +169,13 @@ export default function OrderWorkspace() {
         if (screenMode === 'ORDER') {
           printKOT(activeTableId);
         } else {
-          printCashMemo(activeTableId);
+          setPaxPrompt({
+            show: true,
+            tableId: activeTableId,
+            onConfirm: (pax) => {
+              printCashMemo(activeTableId, pax);
+            }
+          });
         }
         return;
       }
@@ -315,28 +346,114 @@ export default function OrderWorkspace() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <div>
                 <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px' }}>Table</span>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
                   <input
                     ref={tableInputRef}
                     type="text"
                     value={tableInput}
-                    onChange={(e) => setTableInput(e.target.value)}
+                    onChange={(e) => {
+                      setTableInput(e.target.value);
+                      setShowSubTableMenu(false);
+                    }}
                     onKeyDown={handleTableKeyDown}
                     className="win-input"
-                    style={{ width: '90px', height: '24px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}
+                    style={{ width: '80px', height: '24px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}
                   />
-                  <div style={{
-                    marginLeft: '2px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    fontSize: '10px',
-                    background: '#0a246a',
-                    color: '#fff',
-                    padding: '0 4px',
-                    cursor: 'pointer'
-                  }} onClick={() => setActiveSubTable(s => s === 'A' ? 'B' : (s === 'B' ? 'C' : 'A'))}>
+                  <div
+                    style={{
+                      marginLeft: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      background: '#0a246a',
+                      color: '#ffffff',
+                      width: '26px',
+                      height: '24px',
+                      cursor: 'pointer',
+                      border: '1px solid #000000',
+                      userSelect: 'none',
+                    }}
+                    onClick={() => setShowSubTableMenu(prev => !prev)}
+                    title="Select Subtable (A, B, +)"
+                  >
                     <span>{activeSubTable}</span>
+                    <span style={{ fontSize: '7px', marginLeft: '2px' }}>▼</span>
                   </div>
+
+                  {/* Vid 8: Subtable Dropdown Menu (A, B, +) */}
+                  {showSubTableMenu && (
+                    <div
+                      className="win-bevel-outset"
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: '82px',
+                        width: '46px',
+                        background: '#ece9d8',
+                        zIndex: 900,
+                        border: '2px solid #808080',
+                        boxShadow: '2px 2px 5px rgba(0,0,0,0.4)',
+                      }}
+                    >
+                      {['A', 'B'].map(st => (
+                        <div
+                          key={st}
+                          onClick={() => {
+                            setActiveSubTable(st);
+                            setShowSubTableMenu(false);
+                            const base = tableInput.replace(/[A-Z]/g, '');
+                            const full = st === 'A' ? base : `${base}${st}`;
+                            switchTable(full);
+                            setTableInput(full);
+                          }}
+                          style={{
+                            padding: '3px 4px',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            background: activeSubTable === st ? '#0a246a' : 'transparent',
+                            color: activeSubTable === st ? '#ffffff' : '#000000',
+                            textAlign: 'center',
+                          }}
+                        >
+                          {st}
+                        </div>
+                      ))}
+                      <div
+                        onClick={() => {
+                          setShowSubTableMenu(false);
+                          const base = tableInput.replace(/[A-Z]/g, '') || activeTableId.replace(/[A-Z]/g, '');
+                          const letters = ['B', 'C', 'D', 'E'];
+                          let nextLetter = 'B';
+                          for (const l of letters) {
+                            if (!tables[`${base}${l}`]) {
+                              nextLetter = l;
+                              break;
+                            }
+                          }
+                          const newSubId = `${base}${nextLetter}`;
+                          setActiveSubTable(nextLetter);
+                          switchTable(newSubId);
+                          setTableInput(newSubId);
+                        }}
+                        style={{
+                          padding: '3px 4px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          color: '#006600',
+                          borderTop: '1px solid #aaa',
+                          textAlign: 'center',
+                          background: '#e0ffe0',
+                        }}
+                        title="Create new subtable (+)"
+                      >
+                        +
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

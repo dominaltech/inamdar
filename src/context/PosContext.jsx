@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { DEFAULT_USERS, EMPLOYEES, INITIAL_TABLES, INITIAL_UNSETTLED_BILLS } from '../data/initialData';
+import { DEFAULT_USERS, EMPLOYEES, INITIAL_TABLES, INITIAL_UNSETTLED_BILLS, INITIAL_ALL_BILLS } from '../data/initialData';
 import { MENU_BY_CODE, sortItemsByCourse, isKitchenItem } from '../data/menuService';
 import { isSupabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY, saveSupabaseCredentials } from '../supabaseClient';
 import {
@@ -59,6 +59,19 @@ export function PosProvider({ children }) {
     const saved = localStorage.getItem('inamdar_past_bills');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // All bills ledger (both settled and unsettled for Details of Bill & Batch Settle)
+  const [allBills, setAllBills] = useState(() => {
+    const saved = localStorage.getItem('inamdar_all_bills');
+    return saved ? JSON.parse(saved) : INITIAL_ALL_BILLS;
+  });
+
+  // Settlement Menu & Batch Settle states (F12)
+  const [showSettlementMenu, setShowSettlementMenu] = useState(false);
+  const [batchSettleMode, setBatchSettleMode] = useState(null);
+
+  // Pax count popup prompt for Cash Memo
+  const [paxPrompt, setPaxPrompt] = useState(null); // { show: boolean, tableId, onConfirm: (pax) => void }
 
   // Counters (Sequential throughout the day)
   const [kotCounter, setKotCounter] = useState(() => {
@@ -159,6 +172,10 @@ export function PosProvider({ children }) {
   useEffect(() => {
     localStorage.setItem('inamdar_past_bills', JSON.stringify(pastBills));
   }, [pastBills]);
+
+  useEffect(() => {
+    localStorage.setItem('inamdar_all_bills', JSON.stringify(allBills));
+  }, [allBills]);
 
   useEffect(() => {
     localStorage.setItem('inamdar_kot_counter', String(kotCounter));
@@ -341,6 +358,65 @@ export function PosProvider({ children }) {
     return true;
   };
 
+  // KOT Transfer logic (Transfer specific KOT from Table A to Table B)
+  const transferKot = (kotNo, fromId, toId) => {
+    const cleanFrom = String(fromId).trim().toUpperCase();
+    const cleanTo = String(toId).trim().toUpperCase();
+
+    if (!tables[cleanFrom] || !tables[cleanFrom].items) {
+      setInfoDialog({ title: 'Transfer Error', message: `Table ${cleanFrom} not found!` });
+      return false;
+    }
+
+    const sourceTable = tables[cleanFrom];
+    const kotItems = sourceTable.items.filter(it => String(it.kotNo) === String(kotNo) || (sourceTable.items.length > 0 && !it.kotNo));
+    const remainingItems = sourceTable.items.filter(it => !kotItems.includes(it));
+
+    if (kotItems.length === 0) {
+      setInfoDialog({ title: 'Transfer Error', message: `No items found for KOT #${kotNo} on Table ${cleanFrom}!` });
+      return false;
+    }
+
+    let sec = 'AC';
+    const num = parseInt(cleanTo);
+    if (cleanTo.startsWith('00')) sec = 'HOME DELIVERY';
+    else if (cleanTo.startsWith('0')) sec = 'PARCEL';
+    else if (!isNaN(num) && num > 20) sec = 'FAMILY AC';
+
+    setTables(prev => {
+      const targetTable = prev[cleanTo] || {
+        id: cleanTo,
+        section: sec,
+        waiter: sourceTable.waiter || activeEmployee,
+        status: 'OCCUPIED',
+        items: [],
+        kotNos: [],
+      };
+
+      const updatedKotItems = kotItems.map(it => ({ ...it, kotNo }));
+
+      return {
+        ...prev,
+        [cleanFrom]: {
+          ...sourceTable,
+          items: remainingItems,
+          status: remainingItems.length === 0 ? 'AVAILABLE' : sourceTable.status,
+          kotNos: (sourceTable.kotNos || []).filter(k => String(k) !== String(kotNo)),
+        },
+        [cleanTo]: {
+          ...targetTable,
+          section: targetTable.section || sec,
+          status: 'OCCUPIED',
+          items: [...targetTable.items, ...updatedKotItems],
+          kotNos: [...new Set([...(targetTable.kotNos || []), Number(kotNo)])],
+        }
+      };
+    });
+
+    transferTableInSupabase(cleanFrom, cleanTo);
+    return true;
+  };
+
   // Order cancellation logic with Cancellation KOT slip & immediate auto-exit
   const cancelItemFromTable = (tableId, itemCode, qtyToCancel, reason, authorizedBy) => {
     const table = tables[tableId];
@@ -496,7 +572,7 @@ export function PosProvider({ children }) {
   };
 
   // Generate Cash Memo bill and trigger print preview
-  const printCashMemo = (tableId = activeTableId) => {
+  const printCashMemo = (tableId = activeTableId, pax = 2) => {
     const table = tables[tableId];
     if (!table || table.items.length === 0) return;
 
@@ -530,14 +606,21 @@ export function PosProvider({ children }) {
       tableNo: tableId,
       section: table.section,
       employeeNo: '1',
+      pax: pax || 2,
       items: billItems,
       totalItems: billItems.length,
       totalQty: totalQty,
       totalAmount: totalAmount,
+      isSettled: false,
+      paymentMode: null,
+      settledAt: null,
     };
 
     // Save to past bills for duplicate reprint
     setPastBills(prev => [memoSlip, ...prev.filter(b => b.billNo !== nextBillNo)]);
+
+    // Save to allBills ledger (unsettled = green, settled = black)
+    setAllBills(prev => [memoSlip, ...prev.filter(b => String(b.billNo) !== String(nextBillNo))]);
 
     // Add to unsettled bills (Rule 12 & 14)
     setUnsettledBills(prev => {
@@ -589,6 +672,19 @@ export function PosProvider({ children }) {
     };
     setDailyTransactions(prev => [transaction, ...prev]);
 
+    // Update in allBills ledger
+    setAllBills(prev => prev.map(b => {
+      if ((String(b.billNo) === String(billNum) || b.tableNo === tableId) && !b.isSettled) {
+        return {
+          ...b,
+          isSettled: true,
+          paymentMode: paymentMode,
+          settledAt: Date.now(),
+        };
+      }
+      return b;
+    }));
+
     // Free the table locally
     setTables(prev => ({
       ...prev,
@@ -615,6 +711,78 @@ export function PosProvider({ children }) {
       title: "Dominal's POS",
       message: `Table ${tableId} bill #${billNum} (₹${netAmount.toFixed(2)}) settled via ${paymentMode} successfully.`,
     });
+  };
+
+  // Open batch settlement dialog from F12 settlement menu
+  const openBatchSettle = (mode) => {
+    setBatchSettleMode(mode);
+    setShowSettlementMenu(false);
+  };
+
+  // Execute batch settlement for multiple bills (vid5 & vid6)
+  const settleBillsBatch = (billNumbers, mode) => {
+    const billNumStrings = billNumbers.map(n => String(n));
+    let settledCount = 0;
+
+    // 1. Mark in allBills ledger
+    setAllBills(prev => prev.map(b => {
+      if (billNumStrings.includes(String(b.billNo))) {
+        settledCount++;
+        return {
+          ...b,
+          isSettled: true,
+          paymentMode: mode,
+          settledAt: Date.now(),
+        };
+      }
+      return b;
+    }));
+
+    // 2. Identify tables and remove from unsettled bills
+    const matchingBills = unsettledBills.filter(b => billNumStrings.includes(String(b.billNo)));
+    const matchingTableIds = matchingBills.map(b => b.table);
+
+    setUnsettledBills(prev => prev.filter(b => !billNumStrings.includes(String(b.billNo))));
+
+    // 3. Clear tables locally
+    setTables(prev => {
+      const updated = { ...prev };
+      matchingTableIds.forEach(tblId => {
+        if (updated[tblId]) {
+          updated[tblId] = {
+            ...updated[tblId],
+            status: 'AVAILABLE',
+            items: [],
+            kotNos: [],
+          };
+        }
+      });
+      return updated;
+    });
+
+    // 4. Create daily transaction records
+    const newTx = matchingBills.map(b => ({
+      billNo: b.billNo,
+      tableId: b.table,
+      amount: b.amount,
+      paymentMode: mode,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      timestamp: Date.now(),
+    }));
+    setDailyTransactions(prev => [...newTx, ...prev]);
+
+    // 5. Cloud sync each settlement
+    matchingBills.forEach(b => {
+      settleBillInSupabase({
+        tableId: b.table,
+        billNo: b.billNo,
+        amount: b.amount,
+        paymentMode: mode,
+        cashierName: currentUser?.name || '1. Operator',
+      });
+    });
+
+    return settledCount || billNumbers.length;
   };
 
   // Reprint past bill (Rule 15)
@@ -717,6 +885,20 @@ export function PosProvider({ children }) {
       setPrintData,
       infoDialog,
       setInfoDialog,
+      // All Bills & Details of Bill
+      allBills,
+      setAllBills,
+      // F12 Settlement Menu & Batch Settle
+      showSettlementMenu,
+      setShowSettlementMenu,
+      batchSettleMode,
+      setBatchSettleMode,
+      openBatchSettle,
+      settleBillsBatch,
+      // Pax Prompt & KOT Transfer
+      paxPrompt,
+      setPaxPrompt,
+      transferKot,
     }}>
       {children}
     </PosContext.Provider>

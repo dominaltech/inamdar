@@ -11,6 +11,11 @@ import CancelAuthModal from './components/CancelAuthModal';
 import ThermalPrintModal from './components/ThermalPrintModal';
 import SettlementModal from './components/SettlementModal';
 import InfoModal from './components/InfoModal';
+import PaxPromptModal from './components/PaxPromptModal';
+import BillSettlementMenuModal from './components/BillSettlementMenuModal';
+import BatchSettlementModal from './components/BatchSettlementModal';
+import DetailsOfBillModal from './components/DetailsOfBillModal';
+import DisplayOrderModal from './components/DisplayOrderModal';
 
 function PosAppContent() {
   const { screenMode } = usePos();
@@ -36,6 +41,11 @@ function PosAppContent() {
       <ThermalPrintModal />
       <SettlementModal />
       <InfoModal />
+      <PaxPromptModal />
+      <BillSettlementMenuModal />
+      <BatchSettlementModal />
+      <DetailsOfBillModal />
+      <DisplayOrderModal />
     </div>
   );
 }

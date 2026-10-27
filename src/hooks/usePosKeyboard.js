@@ -21,6 +21,13 @@ export default function usePosKeyboard() {
     infoDialog,
     setInfoDialog,
     activeTableId,
+    // New video modals
+    showSettlementMenu,
+    setShowSettlementMenu,
+    batchSettleMode,
+    setBatchSettleMode,
+    paxPrompt,
+    setPaxPrompt,
   } = usePos();
 
   useEffect(() => {
@@ -40,7 +47,7 @@ export default function usePosKeyboard() {
         return;
       }
 
-      // F6: Billing
+      // F6: Billing / Cash Memo
       if (e.key === 'F6') {
         e.preventDefault();
         setScreenMode('CASH_MEMO');
@@ -48,16 +55,35 @@ export default function usePosKeyboard() {
         return;
       }
 
-      // F12: Settle Bill (Opens Settlement Popup with Cash, UPI, Card)
+      // F12: Settle Bill or Settlement Menu
       if (e.key === 'F12') {
         e.preventDefault();
-        openSettleModal(activeTableId);
+        if (screenMode === 'DETAILS_OF_BILL') {
+          setShowSettlementMenu(true);
+        } else {
+          openSettleModal(activeTableId);
+        }
         return;
       }
 
       // 2. Escape:
-      // If any sub-modal is open, close it. If on normal screen, Esc opens Login Page!
+      // If any sub-modal or popup is open, close it!
       if (e.key === 'Escape') {
+        if (paxPrompt) {
+          e.preventDefault();
+          setPaxPrompt(null);
+          return;
+        }
+        if (batchSettleMode) {
+          e.preventDefault();
+          setBatchSettleMode(null);
+          return;
+        }
+        if (showSettlementMenu) {
+          e.preventDefault();
+          setShowSettlementMenu(false);
+          return;
+        }
         if (showSettleModal) {
           e.preventDefault();
           setShowSettleModal(false);
@@ -94,14 +120,52 @@ export default function usePosKeyboard() {
           return;
         }
 
-        // When no dialog is open on main screen: Esc opens Login Page!
-        e.preventDefault();
-        setShowLoginModal(true);
-        return;
+        // Authentic Retro Behavior (vid3 & vid4):
+        // In ORDER mode: Esc opens "Display Order" (KOT list & KOT Transfer)
+        if (screenMode === 'ORDER') {
+          e.preventDefault();
+          setScreenMode('DISPLAY_ORDER');
+          return;
+        }
+        if (screenMode === 'DISPLAY_ORDER') {
+          e.preventDefault();
+          setScreenMode('ORDER');
+          return;
+        }
+
+        // In CASH_MEMO mode: Esc opens "Details of Bill" (Green unsettled & Black settled ledger)
+        if (screenMode === 'CASH_MEMO') {
+          e.preventDefault();
+          setScreenMode('DETAILS_OF_BILL');
+          return;
+        }
+        if (screenMode === 'DETAILS_OF_BILL') {
+          e.preventDefault();
+          setScreenMode('CASH_MEMO');
+          return;
+        }
+
+        if (screenMode === 'REPORTS') {
+          e.preventDefault();
+          setScreenMode('ORDER');
+          return;
+        }
       }
 
-      // If a modal is open, don't execute background hotkeys
-      const anyModalOpen = showLoginModal || showShiftModal || showCancelAuthModal || showSettleModal || printData || infoDialog;
+      // If any modal is open, don't execute background hotkeys
+      const anyModalOpen =
+        showLoginModal ||
+        showShiftModal ||
+        showCancelAuthModal ||
+        showSettleModal ||
+        showSettlementMenu ||
+        batchSettleMode ||
+        paxPrompt ||
+        printData ||
+        infoDialog ||
+        screenMode === 'DISPLAY_ORDER' ||
+        screenMode === 'DETAILS_OF_BILL';
+
       if (anyModalOpen) {
         return;
       }
@@ -150,6 +214,12 @@ export default function usePosKeyboard() {
     infoDialog,
     setInfoDialog,
     activeTableId,
+    showSettlementMenu,
+    setShowSettlementMenu,
+    batchSettleMode,
+    setBatchSettleMode,
+    paxPrompt,
+    setPaxPrompt,
   ]);
 }
 
