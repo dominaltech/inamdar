@@ -679,6 +679,21 @@ export function PosProvider({ children }) {
       return [...filtered, { table: tableId, billNo: String(nextBillNo), amount: totalAmount }];
     });
 
+    // Mark table as BILLED so it immediately leaves running tables list (AC, FAMILY AC, etc.)
+    setTables(prev => {
+      const tbl = prev[tableId];
+      if (!tbl) return prev;
+      return {
+        ...prev,
+        [tableId]: {
+          ...tbl,
+          status: 'BILLED',
+          billedBillNo: String(nextBillNo),
+          billedAmount: totalAmount,
+        }
+      };
+    });
+
     // Cloud sync bill
     saveBillInSupabase(memoSlip);
 
@@ -917,6 +932,7 @@ export function PosProvider({ children }) {
       settleBillWithPayment,
       closeDay,
       getNextParcelTable,
+      triggerTableFocus,
       // Cloud Supabase
       isCloudConnected,
       promptSupabaseConfig,

@@ -13,6 +13,8 @@ export default function ThermalPrintModal() {
     function handleKeyDown(e) {
       if (!printData) return;
       if (e.key === 'Escape' || e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
         handleClose();
       }
     }
@@ -252,7 +254,7 @@ export default function ThermalPrintModal() {
           <button className="win-btn" style={{ fontWeight: 'bold', padding: '3px 14px' }} onClick={handlePrint}>
             🖨️ Print Slip
           </button>
-          <button className="win-btn" style={{ padding: '3px 14px' }} onClick={() => setPrintData(null)}>
+          <button className="win-btn" style={{ padding: '3px 14px' }} onClick={handleClose}>
             Close (Esc/↵)
           </button>
         </div>

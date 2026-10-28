@@ -136,9 +136,9 @@ export default function CreditLedgerModal({ isOpen, onClose }) {
                     <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{acc.id}</td>
                     <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{acc.name}</td>
                     <td style={{ padding: '4px 8px', textAlign: 'center', color: '#555' }}>{acc.phone}</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right' }}>₹{acc.creditLimit.toFixed(2)}</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 'bold', color: acc.balance > 0 ? '#cc0000' : '#008000' }}>
-                      ₹{acc.balance.toFixed(2)}
+                    <td style={{ padding: '4px 8px', textAlign: 'right' }}>₹{Number(acc.creditLimit || 0).toFixed(2)}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 'bold', color: (Number(acc.balance) || 0) > 0 ? '#cc0000' : '#008000' }}>
+                      ₹{Number(acc.balance || 0).toFixed(2)}
                     </td>
                     <td style={{ padding: '4px 8px', textAlign: 'center', fontSize: '11px' }}>{acc.lastBill}</td>
                     <td style={{ padding: '4px 8px', textAlign: 'center' }}>

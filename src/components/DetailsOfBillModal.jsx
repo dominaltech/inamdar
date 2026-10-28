@@ -50,11 +50,23 @@ export default function DetailsOfBillModal() {
         }
         return;
       }
+
+      // Quick number typing (0-9): selects matching bill number and prevents background bleed
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        const numKey = e.key;
+        const foundIdx = allBills.findIndex(b => String(b.billNo) === numKey || String(b.billNo).startsWith(numKey) || String(b.table) === numKey);
+        if (foundIdx !== -1) {
+          setSelectedBillIndex(foundIdx);
+        }
+        return;
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screenMode, allBills, setScreenMode, setShowSettlementMenu]);
+  }, [screenMode, allBills, setScreenMode, setShowSettlementMenu, triggerTableFocus]);
 
   if (screenMode !== 'DETAILS_OF_BILL') return null;
 

@@ -119,11 +119,23 @@ export default function DisplayOrderModal() {
         }
         return;
       }
+
+      // Quick number typing (0-9): selects matching KOT or table number and prevents background bleed
+      if (/^[0-9]$/.test(e.key) && !showTransferDialog) {
+        e.preventDefault();
+        e.stopPropagation();
+        const numKey = e.key;
+        const foundIdx = liveKots.findIndex(k => String(k.kotNo) === numKey || String(k.kotNo).startsWith(numKey) || String(k.tableId) === numKey);
+        if (foundIdx !== -1) {
+          setSelectedKotIndex(foundIdx);
+        }
+        return;
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screenMode, showTransferDialog, confirmTransferData, liveKots.length, selectedKotIndex]);
+  }, [screenMode, showTransferDialog, confirmTransferData, liveKots, selectedKotIndex]);
 
   if (screenMode !== 'DISPLAY_ORDER') return null;
 

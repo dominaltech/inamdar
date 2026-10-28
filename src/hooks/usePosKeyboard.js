@@ -21,6 +21,10 @@ export default function usePosKeyboard() {
     infoDialog,
     setInfoDialog,
     activeTableId,
+    tables,
+    printCashMemo,
+    switchTable,
+    triggerTableFocus,
     // New video modals
     showSettlementMenu,
     setShowSettlementMenu,
@@ -46,14 +50,30 @@ export default function usePosKeyboard() {
         e.preventDefault();
         setScreenMode(prev => prev === 'ORDER' ? 'CASH_MEMO' : 'ORDER');
         setIsCancelMode(false);
+        triggerTableFocus?.();
         return;
       }
 
-      // F6: Billing / Cash Memo
+      // F6: Billing / Cash Memo Print
       if (e.key === 'F6') {
         e.preventDefault();
-        setScreenMode('CASH_MEMO');
-        setIsCancelMode(false);
+        const tbl = activeTableId && tables[activeTableId];
+        const hasItems = tbl && tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
+        if (hasItems) {
+          setPaxPrompt({
+            show: true,
+            tableId: activeTableId,
+            onConfirm: (pax) => {
+              printCashMemo(activeTableId, pax);
+              switchTable('');
+              triggerTableFocus?.();
+            }
+          });
+        } else {
+          setScreenMode('CASH_MEMO');
+          setIsCancelMode(false);
+          triggerTableFocus?.();
+        }
         return;
       }
 
@@ -222,6 +242,10 @@ export default function usePosKeyboard() {
     infoDialog,
     setInfoDialog,
     activeTableId,
+    tables,
+    printCashMemo,
+    switchTable,
+    triggerTableFocus,
     showSettlementMenu,
     setShowSettlementMenu,
     batchSettleMode,

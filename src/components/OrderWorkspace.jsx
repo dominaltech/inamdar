@@ -26,7 +26,10 @@ export default function OrderWorkspace() {
     printCashMemo,
     openSettleModal,
     getNextParcelTable,
+    paxPrompt,
     setPaxPrompt,
+    printData,
+    activeModal,
   } = usePos();
 
   // Active entry row inputs
@@ -58,22 +61,123 @@ export default function OrderWorkspace() {
     setTableInput(activeTableId);
   }, [activeTableId]);
 
+  const focusTableInput = () => {
+    setTimeout(() => {
+      if (tableInputRef.current && !tableInputRef.current.disabled) {
+        tableInputRef.current.focus();
+        tableInputRef.current.select();
+      }
+    }, 30);
+  };
+
   // Focus table input on mount, screen mode switch, or global focus event
   useEffect(() => {
-    tableInputRef.current?.focus();
-    tableInputRef.current?.select();
+    if (screenMode === 'ORDER' || screenMode === 'CASH_MEMO') {
+      focusTableInput();
+    }
   }, [screenMode]);
 
   useEffect(() => {
     const handleFocusTable = () => {
-      setTimeout(() => {
-        tableInputRef.current?.focus();
-        tableInputRef.current?.select();
-      }, 50);
+      focusTableInput();
     };
     window.addEventListener('inamdar-focus-table', handleFocusTable);
     return () => window.removeEventListener('inamdar-focus-table', handleFocusTable);
   }, []);
+
+  // Two-Stage Escape Handling & Zero-Mouse Keyboard Workflow
+  useEffect(() => {
+    const handleCaptureKeyDown = (e) => {
+      // If modal or dialog or external screen is open, do not intercept
+      if (
+        printData ||
+        paxPrompt ||
+        activeModal ||
+        screenMode === 'DISPLAY_ORDER' ||
+        screenMode === 'DETAILS_OF_BILL' ||
+        screenMode === 'REPORTS'
+      ) {
+        return;
+      }
+
+      // Two-Stage Escape Handling
+      if (e.key === 'Escape') {
+        // If subtable menu is open, let tableKeyDown handle closing it
+        if (showSubTableMenu) {
+          return;
+        }
+
+        if (screenMode === 'ORDER') {
+          const isDirty = Boolean(
+            tableInput.trim() ||
+            activeTableId ||
+            codeQuery.trim() ||
+            (currentTableData.items && currentTableData.items.length > 0)
+          );
+
+          if (isDirty) {
+            // 1st Esc: Clear workspace completely
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            setTableInput('');
+            switchTable('');
+            setCodeQuery('');
+            setSelectedItem(null);
+            setQtyInput('1');
+            setRateInput('');
+            setCustomizationInput('');
+            setShowSubTableMenu(false);
+            focusTableInput();
+            return;
+          }
+          // If already clear, do not preventDefault/stopPropagation; let it bubble to usePosKeyboard to open DISPLAY_ORDER!
+        } else if (screenMode === 'CASH_MEMO') {
+          const isDirty = Boolean(
+            tableInput.trim() ||
+            activeTableId ||
+            (currentTableData.items && currentTableData.items.length > 0)
+          );
+
+          if (isDirty) {
+            // 1st Esc: Clear Cash Memo workspace completely
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            setTableInput('');
+            switchTable('');
+            focusTableInput();
+            return;
+          }
+          // If already clear, do not preventDefault/stopPropagation; let it bubble to usePosKeyboard to open DETAILS_OF_BILL!
+        }
+      }
+
+      // Zero-Mouse Workflow: If user presses Enter while focus is outside an input, bring cursor to Table!
+      const activeEl = document.activeElement;
+      const isInputFocused = activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'SELECT' ||
+        activeEl.tagName === 'TEXTAREA'
+      );
+
+      if (e.key === 'Enter' && !isInputFocused) {
+        e.preventDefault();
+        focusTableInput();
+        return;
+      }
+
+      // If user types an alphanumeric character while focus is outside inputs, focus Table input!
+      if (!isInputFocused && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 && !e.key.startsWith('F')) {
+        if (tableInputRef.current && !tableInputRef.current.disabled) {
+          tableInputRef.current.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleCaptureKeyDown, true);
+    return () => window.removeEventListener('keydown', handleCaptureKeyDown, true);
+  }, [screenMode, tableInput, activeTableId, codeQuery, currentTableData.items, showSubTableMenu, printData, paxPrompt, activeModal]);
 
   // Update search results when codeQuery changes
   useEffect(() => {
@@ -281,27 +385,25 @@ const isAtEnd = (el) => {
         return;
       }
 
-      // In Cash Memo mode, entering a table triggers Number of Persons prompt
+      // In Cash Memo mode, entering a table selects table, and if it has items, triggers Number of Persons prompt & bill print
       if (screenMode === 'CASH_MEMO') {
         switchTable(targetTable);
-        setPaxPrompt({
-          show: true,
-          tableId: targetTable,
-          onConfirm: (pax) => {
-            // Save pax on the table
-            setTables(prev => {
-              const tbl = prev[targetTable];
-              if (!tbl) return prev;
-              return {
-                ...prev,
-                [targetTable]: { ...tbl, pax }
-              };
-            });
-            setTimeout(() => {
-              employeeSelectRef.current?.focus();
-            }, 60);
-          }
-        });
+        const tbl = tables[targetTable];
+        const hasItems = tbl && tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
+        if (hasItems) {
+          setPaxPrompt({
+            show: true,
+            tableId: targetTable,
+            onConfirm: (pax) => {
+              printCashMemo(targetTable, pax);
+              setTableInput('');
+              switchTable('');
+              focusTableInput();
+            }
+          });
+        } else {
+          focusTableInput();
+        }
         return;
       }
 
@@ -425,13 +527,17 @@ const isAtEnd = (el) => {
     }, 20);
   };
 
-  // Qty enter -> Progression: Qty ➔ Rate (Enter/Right), Qty ➔ Code (Left)!
+  // Qty enter -> Progression: Qty ➔ Customization (Enter/Right), Qty ➔ Code (Left)! Skips Rate completely!
   const handleQtyKeyDown = (e) => {
     if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
-      // Forward: Qty ➔ Rate!
-      rateInputRef.current?.focus();
-      rateInputRef.current?.select();
+      // Skip Rate/Price entirely and jump directly to Customization (or Reason in cancel mode)
+      if (isCancelMode) {
+        cancelReasonRef.current?.focus();
+      } else {
+        customInputRef.current?.focus();
+        customInputRef.current?.select();
+      }
     } else if (e.key === 'ArrowLeft') {
       if (isAtStart(e.target)) {
         e.preventDefault();
@@ -444,9 +550,8 @@ const isAtEnd = (el) => {
 
   // Rate enter -> Progression: Rate ➔ Customization (Enter/Right), Rate ➔ Qty (Left)!
   const handleRateKeyDown = (e) => {
+    e.preventDefault();
     if (e.key === 'Enter' || e.key === 'ArrowRight') {
-      e.preventDefault();
-      // Forward: Rate ➔ Customization (or Reason in cancel mode)!
       if (isCancelMode) {
         cancelReasonRef.current?.focus();
       } else {
@@ -454,14 +559,12 @@ const isAtEnd = (el) => {
         customInputRef.current?.select();
       }
     } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      // Backward: Rate ➔ Qty!
       qtyInputRef.current?.focus();
       qtyInputRef.current?.select();
     }
   };
 
-  // Customization enter -> Commits row and loops back: Customization ➔ Code (Enter), Customization ➔ Rate (Left)!
+  // Customization enter -> Commits row and loops back: Customization ➔ Code (Enter), Customization ➔ Qty (Left, skipping Rate)!
   const handleCustomKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -469,9 +572,9 @@ const isAtEnd = (el) => {
     } else if (e.key === 'ArrowLeft') {
       if (isAtStart(e.target)) {
         e.preventDefault();
-        // Backward: Customization ➔ Rate!
-        rateInputRef.current?.focus();
-        rateInputRef.current?.select();
+        // Backward: Customization ➔ skips Rate ➔ directly back to Qty!
+        qtyInputRef.current?.focus();
+        qtyInputRef.current?.select();
       }
     }
   };
@@ -509,9 +612,9 @@ const isAtEnd = (el) => {
       setShowCancelAuthModal(true);
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      // Backward: Cancel Reason ➔ Rate!
-      rateInputRef.current?.focus();
-      rateInputRef.current?.select();
+      // Backward: Cancel Reason ➔ skips Rate ➔ directly back to Qty!
+      qtyInputRef.current?.focus();
+      qtyInputRef.current?.select();
     }
   };
 
@@ -523,27 +626,56 @@ const isAtEnd = (el) => {
   // Staged / unprinted items count
   const stagedCount = currentTableData.items.filter(it => it.isStaged && it.qty > 0).length;
 
-  // Group active tables for the integrated right status pane
+  // F6 Bill Handler
+  const handleBillF6 = (tableId = activeTableId) => {
+    const target = tableId || activeTableId;
+    const tbl = tables[target];
+    const hasItems = tbl && tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
+    if (hasItems) {
+      setPaxPrompt({
+        show: true,
+        tableId: target,
+        onConfirm: (pax) => {
+          printCashMemo(target, pax);
+          setTableInput('');
+          switchTable('');
+          focusTableInput();
+        }
+      });
+    } else {
+      setScreenMode('CASH_MEMO');
+      focusTableInput();
+    }
+  };
+
+  // Group active running tables (Tables currently dining with unbilled items)
+  // When a bill is generated, the table immediately leaves this section and moves to Unsettled Bills!
+  const isRunningTable = (t) => {
+    const hasActiveItems = t.items && t.items.some(it => it.qty > 0 && !it.isCancelled);
+    const isBilled = t.status === 'BILLED' || unsettledBills.some(b => String(b.table) === String(t.id));
+    return hasActiveItems && !isBilled;
+  };
+
   const acTableNums = Object.values(tables)
-    .filter(t => t.section === 'AC' && t.items && t.items.some(it => it.qty > 0) && !t.id.startsWith('0'))
+    .filter(t => t.section === 'AC' && isRunningTable(t) && !t.id.startsWith('0'))
     .map(t => t.id);
 
   const familyAcTableNums = Object.values(tables)
-    .filter(t => t.section === 'FAMILY AC' && t.items && t.items.some(it => it.qty > 0))
+    .filter(t => t.section === 'FAMILY AC' && isRunningTable(t))
     .map(t => t.id);
 
   const parcelTableNums = Object.values(tables)
-    .filter(t => t.section === 'PARCEL' && t.items && t.items.some(it => it.qty > 0))
+    .filter(t => t.section === 'PARCEL' && isRunningTable(t))
     .map(t => t.id);
 
   const deliveryTableNums = Object.values(tables)
-    .filter(t => t.section === 'HOME DELIVERY' && t.items && t.items.some(it => it.qty > 0))
+    .filter(t => t.section === 'HOME DELIVERY' && isRunningTable(t))
     .map(t => t.id);
 
-  // Window title depending on state
+  // Window title depending on state - strictly 'Cash Memo' in Cash Memo mode!
   const windowTitle = isCancelMode 
     ? 'Cancel Order' 
-    : (screenMode === 'ORDER' ? 'New Order' : 'New Cash Memo');
+    : (screenMode === 'ORDER' ? 'New Order' : 'Cash Memo');
 
   return (
     <div style={{
@@ -600,6 +732,7 @@ const isAtEnd = (el) => {
                   <input
                     ref={tableInputRef}
                     id="pos-table-input"
+                    disabled={screenMode !== 'ORDER' && screenMode !== 'CASH_MEMO'}
                     placeholder="Table"
                     type="text"
                     value={tableInput}
@@ -722,134 +855,145 @@ const isAtEnd = (el) => {
             </div>
           </div>
 
-          {/* Quick Item Input Row: Strict progression Table ➔ Employee ➔ Code ➔ Qty ➔ Rate ➔ Customization */}
-          <div style={{
-            display: 'flex',
-            gap: '3px',
-            marginBottom: '4px',
-            background: '#d4d0c8',
-            padding: '3px 4px',
-            border: '1px solid #999'
-          }}>
-            <div style={{ width: '80px', position: 'relative' }}>
-              <input
-                ref={codeInputRef}
-                type="text"
-                value={codeQuery}
-                onChange={(e) => setCodeQuery(e.target.value)}
-                onKeyDown={handleCodeKeyDown}
-                placeholder="Code/CTM"
-                className="win-input"
-                style={{ width: '100%', height: '22px', fontSize: '11px', fontWeight: 'bold' }}
-              />
-              {/* Autocomplete dropdown */}
-              {searchResults.length > 0 && (
-                <div className="win-bevel-outset" style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  width: '340px',
-                  maxHeight: '210px',
-                  overflowY: 'auto',
-                  background: '#ffffff',
-                  zIndex: 800,
-                  padding: '2px',
-                  boxShadow: '2px 2px 6px rgba(0,0,0,0.3)'
-                }}>
-                  {searchResults.map((item, idx) => (
-                    <div
-                      key={`${item.code}-${idx}`}
-                      onClick={() => selectItem(item)}
-                      style={{
-                        padding: '3px 6px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        background: idx === highlightedIndex ? '#0a246a' : 'transparent',
-                        color: idx === highlightedIndex ? '#ffffff' : '#000000',
-                        display: 'flex',
-                        justifyContent: 'space-between'
-                      }}
-                    >
-                      <span style={{ fontWeight: 'bold', width: '35px' }}>{item.code}</span>
-                      <span style={{ flex: 1 }}>{item.name}</span>
-                      <span style={{ width: '45px', textAlign: 'right' }}>₹{currentTableData.section.includes('AC') ? (item.acRate || item.rate) : (item.hallRate || item.rate)}</span>
-                    </div>
-                  ))}
+          {/* Quick Item Input Row: Strictly in ORDER mode; completely hidden in CASH_MEMO mode! */}
+          {screenMode === 'ORDER' && (
+            <div style={{
+              display: 'flex',
+              gap: '3px',
+              marginBottom: '4px',
+              background: '#d4d0c8',
+              padding: '3px 4px',
+              border: '1px solid #999'
+            }}>
+              <div style={{ width: '80px', position: 'relative' }}>
+                <input
+                  ref={codeInputRef}
+                  type="text"
+                  value={codeQuery}
+                  onChange={(e) => setCodeQuery(e.target.value)}
+                  onKeyDown={handleCodeKeyDown}
+                  placeholder="Code/CTM"
+                  className="win-input"
+                  style={{ width: '100%', height: '22px', fontSize: '11px', fontWeight: 'bold' }}
+                />
+                {/* Autocomplete dropdown */}
+                {searchResults.length > 0 && (
+                  <div className="win-bevel-outset" style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    width: '340px',
+                    maxHeight: '210px',
+                    overflowY: 'auto',
+                    background: '#ffffff',
+                    zIndex: 800,
+                    padding: '2px',
+                    boxShadow: '2px 2px 6px rgba(0,0,0,0.3)'
+                  }}>
+                    {searchResults.map((item, idx) => (
+                      <div
+                        key={`${item.code}-${idx}`}
+                        onClick={() => selectItem(item)}
+                        style={{
+                          padding: '3px 6px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          background: idx === highlightedIndex ? '#0a246a' : 'transparent',
+                          color: idx === highlightedIndex ? '#ffffff' : '#000000',
+                          display: 'flex',
+                          justifyContent: 'space-between'
+                        }}
+                      >
+                        <span style={{ fontWeight: 'bold', width: '35px' }}>{item.code}</span>
+                        <span style={{ flex: 1 }}>{item.name}</span>
+                        <span style={{ width: '45px', textAlign: 'right' }}>₹{currentTableData.section.includes('AC') ? (item.acRate || item.rate) : (item.hallRate || item.rate)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={selectedItem?.name || ''}
+                  placeholder="Dish name (Type Code, Acronym e.g. CTM/CB, or Text)"
+                  className="win-input"
+                  style={{ width: '100%', height: '22px', background: '#f4f4f4', fontSize: '11px' }}
+                />
+              </div>
+
+              <div style={{ width: '45px' }}>
+                <input
+                  ref={qtyInputRef}
+                  type="text"
+                  inputMode="numeric"
+                  value={qtyInput}
+                  onChange={(e) => setQtyInput(e.target.value.replace(/[^0-9]/g, ''))}
+                  onKeyDown={handleQtyKeyDown}
+                  placeholder="Qty"
+                  className="win-input"
+                  style={{ width: '100%', height: '22px', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}
+                />
+              </div>
+
+              <div style={{ width: '55px' }}>
+                <input
+                  ref={rateInputRef}
+                  type="text"
+                  readOnly={true}
+                  tabIndex={-1}
+                  value={rateInput}
+                  onKeyDown={handleRateKeyDown}
+                  placeholder="Rate"
+                  className="win-input"
+                  style={{
+                    width: '100%',
+                    height: '22px',
+                    textAlign: 'right',
+                    background: '#e0e0e0',
+                    color: '#333333',
+                    fontSize: '11px',
+                    userSelect: 'none',
+                    pointerEvents: 'none'
+                  }}
+                  title="Fixed menu rate"
+                />
+              </div>
+
+              {isCancelMode ? (
+                <div style={{ width: '170px' }}>
+                  <select
+                    ref={cancelReasonRef}
+                    value={cancelReasonInput}
+                    onChange={(e) => setCancelReasonInput(e.target.value)}
+                    onKeyDown={handleCancelReasonKeyDown}
+                    className="win-input"
+                    style={{ width: '100%', height: '22px', fontSize: '10px', color: '#c00000', fontWeight: 'bold' }}
+                  >
+                    {CANCEL_REASONS.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div style={{ width: '120px' }}>
+                  <input
+                    ref={customInputRef}
+                    id="pos-custom-input"
+                    type="text"
+                    value={customizationInput}
+                    onChange={(e) => setCustomizationInput(e.target.value)}
+                    onKeyDown={handleCustomKeyDown}
+                    placeholder="Custom / ↵"
+                    className="win-input"
+                    style={{ width: '100%', height: '22px', fontSize: '11px' }}
+                  />
                 </div>
               )}
             </div>
-
-            <div style={{ flex: 1 }}>
-              <input
-                type="text"
-                readOnly
-                value={selectedItem?.name || ''}
-                placeholder="Dish name (Type Code, Acronym e.g. CTM/CB, or Text)"
-                className="win-input"
-                style={{ width: '100%', height: '22px', background: '#f4f4f4', fontSize: '11px' }}
-              />
-            </div>
-
-            <div style={{ width: '45px' }}>
-              <input
-                ref={qtyInputRef}
-                type="text"
-                inputMode="numeric"
-                value={qtyInput}
-                onChange={(e) => setQtyInput(e.target.value.replace(/[^0-9]/g, ''))}
-                onKeyDown={handleQtyKeyDown}
-                placeholder="Qty"
-                className="win-input"
-                style={{ width: '100%', height: '22px', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}
-              />
-            </div>
-
-            <div style={{ width: '55px' }}>
-              <input
-                ref={rateInputRef}
-                type="text"
-                readOnly
-                tabIndex={0}
-                value={rateInput}
-                onKeyDown={handleRateKeyDown}
-                placeholder="Rate"
-                className="win-input"
-                style={{ width: '100%', height: '22px', textAlign: 'right', background: '#f4f4f4', fontSize: '11px', cursor: 'pointer' }}
-                title="Press Enter or ArrowRight for Customization, ArrowLeft for Qty"
-              />
-            </div>
-
-            {isCancelMode ? (
-              <div style={{ width: '170px' }}>
-                <select
-                  ref={cancelReasonRef}
-                  value={cancelReasonInput}
-                  onChange={(e) => setCancelReasonInput(e.target.value)}
-                  onKeyDown={handleCancelReasonKeyDown}
-                  className="win-input"
-                  style={{ width: '100%', height: '22px', fontSize: '10px', color: '#c00000', fontWeight: 'bold' }}
-                >
-                  {CANCEL_REASONS.map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div style={{ width: '120px' }}>
-                <input
-                  ref={customInputRef}
-                  id="pos-custom-input"
-                  type="text"
-                  value={customizationInput}
-                  onChange={(e) => setCustomizationInput(e.target.value)}
-                  onKeyDown={handleCustomKeyDown}
-                  placeholder="Custom / ↵"
-                  className="win-input"
-                  style={{ width: '100%', height: '22px', fontSize: '11px' }}
-                />
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Main Body Split: Left Items Grid + Right Live Tables Board */}
           <div style={{ flex: 1, display: 'flex', border: '1px solid #7f9db9', background: '#fff', overflow: 'hidden' }}>
@@ -1135,7 +1279,7 @@ const isAtEnd = (el) => {
               <button
                 className="win-btn"
                 style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 'bold' }}
-                onClick={() => printCashMemo(activeTableId)}
+                onClick={() => handleBillF6(activeTableId)}
               >
                 Bill (F6)
               </button>

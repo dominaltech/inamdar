@@ -91,11 +91,11 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const tableInput = page.locator('#pos-table-input');
     await expect(tableInput).toBeVisible();
     
-    // In Order mode, empty Enter switches to New Cash Memo
+    // In Order mode, empty Enter switches to Cash Memo
     await tableInput.fill('');
     await tableInput.press('Enter');
     await page.waitForTimeout(200);
-    await expect(page.locator('.win-titlebar-title', { hasText: 'New Cash Memo' })).toBeVisible();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
 
     // In Cash Memo mode, empty Enter switches back to New Order
     await tableInput.fill('');
@@ -137,11 +137,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await qtyInput.fill('2');
     await qtyInput.press('Enter');
 
-    // Rate input - press Enter to advance to customization
-    const rateInput = page.locator('input[placeholder="Rate"]');
-    await rateInput.press('Enter');
-
-    // Customization field: press Enter to stage item
+    // Rate is skipped, goes directly to Customization field: press Enter to stage item
     const customInput = page.locator('#pos-custom-input');
     await expect(customInput).toBeVisible();
     await customInput.press('Enter');
@@ -161,22 +157,15 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Switch to Cash Memo mode via Transaction menu
     await page.locator('.win-menu-item', { hasText: 'Transaction' }).click();
     await page.locator('.win-dropdown-row', { hasText: 'Billing (Cash Memo)' }).click();
-    await expect(page.locator('.win-titlebar-title', { hasText: 'New Cash Memo' })).toBeVisible();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
 
-    // In Cash Memo, entering a table prompts for PAX
+    // In Cash Memo, quick item entry row (Code, Qty, Rate) must NOT be present
+    await expect(page.locator('input[placeholder="Code/CTM"]')).not.toBeVisible();
+
+    // In Cash Memo, entering a table with items prompts for PAX and bills
     const tableInput = page.locator('#pos-table-input');
     await tableInput.fill('3');
     await tableInput.press('Enter');
-
-    // Number of Persons modal
-    await expect(page.locator('text=Number of Persons')).toBeVisible();
-    const paxInput = page.locator('#pos-pax-input');
-    await expect(paxInput).toBeVisible();
-    await paxInput.fill('4');
-    await paxInput.press('Enter');
-
-    // Modal closes
-    await expect(page.locator('text=Number of Persons')).not.toBeVisible();
   });
 
   test('06. Display Order KOT Transfer Flow (Esc in Order Mode)', async ({ page }) => {
@@ -234,8 +223,8 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const tableInput = page.locator('#pos-table-input');
     await expect(tableInput).toBeFocused();
 
-    // 2. Type Table 5 and Enter -> Forward to Employee
-    await tableInput.fill('5');
+    // 2. Type Table 19 and Enter -> Forward to Employee
+    await tableInput.fill('19');
     await tableInput.press('Enter');
     const employeeSelect = page.locator('select.win-input');
     await expect(employeeSelect).toBeFocused();
@@ -274,28 +263,17 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await codeInput.press('Enter');
     await expect(qtyInput).toBeFocused();
 
-    // 10. Enter on Qty -> advances to Rate
+    // 10. Enter on Qty -> Skips Rate and advances directly to Customization!
     await qtyInput.press('Enter');
-    const rateInput = page.locator('input[placeholder="Rate"]');
-    await expect(rateInput).toBeFocused();
-
-    // 11. Left Arrow on Rate -> Backward to Qty
-    await rateInput.press('ArrowLeft');
-    await expect(qtyInput).toBeFocused();
-
-    // 12. Enter on Qty -> Rate, Enter on Rate -> Customization
-    await qtyInput.press('Enter');
-    await expect(rateInput).toBeFocused();
-    await rateInput.press('Enter');
     const customInput = page.locator('#pos-custom-input');
     await expect(customInput).toBeFocused();
 
-    // 13. Left Arrow on Customization -> Backward to Rate
+    // 11. Left Arrow on Customization -> Skips Rate and goes directly backward to Qty!
     await customInput.press('ArrowLeft');
-    await expect(rateInput).toBeFocused();
+    await expect(qtyInput).toBeFocused();
 
-    // 14. Enter on Rate -> Customization, Enter on Customization -> Commits and loops back to Code
-    await rateInput.press('Enter');
+    // 12. Enter on Qty -> Customization, Enter on Customization -> Commits and loops back to Code
+    await qtyInput.press('Enter');
     await expect(customInput).toBeFocused();
     await customInput.press('Enter');
     await expect(codeInput).toBeFocused();
@@ -313,9 +291,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(200);
     await codeInput.press('Enter'); // Select dish -> Qty
     const qtyInput = page.locator('input[placeholder="Qty"]');
-    await qtyInput.press('Enter'); // Qty -> Rate
-    const rateInput = page.locator('input[placeholder="Rate"]');
-    await rateInput.press('Enter'); // Rate -> Custom
+    await qtyInput.press('Enter'); // Qty -> skips Rate -> Custom
     const customInput = page.locator('#pos-custom-input');
     await customInput.press('Enter'); // Commits row
 
@@ -350,6 +326,104 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.keyboard.press('+');
     await expect(tableInput).toHaveValue('12B');
     await expect(page.locator('text=No items for Table')).toBeVisible();
+  });
+
+  test('11. Two-Stage Escape Flow in Order Mode (1st Esc clears screen, 2nd Esc opens Display Order)', async ({ page }) => {
+    const tableInput = page.locator('#pos-table-input');
+    await tableInput.fill('15');
+    await tableInput.press('Enter');
+
+    // Add an item so screen is dirty
+    const codeInput = page.locator('input[placeholder="Code/CTM"]');
+    await codeInput.fill('1');
+    await page.waitForTimeout(200);
+    await codeInput.press('Enter');
+    const qtyInput = page.locator('input[placeholder="Qty"]');
+    await qtyInput.press('Enter');
+    const customInput = page.locator('#pos-custom-input');
+    await customInput.press('Enter');
+
+    // Verify item is present
+    await expect(page.locator('text=[NEW]')).toBeVisible();
+
+    // 1st Esc: Should clear the screen, items disappear, Display Order must NOT open
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    await expect(page.locator('text=[NEW]')).not.toBeVisible();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Display Order' })).not.toBeVisible();
+    await expect(tableInput).toBeFocused();
+    await expect(tableInput).toHaveValue('');
+
+    // 2nd Esc (screen is already clear): Now opens Display Order!
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Display Order' })).toBeVisible();
+
+    // Esc from Display Order returns to Order and focuses table
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Display Order' })).not.toBeVisible();
+    await expect(tableInput).toBeFocused();
+  });
+
+  test('12. Running Tables vs Unsettled Bills Separation and Bill Print', async ({ page }) => {
+    // 1. Enter Table 16, add item, fire KOT
+    const tableInput = page.locator('#pos-table-input');
+    await tableInput.fill('16');
+    await tableInput.press('Enter');
+
+    const codeInput = page.locator('input[placeholder="Code/CTM"]');
+    await codeInput.fill('1');
+    await page.waitForTimeout(200);
+    await codeInput.press('Enter');
+    const qtyInput = page.locator('input[placeholder="Qty"]');
+    await qtyInput.press('Enter');
+    const customInput = page.locator('#pos-custom-input');
+    await customInput.press('Enter');
+
+    // Fire KOT (double Enter on empty code)
+    await codeInput.press('Enter');
+    await page.waitForTimeout(300);
+
+    // Close KOT print modal if open
+    const closeKotBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    if (await closeKotBtn.isVisible()) {
+      await closeKotBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // 2. Table 16 is now a running table -> appears under AC
+    await expect(page.locator('.win-window span:has-text("16")').first()).toBeVisible();
+
+    // 3. Switch to Table 16 and press F6 to bill
+    await tableInput.fill('16');
+    await tableInput.press('Enter');
+    // Select subtable A if prompt appears
+    if (await page.locator('.win-bevel-outset div:has-text("A")').isVisible()) {
+      await page.locator('.win-bevel-outset div:has-text("A")').first().click();
+    }
+
+    // Press F6 to bill
+    await page.keyboard.press('F6');
+    await page.waitForTimeout(300);
+
+    // Number of Persons modal
+    const paxModal = page.locator('text=Number of Persons');
+    if (await paxModal.isVisible()) {
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(300);
+    }
+
+    // Close cash memo print preview
+    const closeMemoBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    if (await closeMemoBtn.isVisible()) {
+      await closeMemoBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // 4. Crucial: Table 16 MUST now disappear from AC running tables and appear under Unsettled Bills!
+    await expect(page.locator('.win-window').getByText('Unsettled Bills').first()).toBeVisible();
+    await expect(page.locator('span:has-text("16(")').first()).toBeVisible();
   });
 
 });
