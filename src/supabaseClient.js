@@ -1,14 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Get Supabase URL and Key from Vite environment variables or localStorage
+// Default Live Supabase Credentials (Works out-of-the-box in Web & Electron packaging)
+export const DEFAULT_SUPABASE_URL = 'https://ovxvfzdnwhakkujktxky.supabase.co';
+export const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92eHZmemRud2hha2t1amt0eGt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NDU1NTUsImV4cCI6MjEwODQyMTU1NX0.HDfQrJl-vFZG3sI8bM8fCEzc6K_YVzz_SzzYHJM3roM';
+
+// Get Supabase URL and Key from Vite environment variables, localStorage, or fallback
 const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 const storedUrl = typeof window !== 'undefined' ? (localStorage.getItem('inamdar_supabase_url') || '') : '';
 const storedKey = typeof window !== 'undefined' ? (localStorage.getItem('inamdar_supabase_key') || '') : '';
 
-export const SUPABASE_URL = storedUrl || envUrl;
-export const SUPABASE_ANON_KEY = storedKey || envKey;
+export const SUPABASE_URL = storedUrl || envUrl || DEFAULT_SUPABASE_URL;
+export const SUPABASE_ANON_KEY = storedKey || envKey || DEFAULT_SUPABASE_KEY;
 
 export const isSupabaseConfigured = () => {
   return Boolean(

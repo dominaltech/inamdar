@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
 
 export default function TableShiftModal() {
-  const { showShiftModal, setShowShiftModal, tables, transferTable, activeTableId, setInfoDialog } = usePos();
+  const { showShiftModal, setShowShiftModal, tables, transferTable, activeTableId, setInfoDialog, triggerTableFocus } = usePos();
   const [sourceTable, setSourceTable] = useState('');
   const [targetTable, setTargetTable] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
@@ -48,6 +48,7 @@ export default function TableShiftModal() {
       targetInputRef.current?.focus();
     } else if (e.key === 'Escape') {
       setShowShiftModal(false);
+      triggerTableFocus?.();
     }
   };
 
@@ -73,6 +74,7 @@ export default function TableShiftModal() {
       }, 50);
     } else if (e.key === 'Escape') {
       setShowShiftModal(false);
+      triggerTableFocus?.();
     }
   };
 
@@ -81,6 +83,7 @@ export default function TableShiftModal() {
     const success = transferTable(sourceTable, targetTable);
     if (success) {
       setShowShiftModal(false);
+      triggerTableFocus?.();
     }
   };
 
@@ -92,7 +95,7 @@ export default function TableShiftModal() {
           <div className="win-titlebar-title">
             <span>Previously Ordered Items</span>
           </div>
-          <button className="win-close-btn" onClick={() => setShowShiftModal(false)}>✕</button>
+          <button className="win-close-btn" onClick={() => { setShowShiftModal(false); triggerTableFocus?.(); }}>✕</button>
         </div>
 
         <div style={{ padding: '10px 14px', background: '#ece9d8' }}>

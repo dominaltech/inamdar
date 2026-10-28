@@ -1,16 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { usePos } from '../context/PosContext';
+import { isKitchenItem } from '../data/menuService';
 
 export default function ReportsView() {
-  const { setScreenMode, dailyTransactions } = usePos();
+  const { setScreenMode, dailyTransactions, allBills, tables, triggerTableFocus } = usePos();
   const [reportDate, setReportDate] = useState('Today');
 
-  // Calculate live numbers from today's settled transactions
-  const liveCash = dailyTransactions.filter(t => t.paymentMode === 'Cash').reduce((s, t) => s + t.amount, 0);
-  const liveUpi = dailyTransactions.filter(t => t.paymentMode === 'UPI').reduce((s, t) => s + t.amount, 0);
-  const liveCard = dailyTransactions.filter(t => t.paymentMode === 'Card').reduce((s, t) => s + t.amount, 0);
-  const liveTotalSales = liveCash + liveUpi + liveCard;
-  const liveTotalBills = dailyTransactions.length;
   const [halls, setHalls] = useState({
     Ac: true,
     FamilyAc: true,
@@ -24,6 +19,149 @@ export default function ReportsView() {
     setHalls(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // 1. Sales & Cashier Collections from live settled transactions
+  const liveCash = (dailyTransactions || []).filter(t => t.paymentMode === 'Cash').reduce((s, t) => s + Number(t.amount || 0), 0);
+  const liveUpi = (dailyTransactions || []).filter(t => t.paymentMode === 'UPI').reduce((s, t) => s + Number(t.amount || 0), 0);
+  const liveCard = (dailyTransactions || []).filter(t => t.paymentMode === 'Card' || t.paymentMode === 'Debit Card').reduce((s, t) => s + Number(t.amount || 0), 0);
+  const liveOthers = (dailyTransactions || []).filter(t => !['Cash', 'UPI', 'Card', 'Debit Card'].includes(t.paymentMode)).reduce((s, t) => s + Number(t.amount || 0), 0);
+  const liveTotalSales = liveCash + liveUpi + liveCard + liveOthers;
+  const liveTotalBills = (dailyTransactions || []).length;
+
+  // 2. Hall Breakup (from settled bills)
+  const hallData = useMemo(() => {
+    let ac = 0;
+    let familyAc = 0;
+    let parcel = 0;
+    let delivery = 0;
+
+    (allBills || []).filter(b => b.isSettled).forEach(b => {
+      const amt = Number(b.totalAmount || 0);
+      const sec = (b.section || '').toUpperCase();
+      if (sec === 'AC') ac += amt;
+      else if (sec === 'FAMILY AC') familyAc += amt;
+      else if (sec === 'PARCEL') parcel += amt;
+      else if (sec === 'HOME DELIVERY') delivery += amt;
+      else ac += amt;
+    });
+
+    const total = ac + familyAc + parcel + delivery || liveTotalSales || 1;
+    return {
+      ac: { amt: ac, pct: Math.round((ac / total) * 100) },
+      familyAc: { amt: familyAc, pct: Math.round((familyAc / total) * 100) },
+      parcel: { amt: parcel, pct: Math.round((parcel / total) * 100) },
+      delivery: { amt: delivery, pct: Math.round((delivery / total) * 100) },
+    };
+  }, [allBills, liveTotalSales]);
+
+  // 3. Department Breakup (Kitchen vs Pantry)
+  const deptData = useMemo(() => {
+    let kitchen = 0;
+    let pantry = 0;
+
+    (allBills || []).filter(b => b.isSettled).forEach(b => {
+      (b.items || []).forEach(it => {
+        const amt = Number(it.amount || it.qty * it.rate || 0);
+        if (isKitchenItem(it)) kitchen += amt;
+        else pantry += amt;
+      });
+    });
+
+    const total = kitchen + pantry || 1;
+    return {
+      kitchen: { amt: kitchen, pct: Math.round((kitchen / total) * 100) },
+      pantry: { amt: pantry, pct: Math.round((pantry / total) * 100) },
+    };
+  }, [allBills]);
+
+  // 4. Category & Sub-Category Breakup
+  const categoryData = useMemo(() => {
+    const catMap = {};
+    let chickenAmt = 0;
+    let vegAmt = 0;
+    let othersAmt = 0;
+
+    (allBills || []).filter(b => b.isSettled).forEach(b => {
+      (b.items || []).forEach(it => {
+        const cat = it.category || 'UNCATEGORIZED';
+        const amt = Number(it.amount || it.qty * it.rate || 0);
+        catMap[cat] = (catMap[cat] || 0) + amt;
+
+        const name = (it.name || '').toUpperCase();
+        if (name.includes('CHICKEN') || name.includes('MUTTON') || name.includes('FISH') || name.includes('PRAWN')) {
+          chickenAmt += amt;
+        } else if (name.includes('PANEER') || name.includes('VEG') || name.includes('ROTI') || name.includes('DAL')) {
+          vegAmt += amt;
+        } else {
+          othersAmt += amt;
+        }
+      });
+    });
+
+    const totalSold = Object.values(catMap).reduce((s, v) => s + v, 0) || 1;
+    const catList = Object.entries(catMap)
+      .map(([name, amt]) => ({ name, amt, pct: Math.round((amt / totalSold) * 100) }))
+      .sort((a, b) => b.amt - a.amt);
+
+    const subTotal = chickenAmt + vegAmt + othersAmt || 1;
+    return {
+      categories: catList,
+      subCategories: {
+        chicken: { amt: chickenAmt, pct: Math.round((chickenAmt / subTotal) * 100) },
+        veg: { amt: vegAmt, pct: Math.round((vegAmt / subTotal) * 100) },
+        others: { amt: othersAmt, pct: Math.round((othersAmt / subTotal) * 100) },
+      }
+    };
+  }, [allBills]);
+
+  // 5. Anti-Theft & Alteration Metrics
+  const auditMetrics = useMemo(() => {
+    let cancelledCount = 0;
+    let cancelledAmt = 0;
+
+    // Check active tables for cancelled items
+    Object.values(tables || {}).forEach(tbl => {
+      (tbl.items || []).forEach(it => {
+        if (it.isCancelled || it.qty < 0) {
+          cancelledCount += Math.abs(Number(it.qty || 1));
+          cancelledAmt += Math.abs(Number(it.amount || it.qty * it.rate || 0));
+        }
+      });
+    });
+
+    // Check saved audit logs for transfers & reprints
+    let transferCount = 0;
+    let reprintCount = 0;
+    try {
+      const logs = JSON.parse(localStorage.getItem('inamdar_audit_logs') || '[]');
+      transferCount = logs.filter(l => l.action === 'TABLE_TRANSFER').length;
+      reprintCount = logs.filter(l => l.action === 'DUPLICATE_REPRINT').length;
+    } catch {
+      // clean fallback
+    }
+
+    const voidCount = (allBills || []).filter(b => b.paymentMode === 'Void').length;
+    const compCount = (allBills || []).filter(b => b.paymentMode === 'Complimentary').length;
+    const staffCount = (allBills || []).filter(b => ['Staff', 'Guest'].includes(b.paymentMode)).length;
+    const totalPax = (allBills || []).reduce((s, b) => s + Number(b.pax || 2), 0);
+
+    return {
+      cancelledCount,
+      cancelledAmt,
+      transferCount,
+      reprintCount,
+      voidCount,
+      compCount,
+      staffCount,
+      totalPax,
+      totalBills: (allBills || []).length,
+    };
+  }, [tables, allBills]);
+
+  const handleClose = () => {
+    setScreenMode('ORDER');
+    triggerTableFocus?.();
+  };
+
   return (
     <div style={{ padding: '8px', height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column' }}>
       <div className="win-window" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -32,7 +170,7 @@ export default function ReportsView() {
           <div className="win-titlebar-title">
             <span>📊 Sales &amp; Dayclose Summary Report — INAMDAR RESTAURANT</span>
           </div>
-          <button className="win-close-btn" onClick={() => setScreenMode('ORDER')}>✕</button>
+          <button className="win-close-btn" onClick={handleClose}>✕</button>
         </div>
 
         {/* Content Body */}
@@ -126,6 +264,9 @@ export default function ReportsView() {
                     <tr><td>Cash</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{liveCash.toFixed(2)}</td></tr>
                     <tr><td>UPI / QR</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{liveUpi.toFixed(2)}</td></tr>
                     <tr><td>Credit / Debit Card</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{liveCard.toFixed(2)}</td></tr>
+                    {liveOthers > 0 && (
+                      <tr><td>Other Modes</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{liveOthers.toFixed(2)}</td></tr>
+                    )}
                     <tr style={{ borderTop: '1px solid #ddd' }}>
                       <td style={{ fontWeight: 'bold' }}>Total Collected</td>
                       <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#006600' }}>₹{liveTotalSales.toFixed(2)}</td>
@@ -157,10 +298,10 @@ export default function ReportsView() {
                 </div>
                 <table style={{ width: '100%', fontSize: '11px' }}>
                   <tbody>
-                    <tr><td>Ac</td><td style={{ textAlign: 'right' }}>3,51,800.00 (33%)</td></tr>
-                    <tr><td>Family Ac</td><td style={{ textAlign: 'right' }}>3,27,265.00 (30%)</td></tr>
-                    <tr><td>Parcel</td><td style={{ textAlign: 'right' }}>3,84,550.00 (36%)</td></tr>
-                    <tr><td>Home Delivery</td><td style={{ textAlign: 'right' }}>0.00 (00%)</td></tr>
+                    <tr><td>Ac</td><td style={{ textAlign: 'right' }}>₹{hallData.ac.amt.toFixed(2)} ({hallData.ac.pct}%)</td></tr>
+                    <tr><td>Family Ac</td><td style={{ textAlign: 'right' }}>₹{hallData.familyAc.amt.toFixed(2)} ({hallData.familyAc.pct}%)</td></tr>
+                    <tr><td>Parcel</td><td style={{ textAlign: 'right' }}>₹{hallData.parcel.amt.toFixed(2)} ({hallData.parcel.pct}%)</td></tr>
+                    <tr><td>Home Delivery</td><td style={{ textAlign: 'right' }}>₹{hallData.delivery.amt.toFixed(2)} ({hallData.delivery.pct}%)</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -172,32 +313,33 @@ export default function ReportsView() {
                 </div>
                 <table style={{ width: '100%', fontSize: '11px' }}>
                   <tbody>
-                    <tr><td>Kitchen</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>10,12,340.00 (95%)</td></tr>
-                    <tr><td>Pantry</td><td style={{ textAlign: 'right' }}>51,575.00 (04%)</td></tr>
-                    <tr><td>Continental</td><td style={{ textAlign: 'right' }}>0.00 (00%)</td></tr>
+                    <tr><td>Kitchen</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{deptData.kitchen.amt.toFixed(2)} ({deptData.kitchen.pct}%)</td></tr>
+                    <tr><td>Pantry</td><td style={{ textAlign: 'right' }}>₹{deptData.pantry.amt.toFixed(2)} ({deptData.pantry.pct}%)</td></tr>
                   </tbody>
                 </table>
               </div>
 
-              {/* Category Sample */}
+              {/* Category Breakup */}
               <div className="win-bevel-thin-inset" style={{ padding: '6px', background: '#fff', maxHeight: '140px', overflowY: 'auto' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '11px', color: '#0a246a', borderBottom: '1px solid #ccc', paddingBottom: '2px', marginBottom: '4px' }}>
                   Category Breakup
                 </div>
-                <table style={{ width: '100%', fontSize: '11px' }}>
-                  <tbody>
-                    <tr><td>Biryani</td><td style={{ textAlign: 'right' }}>3,17,130.00 (29%)</td></tr>
-                    <tr><td>Starters</td><td style={{ textAlign: 'right' }}>2,21,300.00 (20%)</td></tr>
-                    <tr><td>Main Course</td><td style={{ textAlign: 'right' }}>1,87,390.00 (17%)</td></tr>
-                    <tr><td>Kabab</td><td style={{ textAlign: 'right' }}>1,46,100.00 (13%)</td></tr>
-                    <tr><td>Roti</td><td style={{ textAlign: 'right' }}>69,220.00 (06%)</td></tr>
-                    <tr><td>Biryani And Pulao</td><td style={{ textAlign: 'right' }}>35,700.00 (03%)</td></tr>
-                    <tr><td>Soft Drinks</td><td style={{ textAlign: 'right' }}>28,200.00 (02%)</td></tr>
-                    <tr><td>Desserts / Mocktail</td><td style={{ textAlign: 'right' }}>23,290.00 (02%)</td></tr>
-                    <tr><td>Rice And Noodles</td><td style={{ textAlign: 'right' }}>19,530.00 (01%)</td></tr>
-                    <tr><td>Soup</td><td style={{ textAlign: 'right' }}>14,400.00 (01%)</td></tr>
-                  </tbody>
-                </table>
+                {categoryData.categories.length === 0 ? (
+                  <div style={{ fontSize: '11px', color: '#888', fontStyle: 'italic', padding: '6px 0', textAlign: 'center' }}>
+                    No settled categories recorded today
+                  </div>
+                ) : (
+                  <table style={{ width: '100%', fontSize: '11px' }}>
+                    <tbody>
+                      {categoryData.categories.map((c, i) => (
+                        <tr key={i}>
+                          <td>{c.name}</td>
+                          <td style={{ textAlign: 'right' }}>₹{c.amt.toFixed(2)} ({c.pct}%)</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
 
               {/* Sub Category */}
@@ -207,9 +349,9 @@ export default function ReportsView() {
                 </div>
                 <table style={{ width: '100%', fontSize: '11px' }}>
                   <tbody>
-                    <tr><td>Chicken</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>6,11,490.00 (57%)</td></tr>
-                    <tr><td>Veg</td><td style={{ textAlign: 'right' }}>2,02,995.00 (19%)</td></tr>
-                    <tr><td>Others</td><td style={{ textAlign: 'right' }}>60.00 (00%)</td></tr>
+                    <tr><td>Non-Veg / Chicken / Mutton</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{categoryData.subCategories.chicken.amt.toFixed(2)} ({categoryData.subCategories.chicken.pct}%)</td></tr>
+                    <tr><td>Veg / Starters / Roti</td><td style={{ textAlign: 'right' }}>₹{categoryData.subCategories.veg.amt.toFixed(2)} ({categoryData.subCategories.veg.pct}%)</td></tr>
+                    <tr><td>Others / Beverages</td><td style={{ textAlign: 'right' }}>₹{categoryData.subCategories.others.amt.toFixed(2)} ({categoryData.subCategories.others.pct}%)</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -223,9 +365,9 @@ export default function ReportsView() {
                 </div>
                 <table style={{ width: '100%', fontSize: '11px' }}>
                   <tbody>
-                    <tr><td>Cancelled</td><td style={{ textAlign: 'right', color: '#c00000', fontWeight: 'bold' }}>198 (₹49,305)</td></tr>
+                    <tr><td>Cancelled</td><td style={{ textAlign: 'right', color: '#c00000', fontWeight: 'bold' }}>{auditMetrics.cancelledCount} (₹{auditMetrics.cancelledAmt.toFixed(2)})</td></tr>
                     <tr><td>No Charge</td><td style={{ textAlign: 'right' }}>0</td></tr>
-                    <tr><td>Transferred (Shift)</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>44</td></tr>
+                    <tr><td>Transferred (Shift)</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>{auditMetrics.transferCount}</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -236,12 +378,12 @@ export default function ReportsView() {
                 </div>
                 <table style={{ width: '100%', fontSize: '11px' }}>
                   <tbody>
-                    <tr><td>Discounted</td><td style={{ textAlign: 'right' }}>11 (₹1,521)</td></tr>
-                    <tr><td>Reprinted</td><td style={{ textAlign: 'right' }}>6 (₹9,340)</td></tr>
-                    <tr><td>Modified</td><td style={{ textAlign: 'right' }}>3 (₹4,000)</td></tr>
-                    <tr><td>Void</td><td style={{ textAlign: 'right' }}>0</td></tr>
-                    <tr><td>Complimentary</td><td style={{ textAlign: 'right' }}>0</td></tr>
-                    <tr><td>Staff / Guest</td><td style={{ textAlign: 'right' }}>0</td></tr>
+                    <tr><td>Discounted</td><td style={{ textAlign: 'right' }}>0</td></tr>
+                    <tr><td>Reprinted</td><td style={{ textAlign: 'right' }}>{auditMetrics.reprintCount}</td></tr>
+                    <tr><td>Modified</td><td style={{ textAlign: 'right' }}>0</td></tr>
+                    <tr><td>Void</td><td style={{ textAlign: 'right' }}>{auditMetrics.voidCount}</td></tr>
+                    <tr><td>Complimentary</td><td style={{ textAlign: 'right' }}>{auditMetrics.compCount}</td></tr>
+                    <tr><td>Staff / Guest</td><td style={{ textAlign: 'right' }}>{auditMetrics.staffCount}</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -252,11 +394,10 @@ export default function ReportsView() {
                 </div>
                 <table style={{ width: '100%', fontSize: '11px' }}>
                   <tbody>
-                    <tr><td>Total No Of Bills</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>1281</td></tr>
-                    <tr><td>Total PAX</td><td style={{ textAlign: 'right' }}>1496 (580)</td></tr>
-                    <tr><td>Items Added</td><td style={{ textAlign: 'right' }}>13</td></tr>
-                    <tr><td>Items Altered</td><td style={{ textAlign: 'right' }}>4</td></tr>
-                    <tr><td>Print Date / Time</td><td style={{ textAlign: 'right', fontSize: '10px' }}>12/10/26 02:51 pm</td></tr>
+                    <tr><td>Total No Of Bills</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>{auditMetrics.totalBills}</td></tr>
+                    <tr><td>Total PAX</td><td style={{ textAlign: 'right' }}>{auditMetrics.totalPax}</td></tr>
+                    <tr><td>Items Altered / Cancelled</td><td style={{ textAlign: 'right' }}>{auditMetrics.cancelledCount}</td></tr>
+                    <tr><td>Report Date</td><td style={{ textAlign: 'right', fontSize: '10px' }}>{new Date().toLocaleDateString('en-GB')}</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -271,7 +412,7 @@ export default function ReportsView() {
             <button className="win-btn" style={{ minWidth: '80px' }}>
               📁 Export
             </button>
-            <button className="win-btn" style={{ minWidth: '80px', fontWeight: 'bold' }} onClick={() => setScreenMode('ORDER')}>
+            <button className="win-btn" style={{ minWidth: '80px', fontWeight: 'bold' }} onClick={handleClose}>
               Close
             </button>
           </div>

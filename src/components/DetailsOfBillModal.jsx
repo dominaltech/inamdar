@@ -7,6 +7,7 @@ export default function DetailsOfBillModal() {
     setScreenMode,
     allBills,
     setShowSettlementMenu,
+    triggerTableFocus,
   } = usePos();
 
   const [selectedBillIndex, setSelectedBillIndex] = useState(0);
@@ -24,6 +25,7 @@ export default function DetailsOfBillModal() {
       if (e.key === 'Escape') {
         e.preventDefault();
         setScreenMode('CASH_MEMO');
+        triggerTableFocus?.();
         return;
       }
 

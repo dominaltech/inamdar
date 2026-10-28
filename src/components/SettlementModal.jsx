@@ -14,6 +14,7 @@ export default function SettlementModal() {
     settleTableId,
     tables,
     settleBillWithPayment,
+    triggerTableFocus,
   } = usePos();
 
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -43,6 +44,7 @@ export default function SettlementModal() {
         e.preventDefault();
         e.stopPropagation();
         setShowSettleModal(false);
+        triggerTableFocus?.();
         return;
       }
 
@@ -92,6 +94,7 @@ export default function SettlementModal() {
 
   const handleSettleConfirm = (modeId) => {
     settleBillWithPayment(settleTableId, modeId);
+    triggerTableFocus?.();
   };
 
   return (
@@ -102,7 +105,7 @@ export default function SettlementModal() {
           <div className="win-titlebar-title">
             <span>Bill Settlement — Table {settleTableId} [{tableData.section || 'AC'}]</span>
           </div>
-          <button className="win-close-btn" onClick={() => setShowSettleModal(false)}>✕</button>
+          <button className="win-close-btn" onClick={() => { setShowSettleModal(false); triggerTableFocus?.(); }}>✕</button>
         </div>
 
         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>

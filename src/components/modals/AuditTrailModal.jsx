@@ -4,46 +4,32 @@ import { usePos } from '../../context/PosContext';
 export default function AuditTrailModal({ isOpen, onClose }) {
   const { dailyTransactions, currentUser } = usePos();
 
-  // Combine live transactions and standard audit actions
+  // Combine dynamic audit actions and settlements
   const auditLogs = useMemo(() => {
-    const logs = [];
+    let savedLogs = [];
+    try {
+      const stored = localStorage.getItem('inamdar_audit_logs');
+      if (stored) savedLogs = JSON.parse(stored);
+    } catch (e) {
+      console.warn('audit_logs parse error:', e);
+    }
 
-    // Table transfer sample
-    logs.push({
-      timestamp: 'Today, 01:10 PM',
-      action: 'TABLE_TRANSFER',
-      details: 'Transferred all active KOT items from Table 1 to Table 2',
-      tableId: '1 ➔ 2',
-      operator: '1. Operator',
-    });
+    const logs = [...savedLogs];
 
-    // Cancellation samples
-    logs.push({
-      timestamp: 'Today, 01:40 PM',
-      action: 'CANCEL_ITEM',
-      details: 'Cancelled 1x CHICKEN MALVANI W.B(5 PIS) (Reason: TOO SPICY)',
-      tableId: '2',
-      operator: 'MANAGER (PIN Verified)',
-    });
-
-    // Bill duplicate reprints
-    logs.push({
-      timestamp: 'Today, 02:05 PM',
-      action: 'DUPLICATE_REPRINT',
-      details: 'Reprinted duplicate cash memo for Bill #8',
-      tableId: '4',
-      operator: currentUser?.name || '1. Operator',
-    });
-
-    // Settlements
+    // Settlements from live dailyTransactions
     (dailyTransactions || []).forEach(tx => {
-      logs.push({
-        timestamp: tx.time || 'Today',
-        action: 'BILL_SETTLEMENT',
-        details: `Settled Bill #${tx.billNo} (Amount ₹${Number(tx.amount).toFixed(2)}) via ${tx.paymentMode}`,
-        tableId: tx.tableId,
-        operator: currentUser?.name || '1. Operator',
-      });
+      // Check if already in logs to prevent duplicates
+      const exists = logs.some(l => l.action === 'BILL_SETTLEMENT' && l.billNo === tx.billNo);
+      if (!exists) {
+        logs.push({
+          timestamp: tx.time || 'Today',
+          action: 'BILL_SETTLEMENT',
+          billNo: tx.billNo,
+          details: `Settled Bill #${tx.billNo} (Amount ₹${Number(tx.amount).toFixed(2)}) via ${tx.paymentMode}`,
+          tableId: tx.tableId,
+          operator: currentUser?.name || '1. Operator',
+        });
+      }
     });
 
     return logs.reverse();
@@ -78,23 +64,31 @@ export default function AuditTrailModal({ isOpen, onClose }) {
               </tr>
             </thead>
             <tbody>
-              {auditLogs.map((log, idx) => (
-                <tr
-                  key={idx}
-                  style={{
-                    background: idx % 2 === 0 ? '#f8f9fa' : '#ffffff',
-                    borderBottom: '1px solid #e9ecef',
-                  }}
-                >
-                  <td style={{ padding: '4px 8px', color: '#555', fontSize: '11px' }}>{log.timestamp}</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: log.action === 'CANCEL_ITEM' ? '#cc0000' : '#002266' }}>
-                    {log.action}
+              {auditLogs.length === 0 ? (
+                <tr>
+                  <td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                    No audit records or alterations logged today.
                   </td>
-                  <td style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 'bold' }}>{log.tableId}</td>
-                  <td style={{ padding: '4px 8px' }}>{log.details}</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', fontSize: '11px' }}>{log.operator}</td>
                 </tr>
-              ))}
+              ) : (
+                auditLogs.map((log, idx) => (
+                  <tr
+                    key={idx}
+                    style={{
+                      background: idx % 2 === 0 ? '#f8f9fa' : '#ffffff',
+                      borderBottom: '1px solid #e9ecef',
+                    }}
+                  >
+                    <td style={{ padding: '4px 8px', color: '#555', fontSize: '11px' }}>{log.timestamp}</td>
+                    <td style={{ padding: '4px 8px', fontWeight: 'bold', color: log.action === 'CANCEL_ITEM' ? '#cc0000' : '#002266' }}>
+                      {log.action}
+                    </td>
+                    <td style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 'bold' }}>{log.tableId}</td>
+                    <td style={{ padding: '4px 8px' }}>{log.details}</td>
+                    <td style={{ padding: '4px 8px', fontWeight: 'bold', fontSize: '11px' }}>{log.operator}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

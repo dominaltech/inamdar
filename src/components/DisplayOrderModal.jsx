@@ -8,6 +8,7 @@ export default function DisplayOrderModal() {
     tables,
     transferKot,
     setInfoDialog,
+    triggerTableFocus,
   } = usePos();
 
   // Active KOTs derived from tables
@@ -91,6 +92,7 @@ export default function DisplayOrderModal() {
       if (e.key === 'Escape') {
         e.preventDefault();
         setScreenMode('ORDER');
+        triggerTableFocus?.();
         return;
       }
 
@@ -195,7 +197,7 @@ export default function DisplayOrderModal() {
           <div className="win-titlebar-title">
             <span>Display Order</span>
           </div>
-          <button className="win-close-btn" onClick={() => setScreenMode('ORDER')}>✕</button>
+          <button className="win-close-btn" onClick={() => { setScreenMode('ORDER'); triggerTableFocus?.(); }}>✕</button>
         </div>
 
         {/* Content Area */}

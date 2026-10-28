@@ -28,15 +28,6 @@ export default function CancelledOrdersReportModal({ isOpen, onClose }) {
       });
     });
 
-    // 2. Initial sample cancelled records if table is empty
-    if (list.length === 0) {
-      list.push(
-        { tableId: '2', kotNo: 4, code: '82', name: 'CHICKEN BIRYANI 3 PIS', qty: 1, rate: 160, amount: 160, reason: 'CANCELLED BY GUEST', authorizedBy: 'MANAGER', time: '01:15 PM' },
-        { tableId: '2', kotNo: 5, code: '95', name: 'ROTI', qty: 1, rate: 30, amount: 30, reason: 'WRONG ITEM ENTERED', authorizedBy: 'MANAGER', time: '01:22 PM' },
-        { tableId: '2', kotNo: 10, code: '70', name: 'CHICKEN MALVANI W.B(5 PIS)', qty: 1, rate: 380, amount: 380, reason: 'TOO SPICY', authorizedBy: 'MANAGER', time: '01:40 PM' }
-      );
-    }
-
     return list;
   }, [tables, allBills]);
 
@@ -75,26 +66,34 @@ export default function CancelledOrdersReportModal({ isOpen, onClose }) {
               </tr>
             </thead>
             <tbody>
-              {cancelledItems.map((item, idx) => (
-                <tr
-                  key={idx}
-                  style={{
-                    background: idx % 2 === 0 ? '#fff5f5' : '#ffffff',
-                    color: '#990000',
-                    borderBottom: '1px solid #f0d0d0',
-                  }}
-                >
-                  <td style={{ padding: '4px 8px' }}>{item.time}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 'bold' }}>{item.tableId}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'center' }}>{item.kotNo}</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{item.code}</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{item.name}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 'bold' }}>-{item.qty}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 'bold' }}>-₹{item.amount.toFixed(2)}</td>
-                  <td style={{ padding: '4px 8px', fontSize: '11px', color: '#333' }}>{item.reason}</td>
-                  <td style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 'bold', color: '#002266' }}>{item.authorizedBy}</td>
+              {cancelledItems.length === 0 ? (
+                <tr>
+                  <td colSpan="9" style={{ padding: '24px', textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                    No cancelled orders or waste entries recorded.
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                cancelledItems.map((item, idx) => (
+                  <tr
+                    key={idx}
+                    style={{
+                      background: idx % 2 === 0 ? '#fff5f5' : '#ffffff',
+                      color: '#990000',
+                      borderBottom: '1px solid #f0d0d0',
+                    }}
+                  >
+                    <td style={{ padding: '4px 8px' }}>{item.time}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 'bold' }}>{item.tableId}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'center' }}>{item.kotNo}</td>
+                    <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{item.code}</td>
+                    <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{item.name}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'center', fontWeight: 'bold' }}>-{item.qty}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 'bold' }}>-₹{item.amount.toFixed(2)}</td>
+                    <td style={{ padding: '4px 8px', fontSize: '11px', color: '#333' }}>{item.reason}</td>
+                    <td style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 'bold', color: '#002266' }}>{item.authorizedBy}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

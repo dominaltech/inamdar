@@ -13,6 +13,7 @@ export default function CancelAuthModal() {
     setShowCancelAuthModal, 
     pendingCancelDetails, 
     cancelItemFromTable,
+    triggerTableFocus,
   } = usePos();
 
   const [selectedManagerIndex, setSelectedManagerIndex] = useState(0);
@@ -48,6 +49,7 @@ export default function CancelAuthModal() {
     const { tableId, itemCode, qty } = pendingCancelDetails;
     cancelItemFromTable(tableId, itemCode, qty, reasonRemark, manager.name);
     setShowCancelAuthModal(false);
+    triggerTableFocus?.();
   };
 
   const handlePasswordKeyDown = (e) => {
@@ -56,6 +58,7 @@ export default function CancelAuthModal() {
       reasonInputRef.current?.focus();
     } else if (e.key === 'Escape') {
       setShowCancelAuthModal(false);
+      triggerTableFocus?.();
     }
   };
 
@@ -65,6 +68,7 @@ export default function CancelAuthModal() {
       handleConfirm();
     } else if (e.key === 'Escape') {
       setShowCancelAuthModal(false);
+      triggerTableFocus?.();
     }
   };
 
@@ -75,7 +79,7 @@ export default function CancelAuthModal() {
           <div className="win-titlebar-title">
             <span>Cancel KOT Authorization details</span>
           </div>
-          <button className="win-close-btn" onClick={() => setShowCancelAuthModal(false)}>✕</button>
+          <button className="win-close-btn" onClick={() => { setShowCancelAuthModal(false); triggerTableFocus?.(); }}>✕</button>
         </div>
 
         <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

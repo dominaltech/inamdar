@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
 
 export default function PaxPromptModal() {
-  const { paxPrompt, setPaxPrompt } = usePos();
+  const { paxPrompt, setPaxPrompt, triggerTableFocus } = usePos();
   const [paxCount, setPaxCount] = useState('2');
   const inputRef = useRef(null);
 
@@ -24,6 +24,12 @@ export default function PaxPromptModal() {
       paxPrompt.onConfirm(count);
     }
     setPaxPrompt(null);
+    triggerTableFocus?.();
+  };
+
+  const handleClose = () => {
+    setPaxPrompt(null);
+    triggerTableFocus?.();
   };
 
   const handleKeyDown = (e) => {
@@ -31,7 +37,7 @@ export default function PaxPromptModal() {
       e.preventDefault();
       handleConfirm();
     } else if (e.key === 'Escape') {
-      setPaxPrompt(null);
+      handleClose();
     }
   };
 
@@ -42,7 +48,7 @@ export default function PaxPromptModal() {
           <div className="win-titlebar-title" style={{ fontSize: '11px' }}>
             <span>Number of Persons</span>
           </div>
-          <button className="win-close-btn" onClick={() => setPaxPrompt(null)}>✕</button>
+          <button className="win-close-btn" onClick={handleClose}>✕</button>
         </div>
 
         <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '14px' }}>

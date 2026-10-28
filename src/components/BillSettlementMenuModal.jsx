@@ -23,7 +23,7 @@ export const SETTLEMENT_MODES = [
 ];
 
 export default function BillSettlementMenuModal() {
-  const { showSettlementMenu, setShowSettlementMenu, openBatchSettle } = usePos();
+  const { showSettlementMenu, setShowSettlementMenu, openBatchSettle, triggerTableFocus } = usePos();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
@@ -39,6 +39,7 @@ export default function BillSettlementMenuModal() {
       if (e.key === 'Escape') {
         e.preventDefault();
         setShowSettlementMenu(false);
+        triggerTableFocus?.();
         return;
       }
 
@@ -88,7 +89,7 @@ export default function BillSettlementMenuModal() {
           <div className="win-titlebar-title" style={{ fontSize: '11px' }}>
             <span>Bill Settlement</span>
           </div>
-          <button className="win-close-btn" onClick={() => setShowSettlementMenu(false)}>✕</button>
+          <button className="win-close-btn" onClick={() => { setShowSettlementMenu(false); triggerTableFocus?.(); }}>✕</button>
         </div>
 
         <div style={{ padding: '8px 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', background: '#ffffff', border: '1px solid #7f9db9', margin: '8px' }}>

@@ -8,6 +8,7 @@ export default function BatchSettlementModal() {
     unsettledBills,
     settleBillsBatch,
     setInfoDialog,
+    triggerTableFocus,
   } = usePos();
 
   const [billInput, setBillInput] = useState('');
@@ -49,6 +50,7 @@ export default function BatchSettlementModal() {
         const billNos = enteredBills.map(b => b.billNo);
         const settledCount = settleBillsBatch(billNos, batchSettleMode);
         setBatchSettleMode(null);
+        triggerTableFocus?.();
 
         // Show authentic success dialog: "i [N] Bills Settled [OK]"
         setInfoDialog({
@@ -80,6 +82,7 @@ export default function BatchSettlementModal() {
         setErrorDialog(null);
       } else {
         setBatchSettleMode(null);
+        triggerTableFocus?.();
       }
     }
   };
@@ -98,7 +101,7 @@ export default function BatchSettlementModal() {
           <div className="win-titlebar-title" style={{ fontSize: '11px' }}>
             <span>{batchSettleMode}</span>
           </div>
-          <button className="win-close-btn" onClick={() => setBatchSettleMode(null)}>✕</button>
+          <button className="win-close-btn" onClick={() => { setBatchSettleMode(null); triggerTableFocus?.(); }}>✕</button>
         </div>
 
         <div style={{ padding: '12px 14px', background: '#ece9d8' }}>

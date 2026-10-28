@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { DEFAULT_USERS, EMPLOYEES, INITIAL_TABLES, INITIAL_UNSETTLED_BILLS, INITIAL_ALL_BILLS } from '../data/initialData';
 import { MENU_BY_CODE, sortItemsByCourse, isKitchenItem, loadDynamicMenuItems } from '../data/menuService';
 import { isSupabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY, saveSupabaseCredentials } from '../supabaseClient';
@@ -8,6 +8,8 @@ import {
   fetchLiveDailyTransactions,
   fetchLiveCounters,
   fetchLiveMenuItems,
+  fetchOrderItemsForTable,
+  fetchOrderItemsForKot,
   fireKotInSupabase,
   saveBillInSupabase,
   settleBillInSupabase,
@@ -16,6 +18,24 @@ import {
   closeDayInSupabase,
   subscribeToSupabaseRealtime,
 } from '../services/supabaseService';
+import {
+  getCachedTables,
+  saveCachedTables,
+  getCachedUnsettledBills,
+  saveCachedUnsettledBills,
+  getCachedAllBills,
+  saveCachedAllBills,
+  getCachedDailyTransactions,
+  saveCachedDailyTransactions,
+  getCachedPastBills,
+  saveCachedPastBills,
+  getCachedCounters,
+  saveCachedCounters,
+  applySingleTableDelta,
+  applyIncomingKotDelta,
+  applySingleBillDelta,
+  appendLocalAuditLog,
+} from '../services/cacheService';
 
 const PosContext = createContext(null);
 
@@ -29,75 +49,58 @@ export function PosProvider({ children }) {
   // Cancel order mode (active when '-' is pressed)
   const [isCancelMode, setIsCancelMode] = useState(false);
 
-  // Active table
-  const [activeTableId, setActiveTableId] = useState('2');
+  // Active table (Starts at Table 1)
+  const [activeTableId, setActiveTableId] = useState('1');
   const [activeSubTable, setActiveSubTable] = useState('A');
   const [activeEmployee, setActiveEmployee] = useState(EMPLOYEES[0].name);
 
   // Cloud status
   const [isCloudConnected, setIsCloudConnected] = useState(isSupabaseConfigured());
 
-  // Tables state
-  const [tables, setTables] = useState(() => {
-    const saved = localStorage.getItem('inamdar_tables');
-    return saved ? JSON.parse(saved) : INITIAL_TABLES;
-  });
+  // Local caching hydration (0ms boot)
+  const [tables, setTables] = useState(getCachedTables);
+  const [unsettledBills, setUnsettledBills] = useState(getCachedUnsettledBills);
+  const [dailyTransactions, setDailyTransactions] = useState(getCachedDailyTransactions);
+  const [pastBills, setPastBills] = useState(getCachedPastBills);
+  const [allBills, setAllBills] = useState(getCachedAllBills);
 
-  // Unsettled bills state
-  const [unsettledBills, setUnsettledBills] = useState(() => {
-    const saved = localStorage.getItem('inamdar_unsettled_bills');
-    return saved ? JSON.parse(saved) : INITIAL_UNSETTLED_BILLS;
-  });
-
-  // Daily settled transactions journal
-  const [dailyTransactions, setDailyTransactions] = useState(() => {
-    const saved = localStorage.getItem('inamdar_daily_transactions');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Past bills record for instant duplicate reprint
-  const [pastBills, setPastBills] = useState(() => {
-    const saved = localStorage.getItem('inamdar_past_bills');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // All bills ledger (both settled and unsettled for Details of Bill & Batch Settle)
-  const [allBills, setAllBills] = useState(() => {
-    const saved = localStorage.getItem('inamdar_all_bills');
-    return saved ? JSON.parse(saved) : INITIAL_ALL_BILLS;
-  });
+  const initialCounters = getCachedCounters();
+  const [kotCounter, setKotCounter] = useState(initialCounters.kotCounter);
+  const [billCounter, setBillCounter] = useState(initialCounters.billCounter);
 
   // Settlement Menu & Batch Settle states (F12)
   const [showSettlementMenu, setShowSettlementMenu] = useState(false);
   const [batchSettleMode, setBatchSettleMode] = useState(null);
 
   // Pax count popup prompt for Cash Memo
-  const [paxPrompt, setPaxPrompt] = useState(null); // { show: boolean, tableId, onConfirm: (pax) => void }
-
-  // Counters (Sequential throughout the day)
-  const [kotCounter, setKotCounter] = useState(() => {
-    const saved = localStorage.getItem('inamdar_kot_counter');
-    return saved ? Number(saved) : 32;
-  });
-  const [billCounter, setBillCounter] = useState(() => {
-    const saved = localStorage.getItem('inamdar_bill_counter');
-    return saved ? Number(saved) : 18;
-  });
+  const [paxPrompt, setPaxPrompt] = useState(null);
 
   // Modals
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [showCancelAuthModal, setShowCancelAuthModal] = useState(false);
   const [showSettleModal, setShowSettleModal] = useState(false);
-  const [settleTableId, setSettleTableId] = useState('2');
+  const [settleTableId, setSettleTableId] = useState('1');
   const [pendingCancelDetails, setPendingCancelDetails] = useState(null);
-  const [printData, setPrintData] = useState(null); // { type: 'KOT' | 'BILL' | 'CANCEL_KOT', data: ... }
-  const [infoDialog, setInfoDialog] = useState(null); // { title, message }
+  const [printData, setPrintData] = useState(null);
+  const [infoDialog, setInfoDialog] = useState(null);
+
+  // Trigger keyboard focus to table input box whenever actions complete or modals close
+  const triggerTableFocus = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new Event('inamdar-focus-table'));
+      }, 50);
+    }
+  }, []);
 
   // Top Menu Modal Controller (Zero Dummy Elements!)
   const [activeModal, setActiveModal] = useState(null);
   const openModal = (modalName) => setActiveModal(modalName);
-  const closeModal = () => setActiveModal(null);
+  const closeModal = () => {
+    setActiveModal(null);
+    triggerTableFocus();
+  };
 
   // 1. Initial Cloud Sync from Supabase & Realtime Subscription
   useEffect(() => {
@@ -121,16 +124,20 @@ export function PosProvider({ children }) {
         }
         if (cloudTables && Object.keys(cloudTables).length > 0) {
           setTables(cloudTables);
+          saveCachedTables(cloudTables);
         }
         if (cloudBills) {
           setUnsettledBills(cloudBills);
+          saveCachedUnsettledBills(cloudBills);
         }
         if (cloudTx) {
           setDailyTransactions(cloudTx);
+          saveCachedDailyTransactions(cloudTx);
         }
         if (cloudCounters) {
           setKotCounter(cloudCounters.kotCounter);
           setBillCounter(cloudCounters.billCounter);
+          saveCachedCounters(cloudCounters.kotCounter, cloudCounters.billCounter);
         }
         setIsCloudConnected(true);
       } catch (err) {
@@ -140,22 +147,57 @@ export function PosProvider({ children }) {
 
     loadCloudData();
 
-    // Subscribe to Realtime notifications (e.g. Captain order fired from mobile)
+    // Fine-grained Realtime delta subscription: zero full DB re-fetches!
     const unsubscribe = subscribeToSupabaseRealtime({
-      onIncomingKot: (newKot) => {
-        console.log('Incoming KOT from Captain App:', newKot);
-        fetchLiveTables().then(tbls => {
-          if (tbls && isMounted) setTables(tbls);
-        });
+      onIncomingKot: async (newKot) => {
+        console.log('[Realtime Delta] Incoming KOT:', newKot);
+        const kotItems = await fetchOrderItemsForKot(newKot.id);
+        if (!isMounted) return;
+        setTables(prev => applyIncomingKotDelta(prev, newKot, kotItems));
+        setKotCounter(prev => Math.max(prev, Number(newKot.kot_number) + 1));
       },
-      onTableUpdate: () => {
-        fetchLiveTables().then(tbls => {
-          if (tbls && isMounted) setTables(tbls);
-        });
+      onTableUpdate: async (payload) => {
+        console.log('[Realtime Delta] Table updated:', payload);
+        const updatedTable = payload.new;
+        if (!updatedTable) return;
+
+        if (updatedTable.status === 'AVAILABLE') {
+          if (isMounted) setTables(prev => applySingleTableDelta(prev, updatedTable));
+        } else {
+          // Fetch order items for ONLY this single table
+          const tblItems = await fetchOrderItemsForTable(updatedTable.id);
+          if (!isMounted) return;
+          setTables(prev => {
+            const tableId = String(updatedTable.id);
+            const next = {
+              ...prev,
+              [tableId]: {
+                id: tableId,
+                section: updatedTable.section,
+                waiter: updatedTable.active_waiter || '1 COUNTER',
+                status: updatedTable.status,
+                pax: updatedTable.pax || 2,
+                kotNos: updatedTable.kot_nos || [],
+                items: tblItems,
+              }
+            };
+            saveCachedTables(next);
+            return next;
+          });
+        }
       },
-      onBillUpdate: () => {
-        fetchLiveUnsettledBills().then(bills => {
-          if (bills && isMounted) setUnsettledBills(bills);
+      onBillUpdate: (payload) => {
+        console.log('[Realtime Delta] Bill updated:', payload);
+        const billRow = payload.new;
+        if (!billRow) return;
+
+        setUnsettledBills(prevUnsettled => {
+          setAllBills(prevAll => {
+            const { unsettledBills: nextU, allBills: nextA } = applySingleBillDelta(prevUnsettled, prevAll, billRow);
+            return nextA;
+          });
+          const { unsettledBills: nextU } = applySingleBillDelta(prevUnsettled, allBills, billRow);
+          return nextU;
         });
       }
     });
@@ -166,34 +208,30 @@ export function PosProvider({ children }) {
     };
   }, []);
 
-  // 2. Persist to local storage for instant offline resilience
+  // 2. Persist to local cache for instant offline resilience
   useEffect(() => {
-    localStorage.setItem('inamdar_tables', JSON.stringify(tables));
+    saveCachedTables(tables);
   }, [tables]);
 
   useEffect(() => {
-    localStorage.setItem('inamdar_unsettled_bills', JSON.stringify(unsettledBills));
+    saveCachedUnsettledBills(unsettledBills);
   }, [unsettledBills]);
 
   useEffect(() => {
-    localStorage.setItem('inamdar_daily_transactions', JSON.stringify(dailyTransactions));
+    saveCachedDailyTransactions(dailyTransactions);
   }, [dailyTransactions]);
 
   useEffect(() => {
-    localStorage.setItem('inamdar_past_bills', JSON.stringify(pastBills));
+    saveCachedPastBills(pastBills);
   }, [pastBills]);
 
   useEffect(() => {
-    localStorage.setItem('inamdar_all_bills', JSON.stringify(allBills));
+    saveCachedAllBills(allBills);
   }, [allBills]);
 
   useEffect(() => {
-    localStorage.setItem('inamdar_kot_counter', String(kotCounter));
-  }, [kotCounter]);
-
-  useEffect(() => {
-    localStorage.setItem('inamdar_bill_counter', String(billCounter));
-  }, [billCounter]);
+    saveCachedCounters(kotCounter, billCounter);
+  }, [kotCounter, billCounter]);
 
   // Helper: Find next available parcel table (0, 0B, 0C, 0D, ...)
   const getNextParcelTable = () => {

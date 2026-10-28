@@ -3,11 +3,14 @@ import { usePos } from '../../context/PosContext';
 
 export default function RoomPostModal({ isOpen, onClose }) {
   const { setInfoDialog } = usePos();
-  const [roomPostings, setRoomPostings] = useState([
-    { roomNo: '101', guestName: 'Mr. Arvind Shinde', billNo: '14', amount: 980, time: 'Today, 01:20 PM', status: 'POSTED' },
-    { roomNo: '204', guestName: 'Dr. Suresh Patil', billNo: '18', amount: 1450, time: 'Today, 01:50 PM', status: 'POSTED' },
-    { roomNo: '305', guestName: 'Mrs. Neha Kulkarni', billNo: '21', amount: 620, time: 'Today, 02:15 PM', status: 'POSTED' },
-  ]);
+  const [roomPostings, setRoomPostings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('inamdar_room_posts');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [newPost, setNewPost] = useState({ roomNo: '', guestName: '', billNo: '', amount: '' });
 
@@ -24,7 +27,9 @@ export default function RoomPostModal({ isOpen, onClose }) {
       status: 'POSTED',
     };
 
-    setRoomPostings([entry, ...roomPostings]);
+    const updated = [entry, ...roomPostings];
+    setRoomPostings(updated);
+    localStorage.setItem('inamdar_room_posts', JSON.stringify(updated));
     setNewPost({ roomNo: '', guestName: '', billNo: '', amount: '' });
     setInfoDialog({
       title: "Room Post Successful",
@@ -101,22 +106,30 @@ export default function RoomPostModal({ isOpen, onClose }) {
               </tr>
             </thead>
             <tbody>
-              {roomPostings.map((r, idx) => (
-                <tr key={idx} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f9f9f9', borderBottom: '1px solid #e0e0e0' }}>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{r.roomNo}</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{r.guestName}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'center' }}>{r.billNo}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 'bold', color: '#002266' }}>
-                    ₹{Number(r.amount).toFixed(2)}
-                  </td>
-                  <td style={{ padding: '4px 8px', textAlign: 'center', fontSize: '11px', color: '#555' }}>{r.time}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'center' }}>
-                    <span style={{ padding: '1px 5px', borderRadius: '2px', background: '#e6f0fa', border: '1px solid #99c2ff', color: '#003399', fontSize: '10px' }}>
-                      {r.status}
-                    </span>
+              {roomPostings.length === 0 ? (
+                <tr>
+                  <td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                    No hotel room bill postings logged today. Use the form above to post charges.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                roomPostings.map((r, idx) => (
+                  <tr key={idx} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f9f9f9', borderBottom: '1px solid #e0e0e0' }}>
+                    <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{r.roomNo}</td>
+                    <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{r.guestName}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'center' }}>{r.billNo}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 'bold', color: '#002266' }}>
+                      ₹{Number(r.amount).toFixed(2)}
+                    </td>
+                    <td style={{ padding: '4px 8px', textAlign: 'center', fontSize: '11px', color: '#555' }}>{r.time}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                      <span style={{ padding: '1px 5px', borderRadius: '2px', background: '#e6f0fa', border: '1px solid #99c2ff', color: '#003399', fontSize: '10px' }}>
+                        {r.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

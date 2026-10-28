@@ -70,6 +70,59 @@ export async function fetchLiveTables() {
   }
 }
 
+// 1B. Fetch active items for a single specific table (Delta fetch, zero full DB re-fetch)
+export async function fetchOrderItemsForTable(tableId) {
+  if (!isSupabaseConfigured() || !tableId) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('table_id', String(tableId))
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    return (data || []).map(it => ({
+      id: it.id,
+      code: it.item_code,
+      name: it.item_name,
+      qty: Number(it.qty),
+      rate: Number(it.rate),
+      amount: Number(it.amount),
+      category: it.category,
+      categoryOrder: it.category_order,
+      customization: it.customization || '',
+      isStaged: it.is_staged,
+      isCancelled: it.is_cancelled,
+      kotNo: it.kot_number,
+      status: it.status,
+    }));
+  } catch (err) {
+    console.warn(`fetchOrderItemsForTable(${tableId}) error:`, err);
+    return [];
+  }
+}
+
+// 1C. Fetch items for a specific KOT (Delta fetch from Captain PWA)
+export async function fetchOrderItemsForKot(kotId) {
+  if (!isSupabaseConfigured() || !kotId) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('kot_id', kotId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.warn(`fetchOrderItemsForKot(${kotId}) error:`, err);
+    return [];
+  }
+}
+
 // 2. Fetch Unsettled Bills
 export async function fetchLiveUnsettledBills() {
   if (!isSupabaseConfigured()) return null;

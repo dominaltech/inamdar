@@ -56,10 +56,21 @@ export default function OrderWorkspace() {
     setTableInput(activeTableId);
   }, [activeTableId]);
 
-  // Focus table input on mount
+  // Focus table input on mount, screen mode switch, or global focus event
   useEffect(() => {
     tableInputRef.current?.focus();
     tableInputRef.current?.select();
+  }, [screenMode]);
+
+  useEffect(() => {
+    const handleFocusTable = () => {
+      setTimeout(() => {
+        tableInputRef.current?.focus();
+        tableInputRef.current?.select();
+      }, 50);
+    };
+    window.addEventListener('inamdar-focus-table', handleFocusTable);
+    return () => window.removeEventListener('inamdar-focus-table', handleFocusTable);
   }, []);
 
   // Update search results when codeQuery changes
@@ -118,6 +129,9 @@ export default function OrderWorkspace() {
           onConfirm: (pax) => {
             printCashMemo(targetTable, pax);
             setTableInput('');
+            setTimeout(() => {
+              tableInputRef.current?.focus();
+            }, 60);
           }
         });
         return;
@@ -167,12 +181,20 @@ export default function OrderWorkspace() {
       if (!codeQuery.trim()) {
         if (screenMode === 'ORDER') {
           printKOT(activeTableId);
+          setTimeout(() => {
+            tableInputRef.current?.focus();
+            tableInputRef.current?.select();
+          }, 60);
         } else {
           setPaxPrompt({
             show: true,
             tableId: activeTableId,
             onConfirm: (pax) => {
               printCashMemo(activeTableId, pax);
+              setTimeout(() => {
+                tableInputRef.current?.focus();
+                tableInputRef.current?.select();
+              }, 60);
             }
           });
         }
@@ -184,8 +206,13 @@ export default function OrderWorkspace() {
         selectItem(chosen);
       }
     } else if (e.key === 'Escape') {
-      setCodeQuery('');
-      setSearchResults([]);
+      if (!codeQuery.trim()) {
+        tableInputRef.current?.focus();
+        tableInputRef.current?.select();
+      } else {
+        setCodeQuery('');
+        setSearchResults([]);
+      }
     }
   };
 
@@ -715,7 +742,7 @@ export default function OrderWorkspace() {
                   {acTableNums.length > 0 ? (
                     acTableNums.map(num => (
                       <span
-                        key={num}
+                        key={`ac-${num}`}
                         onClick={() => switchTable(num)}
                         title={`Click to view dishes for Table ${num}`}
                         style={{
@@ -747,7 +774,7 @@ export default function OrderWorkspace() {
                   {familyAcTableNums.length > 0 ? (
                     familyAcTableNums.map(num => (
                       <span
-                        key={num}
+                        key={`family-${num}`}
                         onClick={() => switchTable(num)}
                         title={`Click to view dishes for Family Table ${num}`}
                         style={{
@@ -779,7 +806,7 @@ export default function OrderWorkspace() {
                   {deliveryTableNums.length > 0 ? (
                     deliveryTableNums.map(name => (
                       <div
-                        key={name}
+                        key={`deliv-${name}`}
                         onClick={() => switchTable(name)}
                         title={`Click to view dishes for ${name}`}
                         style={{
@@ -811,7 +838,7 @@ export default function OrderWorkspace() {
                   {parcelTableNums.length > 0 ? (
                     parcelTableNums.map(num => (
                       <span
-                        key={num}
+                        key={`parcel-${num}`}
                         onClick={() => switchTable(num)}
                         title={`Click to view dishes for Parcel ${num}`}
                         style={{

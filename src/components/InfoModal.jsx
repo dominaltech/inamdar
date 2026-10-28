@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
 
 export default function InfoModal() {
-  const { infoDialog, setInfoDialog } = usePos();
+  const { infoDialog, setInfoDialog, triggerTableFocus } = usePos();
   const okBtnRef = useRef(null);
 
   useEffect(() => {
@@ -17,6 +17,7 @@ export default function InfoModal() {
 
   const handleClose = () => {
     setInfoDialog(null);
+    triggerTableFocus?.();
   };
 
   const handleKeyDown = (e) => {

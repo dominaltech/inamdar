@@ -2,18 +2,23 @@ import React, { useEffect } from 'react';
 import { usePos } from '../context/PosContext';
 
 export default function ThermalPrintModal() {
-  const { printData, setPrintData } = usePos();
+  const { printData, setPrintData, triggerTableFocus } = usePos();
+
+  const handleClose = () => {
+    setPrintData(null);
+    triggerTableFocus?.();
+  };
 
   useEffect(() => {
     function handleKeyDown(e) {
       if (!printData) return;
       if (e.key === 'Escape' || e.key === 'Enter') {
-        setPrintData(null);
+        handleClose();
       }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [printData, setPrintData]);
+  }, [printData]);
 
   if (!printData) return null;
 
@@ -38,7 +43,7 @@ export default function ThermalPrintModal() {
           <div className="win-titlebar-title">
             <span>{titleText}</span>
           </div>
-          <button className="win-close-btn" onClick={() => setPrintData(null)}>✕</button>
+          <button className="win-close-btn" onClick={handleClose}>✕</button>
         </div>
 
         {/* Paper Preview Area */}
