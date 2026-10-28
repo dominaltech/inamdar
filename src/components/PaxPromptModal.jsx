@@ -20,11 +20,11 @@ export default function PaxPromptModal() {
 
   const handleConfirm = () => {
     const count = parseInt(paxCount, 10) || 1;
-    if (paxPrompt.onConfirm) {
-      paxPrompt.onConfirm(count);
-    }
+    const cb = paxPrompt.onConfirm;
     setPaxPrompt(null);
-    triggerTableFocus?.();
+    if (cb) {
+      cb(count);
+    }
   };
 
   const handleClose = () => {
@@ -36,7 +36,8 @@ export default function PaxPromptModal() {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleConfirm();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === 'Escape' || e.key === 'ArrowLeft') {
+      e.preventDefault();
       handleClose();
     }
   };

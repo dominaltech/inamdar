@@ -72,6 +72,12 @@ export default function TableShiftModal() {
       setTimeout(() => {
         yesButtonRef.current?.focus();
       }, 50);
+    } else if (e.key === 'ArrowLeft') {
+      if (!targetTable || e.target.selectionStart === 0) {
+        e.preventDefault();
+        sourceInputRef.current?.focus();
+        sourceInputRef.current?.select();
+      }
     } else if (e.key === 'Escape') {
       setShowShiftModal(false);
       triggerTableFocus?.();

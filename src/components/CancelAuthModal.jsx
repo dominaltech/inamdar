@@ -66,6 +66,12 @@ export default function CancelAuthModal() {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleConfirm();
+    } else if (e.key === 'ArrowLeft') {
+      if (!reasonRemark || e.target.selectionStart === 0) {
+        e.preventDefault();
+        passwordInputRef.current?.focus();
+        passwordInputRef.current?.select();
+      }
     } else if (e.key === 'Escape') {
       setShowCancelAuthModal(false);
       triggerTableFocus?.();

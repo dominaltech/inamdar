@@ -896,6 +896,7 @@ export function PosProvider({ children }) {
       activeEmployee,
       setActiveEmployee,
       tables,
+      setTables,
       currentTableData,
       unsettledBills,
       dailyTransactions,

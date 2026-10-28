@@ -229,4 +229,76 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     }
   });
 
+  test('09. Sequential Keyboard Progression (Enter forward, Left Arrow backward across all boxes)', async ({ page }) => {
+    // 1. Initial box is Table
+    const tableInput = page.locator('#pos-table-input');
+    await expect(tableInput).toBeFocused();
+
+    // 2. Type Table 5 and Enter -> Forward to Employee
+    await tableInput.fill('5');
+    await tableInput.press('Enter');
+    const employeeSelect = page.locator('select.win-input');
+    await expect(employeeSelect).toBeFocused();
+
+    // 3. Left Arrow on Employee -> Backward to Table
+    await employeeSelect.press('ArrowLeft');
+    await expect(tableInput).toBeFocused();
+
+    // 4. Enter on Table -> Employee, Enter on Employee -> Code
+    await tableInput.press('Enter');
+    await expect(employeeSelect).toBeFocused();
+    await employeeSelect.press('Enter');
+    const codeInput = page.locator('input[placeholder="Code/CTM"]');
+    await expect(codeInput).toBeFocused();
+
+    // 5. Left Arrow on empty Code -> Backward to Employee
+    await codeInput.press('ArrowLeft');
+    await expect(employeeSelect).toBeFocused();
+
+    // 6. Enter on Employee -> Code
+    await employeeSelect.press('Enter');
+    await expect(codeInput).toBeFocused();
+
+    // 7. Type dish code '1' and press Enter -> Selects dish and advances to Qty
+    await codeInput.fill('1');
+    await page.waitForTimeout(200);
+    await codeInput.press('Enter');
+    const qtyInput = page.locator('input[placeholder="Qty"]');
+    await expect(qtyInput).toBeFocused();
+
+    // 8. Left Arrow on Qty -> Backward to Code
+    await qtyInput.press('ArrowLeft');
+    await expect(codeInput).toBeFocused();
+
+    // 9. Re-select dish '1' -> advances to Qty
+    await codeInput.press('Enter');
+    await expect(qtyInput).toBeFocused();
+
+    // 10. Enter on Qty -> advances to Rate
+    await qtyInput.press('Enter');
+    const rateInput = page.locator('input[placeholder="Rate"]');
+    await expect(rateInput).toBeFocused();
+
+    // 11. Left Arrow on Rate -> Backward to Qty
+    await rateInput.press('ArrowLeft');
+    await expect(qtyInput).toBeFocused();
+
+    // 12. Enter on Qty -> Rate, Enter on Rate -> Customization
+    await qtyInput.press('Enter');
+    await expect(rateInput).toBeFocused();
+    await rateInput.press('Enter');
+    const customInput = page.locator('#pos-custom-input');
+    await expect(customInput).toBeFocused();
+
+    // 13. Left Arrow on Customization -> Backward to Rate
+    await customInput.press('ArrowLeft');
+    await expect(rateInput).toBeFocused();
+
+    // 14. Enter on Rate -> Customization, Enter on Customization -> Commits and loops back to Code
+    await rateInput.press('Enter');
+    await expect(customInput).toBeFocused();
+    await customInput.press('Enter');
+    await expect(codeInput).toBeFocused();
+  });
+
 });

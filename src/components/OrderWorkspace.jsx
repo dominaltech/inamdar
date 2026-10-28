@@ -14,6 +14,7 @@ export default function OrderWorkspace() {
     activeEmployee,
     setActiveEmployee,
     tables,
+    setTables,
     currentTableData,
     unsettledBills,
     switchTable,
@@ -104,8 +105,49 @@ export default function OrderWorkspace() {
     }
   }, [codeQuery, isCancelMode, currentTableData.items]);
 
-  // Handle table field enter -> Steps to Employee dropdown or toggles screen or prompts Pax
+// Helper functions for cursor position check
+const isAtStart = (el) => {
+  if (!el) return true;
+  if (!el.value) return true;
+  try {
+    const start = el.selectionStart;
+    if (start === 0) return true;
+  } catch {
+    return true;
+  }
+  return false;
+};
+
+const isAtEnd = (el) => {
+  if (!el) return true;
+  if (!el.value) return true;
+  try {
+    const end = el.selectionEnd;
+    if (end === el.value.length) return true;
+  } catch {
+    return true;
+  }
+  return false;
+};
+
+  // Handle table field enter -> Steps to Employee dropdown or toggles screen
   const handleTableKeyDown = (e) => {
+    // Arrow Right navigates forward to Employee dropdown if at end or empty
+    if (e.key === 'ArrowRight') {
+      if (isAtEnd(e.target)) {
+        e.preventDefault();
+        employeeSelectRef.current?.focus();
+        return;
+      }
+    }
+
+    // Hotkey '-' toggles subtable menu (Rule 4: minus key toggles subtables)
+    if (e.key === '-' || e.key === 'Subtract') {
+      e.preventDefault();
+      setShowSubTableMenu(prev => !prev);
+      return;
+    }
+
     if (e.key === 'Enter') {
       e.preventDefault();
       const val = tableInput.trim();
@@ -116,64 +158,90 @@ export default function OrderWorkspace() {
         return;
       }
 
-      // vid1 & vid2: In Cash Memo mode, entering table triggers Number of Persons prompt
-      if (screenMode === 'CASH_MEMO') {
-        let targetTable = val;
-        if (targetTable === '0') {
-          targetTable = '0';
-        }
+      let targetTable = val;
+      if (val === '0') {
+        targetTable = getNextParcelTable();
         switchTable(targetTable);
+        setTableInput(targetTable);
+      } else if (val === '00') {
+        const custName = prompt("Enter Home Delivery Customer Name:", "MOOSA") || "GUEST";
+        const delivKey = `00 - ${custName.toUpperCase()}`;
+        targetTable = delivKey;
+        switchTable(delivKey);
+        setTableInput(delivKey);
+      } else {
+        switchTable(val);
+      }
+
+      // In Cash Memo mode, entering a table triggers Number of Persons prompt
+      if (screenMode === 'CASH_MEMO') {
         setPaxPrompt({
           show: true,
           tableId: targetTable,
           onConfirm: (pax) => {
-            printCashMemo(targetTable, pax);
-            setTableInput('');
+            // Save pax on the table
+            setTables(prev => {
+              const tbl = prev[targetTable];
+              if (!tbl) return prev;
+              return {
+                ...prev,
+                [targetTable]: { ...tbl, pax }
+              };
+            });
+            // Advance focus to next box: Employee!
             setTimeout(() => {
-              tableInputRef.current?.focus();
+              employeeSelectRef.current?.focus();
             }, 60);
           }
         });
         return;
       }
 
-      if (val === '0') {
-        const nextParcel = getNextParcelTable();
-        switchTable(nextParcel);
-        setTableInput(nextParcel);
-      } else if (val === '00') {
-        const custName = prompt("Enter Home Delivery Customer Name:", "MOOSA") || "GUEST";
-        const delivKey = `00 - ${custName.toUpperCase()}`;
-        switchTable(delivKey);
-        setTableInput(delivKey);
-      } else {
-        switchTable(val);
-      }
-      // Progression: Table ➔ Employee!
+      // Progression in Order mode: Table ➔ Employee!
       employeeSelectRef.current?.focus();
     }
   };
 
-  // Handle employee field enter -> Steps to Code input!
+  // Handle employee field navigation -> Enter/Right ➔ Code, Left ➔ Table!
   const handleEmployeeKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
-      // Progression: Employee ➔ Code!
+      // Forward: Employee ➔ Code!
       codeInputRef.current?.focus();
+      codeInputRef.current?.select();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      // Backward: Employee ➔ Table!
+      tableInputRef.current?.focus();
+      tableInputRef.current?.select();
     }
   };
 
-  // Handle item code field enter / navigation
+  // Handle item code field enter / navigation -> Enter ➔ Qty, Left ➔ Employee!
   const handleCodeKeyDown = (e) => {
     if (e.key === 'ArrowDown') {
-      e.preventDefault();
       if (searchResults.length > 0) {
+        e.preventDefault();
         setHighlightedIndex(prev => (prev + 1) % searchResults.length);
       }
     } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
       if (searchResults.length > 0) {
+        e.preventDefault();
         setHighlightedIndex(prev => (prev - 1 + searchResults.length) % searchResults.length);
+      }
+    } else if (e.key === 'ArrowLeft') {
+      if (isAtStart(e.target)) {
+        e.preventDefault();
+        setSearchResults([]);
+        // Backward: Code ➔ Employee!
+        employeeSelectRef.current?.focus();
+      }
+    } else if (e.key === 'ArrowRight') {
+      if (selectedItem || isAtEnd(e.target)) {
+        e.preventDefault();
+        // Forward: Code ➔ Qty!
+        qtyInputRef.current?.focus();
+        qtyInputRef.current?.select();
       }
     } else if (e.key === 'Enter') {
       e.preventDefault();
@@ -225,35 +293,60 @@ export default function OrderWorkspace() {
 
     // Set default Qty and advance focus: Code ➔ Qty!
     setQtyInput('1');
-    qtyInputRef.current?.focus();
-    qtyInputRef.current?.select();
+    setTimeout(() => {
+      qtyInputRef.current?.focus();
+      qtyInputRef.current?.select();
+    }, 20);
   };
 
-  // Qty enter -> Progression: Qty ➔ Rate!
+  // Qty enter -> Progression: Qty ➔ Rate (Enter/Right), Qty ➔ Code (Left)!
   const handleQtyKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
+      // Forward: Qty ➔ Rate!
       rateInputRef.current?.focus();
-    }
-  };
-
-  // Rate enter -> Progression: Rate ➔ Customization (or Reason in cancel mode)!
-  const handleRateKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (isCancelMode) {
-        cancelReasonRef.current?.focus();
-      } else {
-        customInputRef.current?.focus();
+      rateInputRef.current?.select();
+    } else if (e.key === 'ArrowLeft') {
+      if (isAtStart(e.target)) {
+        e.preventDefault();
+        // Backward: Qty ➔ Code!
+        codeInputRef.current?.focus();
+        codeInputRef.current?.select();
       }
     }
   };
 
-  // Customization enter -> Commits row and loops back: Customization ➔ Code!
+  // Rate enter -> Progression: Rate ➔ Customization (Enter/Right), Rate ➔ Qty (Left)!
+  const handleRateKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      // Forward: Rate ➔ Customization (or Reason in cancel mode)!
+      if (isCancelMode) {
+        cancelReasonRef.current?.focus();
+      } else {
+        customInputRef.current?.focus();
+        customInputRef.current?.select();
+      }
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      // Backward: Rate ➔ Qty!
+      qtyInputRef.current?.focus();
+      qtyInputRef.current?.select();
+    }
+  };
+
+  // Customization enter -> Commits row and loops back: Customization ➔ Code (Enter), Customization ➔ Rate (Left)!
   const handleCustomKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       commitItemRow();
+    } else if (e.key === 'ArrowLeft') {
+      if (isAtStart(e.target)) {
+        e.preventDefault();
+        // Backward: Customization ➔ Rate!
+        rateInputRef.current?.focus();
+        rateInputRef.current?.select();
+      }
     }
   };
 
@@ -288,6 +381,11 @@ export default function OrderWorkspace() {
         reason: cancelReasonInput,
       });
       setShowCancelAuthModal(true);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      // Backward: Cancel Reason ➔ Rate!
+      rateInputRef.current?.focus();
+      rateInputRef.current?.select();
     }
   };
 
@@ -563,7 +661,7 @@ export default function OrderWorkspace() {
                 }}>
                   {searchResults.map((item, idx) => (
                     <div
-                      key={item.code}
+                      key={`${item.code}-${idx}`}
                       onClick={() => selectItem(item)}
                       style={{
                         padding: '3px 6px',
@@ -598,9 +696,10 @@ export default function OrderWorkspace() {
             <div style={{ width: '45px' }}>
               <input
                 ref={qtyInputRef}
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={qtyInput}
-                onChange={(e) => setQtyInput(e.target.value)}
+                onChange={(e) => setQtyInput(e.target.value.replace(/[^0-9]/g, ''))}
                 onKeyDown={handleQtyKeyDown}
                 placeholder="Qty"
                 className="win-input"
@@ -613,12 +712,13 @@ export default function OrderWorkspace() {
                 ref={rateInputRef}
                 type="text"
                 readOnly
+                tabIndex={0}
                 value={rateInput}
                 onKeyDown={handleRateKeyDown}
                 placeholder="Rate"
                 className="win-input"
                 style={{ width: '100%', height: '22px', textAlign: 'right', background: '#f4f4f4', fontSize: '11px', cursor: 'pointer' }}
-                title="Press Enter to proceed to Customization"
+                title="Press Enter or ArrowRight for Customization, ArrowLeft for Qty"
               />
             </div>
 
