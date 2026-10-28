@@ -32,6 +32,7 @@ export default function OrderWorkspace() {
   // Active entry row inputs
   const [tableInput, setTableInput] = useState(activeTableId);
   const [showSubTableMenu, setShowSubTableMenu] = useState(false);
+  const [subTableIndex, setSubTableIndex] = useState(0);
   const [codeQuery, setCodeQuery] = useState('');
   const [qtyInput, setQtyInput] = useState('1');
   const [rateInput, setRateInput] = useState('');
@@ -130,8 +131,112 @@ const isAtEnd = (el) => {
   return false;
 };
 
-  // Handle table field enter -> Steps to Employee dropdown or toggles screen
+  // Subtable options generator for active table (A, B, +)
+  const getSubTableOptions = (tableId) => {
+    const base = String(tableId || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase() || '1';
+    const opts = ['A', 'B'];
+    ['C', 'D', 'E'].forEach(letter => {
+      const full = `${base}${letter}`;
+      if (tables[full] && (tables[full].status === 'OCCUPIED' || (tables[full].items && tables[full].items.length > 0))) {
+        opts.push(letter);
+      }
+    });
+    opts.push('+');
+    return opts;
+  };
+
+  // Select subtable from menu (A, B, +) and advance to Employee
+  const handleSelectSubTable = (st) => {
+    setShowSubTableMenu(false);
+    const base = String(tableInput || activeTableId || '1').replace(/[A-Z]/g, '') || '1';
+
+    if (st === '+') {
+      const letters = ['B', 'C', 'D', 'E'];
+      let nextLetter = 'B';
+      for (const l of letters) {
+        if (!tables[`${base}${l}`] || tables[`${base}${l}`].status !== 'OCCUPIED') {
+          nextLetter = l;
+          break;
+        }
+      }
+      const newSubId = `${base}${nextLetter}`;
+      setActiveSubTable(nextLetter);
+      switchTable(newSubId);
+      setTableInput(newSubId);
+    } else if (st === 'A') {
+      setActiveSubTable('A');
+      switchTable(base);
+      setTableInput(base);
+    } else {
+      setActiveSubTable(st);
+      const full = `${base}${st}`;
+      switchTable(full);
+      setTableInput(full);
+    }
+
+    setTimeout(() => {
+      employeeSelectRef.current?.focus();
+    }, 50);
+  };
+
+  // Fire KOT, print thermal slip, and clear workspace so items disappear after the work is done
+  const handleFireKOT = (tableId = activeTableId) => {
+    if (!tableId) return;
+    const table = tables[tableId];
+    if (!table || !table.items || table.items.length === 0) return;
+
+    printKOT(tableId);
+
+    // After creating a KOT, the work is done: clear table, items disappear!
+    setTableInput('');
+    switchTable('');
+    setCodeQuery('');
+    setSelectedItem(null);
+    setQtyInput('1');
+    setRateInput('');
+    setCustomizationInput('');
+    setShowSubTableMenu(false);
+
+    setTimeout(() => {
+      tableInputRef.current?.focus();
+      tableInputRef.current?.select();
+    }, 60);
+  };
+
+  // Handle table field enter -> Steps to Employee dropdown or toggles screen or prompts subtable
   const handleTableKeyDown = (e) => {
+    // If Subtable dropdown is open, handle keyboard navigation directly in it!
+    if (showSubTableMenu) {
+      const opts = getSubTableOptions(tableInput || activeTableId);
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSubTableIndex(prev => (prev + 1) % opts.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSubTableIndex(prev => (prev - 1 + opts.length) % opts.length);
+        return;
+      }
+      if (e.key === '+' || e.key === 'Add') {
+        e.preventDefault();
+        handleSelectSubTable('+');
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const chosen = opts[subTableIndex] || 'A';
+        handleSelectSubTable(chosen);
+        return;
+      }
+      if (e.key === 'Escape' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setShowSubTableMenu(false);
+        return;
+      }
+    }
+
     // Arrow Right navigates forward to Employee dropdown if at end or empty
     if (e.key === 'ArrowRight') {
       if (isAtEnd(e.target)) {
@@ -145,12 +250,13 @@ const isAtEnd = (el) => {
     if (e.key === '-' || e.key === 'Subtract') {
       e.preventDefault();
       setShowSubTableMenu(prev => !prev);
+      setSubTableIndex(0);
       return;
     }
 
     if (e.key === 'Enter') {
       e.preventDefault();
-      const val = tableInput.trim();
+      const val = tableInput.trim().toUpperCase();
       
       // vid1 & vid2: Empty Table + Enter toggles between New Order and New Cash Memo!
       if (!val) {
@@ -163,18 +269,21 @@ const isAtEnd = (el) => {
         targetTable = getNextParcelTable();
         switchTable(targetTable);
         setTableInput(targetTable);
+        employeeSelectRef.current?.focus();
+        return;
       } else if (val === '00') {
         const custName = prompt("Enter Home Delivery Customer Name:", "MOOSA") || "GUEST";
         const delivKey = `00 - ${custName.toUpperCase()}`;
         targetTable = delivKey;
         switchTable(delivKey);
         setTableInput(delivKey);
-      } else {
-        switchTable(val);
+        employeeSelectRef.current?.focus();
+        return;
       }
 
       // In Cash Memo mode, entering a table triggers Number of Persons prompt
       if (screenMode === 'CASH_MEMO') {
+        switchTable(targetTable);
         setPaxPrompt({
           show: true,
           tableId: targetTable,
@@ -188,7 +297,6 @@ const isAtEnd = (el) => {
                 [targetTable]: { ...tbl, pax }
               };
             });
-            // Advance focus to next box: Employee!
             setTimeout(() => {
               employeeSelectRef.current?.focus();
             }, 60);
@@ -197,7 +305,26 @@ const isAtEnd = (el) => {
         return;
       }
 
-      // Progression in Order mode: Table ➔ Employee!
+      // In ORDER mode: Check if table is an EXISTING OCCUPIED table!
+      const baseNum = val.replace(/[A-Z]/g, '');
+      const existingTableData = tables[val] || tables[baseNum];
+      const hasExistingOrders = existingTableData && (
+        existingTableData.status === 'OCCUPIED' || 
+        (existingTableData.items && existingTableData.items.some(it => it.qty > 0 && !it.isCancelled)) ||
+        Boolean(tables[`${baseNum}B`])
+      );
+
+      if (hasExistingOrders) {
+        // vid8 & user request: Directly open that box with A, B, or + option!
+        switchTable(val);
+        setTableInput(val);
+        setShowSubTableMenu(true);
+        setSubTableIndex(0);
+        return;
+      }
+
+      // Progression in Order mode for new/vacant table: Table ➔ Employee!
+      switchTable(val);
       employeeSelectRef.current?.focus();
     }
   };
@@ -248,25 +375,24 @@ const isAtEnd = (el) => {
       // Double Enter on empty field fires KOT or Cash Memo!
       if (!codeQuery.trim()) {
         if (screenMode === 'ORDER') {
-          printKOT(activeTableId);
-          setTimeout(() => {
-            tableInputRef.current?.focus();
-            tableInputRef.current?.select();
-          }, 60);
+          handleFireKOT(activeTableId);
+          return;
         } else {
           setPaxPrompt({
             show: true,
             tableId: activeTableId,
             onConfirm: (pax) => {
               printCashMemo(activeTableId, pax);
+              setTableInput('');
+              switchTable('');
               setTimeout(() => {
                 tableInputRef.current?.focus();
                 tableInputRef.current?.select();
               }, 60);
             }
           });
+          return;
         }
-        return;
       }
 
       const chosen = searchResults[highlightedIndex] || MENU_BY_CODE.get(codeQuery.trim());
@@ -501,7 +627,10 @@ const isAtEnd = (el) => {
                       border: '1px solid #000000',
                       userSelect: 'none',
                     }}
-                    onClick={() => setShowSubTableMenu(prev => !prev)}
+                    onClick={() => {
+                      setShowSubTableMenu(prev => !prev);
+                      setSubTableIndex(0);
+                    }}
                     title="Select Subtable (A, B, +)"
                   >
                     <span>{activeSubTable}</span>
@@ -516,68 +645,36 @@ const isAtEnd = (el) => {
                         position: 'absolute',
                         top: '100%',
                         left: '82px',
-                        width: '46px',
+                        width: '48px',
                         background: '#ece9d8',
                         zIndex: 900,
                         border: '2px solid #808080',
                         boxShadow: '2px 2px 5px rgba(0,0,0,0.4)',
                       }}
                     >
-                      {['A', 'B'].map(st => (
-                        <div
-                          key={st}
-                          onClick={() => {
-                            setActiveSubTable(st);
-                            setShowSubTableMenu(false);
-                            const base = tableInput.replace(/[A-Z]/g, '');
-                            const full = st === 'A' ? base : `${base}${st}`;
-                            switchTable(full);
-                            setTableInput(full);
-                          }}
-                          style={{
-                            padding: '3px 4px',
-                            cursor: 'pointer',
-                            fontSize: '11px',
-                            fontWeight: 'bold',
-                            background: activeSubTable === st ? '#0a246a' : 'transparent',
-                            color: activeSubTable === st ? '#ffffff' : '#000000',
-                            textAlign: 'center',
-                          }}
-                        >
-                          {st}
-                        </div>
-                      ))}
-                      <div
-                        onClick={() => {
-                          setShowSubTableMenu(false);
-                          const base = tableInput.replace(/[A-Z]/g, '') || activeTableId.replace(/[A-Z]/g, '');
-                          const letters = ['B', 'C', 'D', 'E'];
-                          let nextLetter = 'B';
-                          for (const l of letters) {
-                            if (!tables[`${base}${l}`]) {
-                              nextLetter = l;
-                              break;
-                            }
-                          }
-                          const newSubId = `${base}${nextLetter}`;
-                          setActiveSubTable(nextLetter);
-                          switchTable(newSubId);
-                          setTableInput(newSubId);
-                        }}
-                        style={{
-                          padding: '3px 4px',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                          color: '#006600',
-                          borderTop: '1px solid #aaa',
-                          textAlign: 'center',
-                          background: '#e0ffe0',
-                        }}
-                        title="Create new subtable (+)"
-                      >
-                        +
-                      </div>
+                      {getSubTableOptions(tableInput || activeTableId).map((st, idx) => {
+                        const isPlus = st === '+';
+                        const isHighlighted = idx === subTableIndex;
+                        return (
+                          <div
+                            key={st}
+                            onClick={() => handleSelectSubTable(st)}
+                            style={{
+                              padding: '3px 4px',
+                              cursor: 'pointer',
+                              fontSize: isPlus ? '13px' : '11px',
+                              fontWeight: 'bold',
+                              background: isHighlighted ? '#0a246a' : (isPlus ? '#e0ffe0' : 'transparent'),
+                              color: isHighlighted ? '#ffffff' : (isPlus ? '#006600' : '#000000'),
+                              textAlign: 'center',
+                              borderTop: isPlus ? '1px solid #aaa' : 'none',
+                            }}
+                            title={isPlus ? 'Create new subtable (+)' : `Select Subtable ${st}`}
+                          >
+                            {st}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1030,7 +1127,8 @@ const isAtEnd = (el) => {
                   background: stagedCount > 0 ? '#ffea88' : '#e0dcc8',
                   borderColor: stagedCount > 0 ? '#b45309' : '#999'
                 }}
-                onClick={() => printKOT(activeTableId)}
+                onClick={() => handleFireKOT(activeTableId)}
+                title="FIRE KOT (↵↵)"
               >
                 KOT (↵↵){stagedCount > 0 ? ` (${stagedCount})` : ''}
               </button>

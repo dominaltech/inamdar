@@ -247,9 +247,9 @@ export function PosProvider({ children }) {
   };
 
   // Active table data
-  const currentTableData = tables[activeTableId] || {
-    id: activeTableId,
-    section: parseInt(activeTableId) > 20 ? 'FAMILY AC' : (activeTableId.startsWith('00') ? 'HOME DELIVERY' : (activeTableId.startsWith('0') ? 'PARCEL' : 'AC')),
+  const currentTableData = (activeTableId && tables[activeTableId]) ? tables[activeTableId] : {
+    id: activeTableId || '',
+    section: parseInt(activeTableId) > 20 ? 'FAMILY AC' : (String(activeTableId).startsWith('00') ? 'HOME DELIVERY' : (String(activeTableId).startsWith('0') ? 'PARCEL' : 'AC')),
     waiter: activeEmployee,
     status: 'AVAILABLE',
     items: [],
@@ -258,8 +258,11 @@ export function PosProvider({ children }) {
 
   // Switch active table
   const switchTable = (tableId) => {
-    let cleanId = String(tableId).trim().toUpperCase();
-    if (!cleanId) return;
+    let cleanId = String(tableId || '').trim().toUpperCase();
+    if (!cleanId) {
+      setActiveTableId('');
+      return;
+    }
 
     if (cleanId === '0') {
       cleanId = getNextParcelTable();

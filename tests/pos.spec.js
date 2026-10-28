@@ -301,4 +301,55 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(codeInput).toBeFocused();
   });
 
+  test('10. KOT Creation Clears Workspace & Existing Table Auto-Opens Subtable Box (A, B, +)', async ({ page }) => {
+    // 1. Enter vacant table 12
+    const tableInput = page.locator('#pos-table-input');
+    await tableInput.fill('12');
+    await tableInput.press('Enter');
+
+    // 2. Add an item
+    const codeInput = page.locator('input[placeholder="Code/CTM"]');
+    await codeInput.fill('1');
+    await page.waitForTimeout(200);
+    await codeInput.press('Enter'); // Select dish -> Qty
+    const qtyInput = page.locator('input[placeholder="Qty"]');
+    await qtyInput.press('Enter'); // Qty -> Rate
+    const rateInput = page.locator('input[placeholder="Rate"]');
+    await rateInput.press('Enter'); // Rate -> Custom
+    const customInput = page.locator('#pos-custom-input');
+    await customInput.press('Enter'); // Commits row
+
+    // Item is visible in grid
+    await expect(page.locator('text=[NEW]')).toBeVisible();
+
+    // 3. Fire KOT via double enter on empty code
+    await codeInput.press('Enter');
+    await page.waitForTimeout(300);
+
+    // Close print modal if open
+    const printClose = page.locator('.win-close-btn');
+    if (await printClose.isVisible()) {
+      await page.keyboard.press('Escape');
+    }
+
+    // 4. Verify workspace has cleared: items disappeared and table input is empty
+    await expect(page.locator('text=[NEW]')).not.toBeVisible();
+    await expect(page.locator('text=No items for Table')).toBeVisible();
+    await expect(tableInput).toBeFocused();
+
+    // 5. Now type table 12 again (which is now an EXISTING occupied table!)
+    await tableInput.fill('12');
+    await tableInput.press('Enter');
+
+    // 6. Subtable box with A, B, + directly opens!
+    const subtablePopup = page.locator('.win-bevel-outset', { hasText: 'A' });
+    await expect(subtablePopup).toBeVisible();
+    await expect(subtablePopup.locator('text=+')).toBeVisible();
+
+    // 7. Pressing '+' creates 12B with blank grid
+    await page.keyboard.press('+');
+    await expect(tableInput).toHaveValue('12B');
+    await expect(page.locator('text=No items for Table')).toBeVisible();
+  });
+
 });

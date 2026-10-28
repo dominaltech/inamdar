@@ -122,7 +122,7 @@ export default function ItemSalesReportModal({ isOpen, onClose }) {
             <tbody>
               {filteredSales.map((item, idx) => (
                 <tr
-                  key={item.code}
+                  key={`${item.code}-${item.category}-${idx}`}
                   style={{
                     background: item.qtySold > 0 ? (idx % 2 === 0 ? '#f0f7ff' : '#ffffff') : '#fafafa',
                     color: item.qtySold > 0 ? '#000000' : '#888888',

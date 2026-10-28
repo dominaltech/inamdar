@@ -131,7 +131,7 @@ export default function MenuMasterModal({ isOpen, onClose }) {
             <tbody>
               {filtered.map((item, idx) => (
                 <tr
-                  key={item.code}
+                  key={`${item.code}-${item.category}-${idx}`}
                   style={{
                     background: idx % 2 === 0 ? '#ffffff' : '#f7f7f7',
                     borderBottom: '1px solid #e0e0e0',
