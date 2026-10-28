@@ -77,14 +77,15 @@ export default function usePosKeyboard() {
         return;
       }
 
-      // F12: Settle Bill or Settlement Menu
+      // F12: Settle Bill or Settlement Menu (Disabled in ORDER mode as per requirement)
       if (e.key === 'F12') {
         e.preventDefault();
         if (screenMode === 'DETAILS_OF_BILL') {
           setShowSettlementMenu(true);
-        } else {
+        } else if (screenMode === 'CASH_MEMO') {
           openSettleModal(activeTableId);
         }
+        // In ORDER mode: do NOT show box to settle!
         return;
       }
 

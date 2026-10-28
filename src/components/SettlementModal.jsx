@@ -20,7 +20,9 @@ export default function SettlementModal() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const modalRef = useRef(null);
 
-  const tableData = tables[settleTableId] || {
+  const cleanId = String(settleTableId || '').trim().toUpperCase();
+  const baseId = cleanId.replace(/[A-Z]/g, '');
+  const tableData = tables[cleanId] || (baseId && tables[baseId]) || (baseId && tables[`${baseId}A`]) || {
     id: settleTableId,
     section: 'AC',
     items: [],

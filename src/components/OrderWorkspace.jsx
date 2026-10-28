@@ -56,9 +56,19 @@ export default function OrderWorkspace() {
   const customInputRef = useRef(null);
   const cancelReasonRef = useRef(null);
 
-  // Synchronize table input
+  // Synchronize table input: base tables like '2' or '14' directly format and display as '2A' or '14A'
   useEffect(() => {
-    setTableInput(activeTableId);
+    if (activeTableId) {
+      const baseNum = String(activeTableId).replace(/[A-Z]/g, '');
+      if (baseNum && !String(activeTableId).match(/[A-Z]/) && !String(activeTableId).startsWith('0')) {
+        setTableInput(`${baseNum}A`);
+        setActiveSubTable('A');
+      } else {
+        setTableInput(activeTableId);
+      }
+    } else {
+      setTableInput('');
+    }
   }, [activeTableId]);
 
   const focusTableInput = () => {
@@ -407,26 +417,16 @@ const isAtEnd = (el) => {
         return;
       }
 
-      // In ORDER mode: Check if table is an EXISTING OCCUPIED table!
+      // In ORDER mode: Directly show 2A and not the box to select A,B
       const baseNum = val.replace(/[A-Z]/g, '');
-      const existingTableData = tables[val] || tables[baseNum];
-      const hasExistingOrders = existingTableData && (
-        existingTableData.status === 'OCCUPIED' || 
-        (existingTableData.items && existingTableData.items.some(it => it.qty > 0 && !it.isCancelled)) ||
-        Boolean(tables[`${baseNum}B`])
-      );
+      const subLetter = val.replace(/[^A-Z]/g, '') || 'A';
+      const targetTableId = baseNum ? (val.match(/[A-Z]/) ? val : (tables[`${baseNum}A`] ? `${baseNum}A` : (tables[baseNum] ? baseNum : val))) : val;
+      const displayVal = (baseNum && !val.match(/[A-Z]/)) ? `${baseNum}A` : val;
 
-      if (hasExistingOrders) {
-        // vid8 & user request: Directly open that box with A, B, or + option!
-        switchTable(val);
-        setTableInput(val);
-        setShowSubTableMenu(true);
-        setSubTableIndex(0);
-        return;
-      }
-
-      // Progression in Order mode for new/vacant table: Table ➔ Employee!
-      switchTable(val);
+      setActiveSubTable(subLetter);
+      switchTable(targetTableId);
+      setTableInput(displayVal);
+      setShowSubTableMenu(false);
       employeeSelectRef.current?.focus();
     }
   };
@@ -527,16 +527,24 @@ const isAtEnd = (el) => {
     }, 20);
   };
 
-  // Qty enter -> Progression: Qty ➔ Customization (Enter/Right), Qty ➔ Code (Left)! Skips Rate completely!
+  // Qty enter -> Progression: Enter commits item row and jumps directly back to Item Code box (not counter, not custom!)
   const handleQtyKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === 'ArrowRight') {
+    if (e.key === 'Enter') {
       e.preventDefault();
-      // Skip Rate/Price entirely and jump directly to Customization (or Reason in cancel mode)
       if (isCancelMode) {
         cancelReasonRef.current?.focus();
       } else {
-        customInputRef.current?.focus();
-        customInputRef.current?.select();
+        commitItemRow();
+      }
+    } else if (e.key === 'ArrowRight') {
+      if (isAtEnd(e.target)) {
+        e.preventDefault();
+        if (isCancelMode) {
+          cancelReasonRef.current?.focus();
+        } else {
+          customInputRef.current?.focus();
+          customInputRef.current?.select();
+        }
       }
     } else if (e.key === 'ArrowLeft') {
       if (isAtStart(e.target)) {
@@ -594,8 +602,11 @@ const isAtEnd = (el) => {
     setQtyInput('1');
     setRateInput('');
     setCustomizationInput('');
-    // Continuous blind entry: loops focus back to Code input!
-    codeInputRef.current?.focus();
+    // Continuous blind entry: loops focus directly back to Item Code input!
+    setTimeout(() => {
+      codeInputRef.current?.focus();
+      codeInputRef.current?.select();
+    }, 20);
   };
 
   const handleCancelReasonKeyDown = (e) => {
@@ -652,8 +663,16 @@ const isAtEnd = (el) => {
   // When a bill is generated, the table immediately leaves this section and moves to Unsettled Bills!
   const isRunningTable = (t) => {
     const hasActiveItems = t.items && t.items.some(it => it.qty > 0 && !it.isCancelled);
-    const isBilled = t.status === 'BILLED' || unsettledBills.some(b => String(b.table) === String(t.id));
-    return hasActiveItems && !isBilled;
+    if (!hasActiveItems) return false;
+    if (t.status === 'BILLED') return false;
+    const cleanId = String(t.id).trim().toUpperCase();
+    const baseId = cleanId.replace(/[A-Z]/g, '');
+    const isBilledInUnsettled = unsettledBills.some(b => {
+      const bTable = String(b.table || b.tableNo || '').trim().toUpperCase();
+      const bBase = bTable.replace(/[A-Z]/g, '');
+      return bTable === cleanId || (baseId && bBase === baseId);
+    });
+    return !isBilledInUnsettled;
   };
 
   const acTableNums = Object.values(tables)
@@ -1081,25 +1100,38 @@ const isAtEnd = (el) => {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', lineHeight: '1.4' }}>
                   {acTableNums.length > 0 ? (
-                    acTableNums.map(num => (
-                      <span
-                        key={`ac-${num}`}
-                        onClick={() => switchTable(num)}
-                        title={`Click to view dishes for Table ${num}`}
-                        style={{
-                          cursor: 'pointer',
-                          padding: '1px 5px',
-                          fontWeight: 'bold',
-                          background: activeTableId === num ? '#0a246a' : '#e4ebf5',
-                          color: activeTableId === num ? '#ffffff' : '#000000',
-                          border: '1px solid',
-                          borderColor: activeTableId === num ? '#001a4d' : '#b0c4de',
-                          borderRadius: '2px',
-                        }}
-                      >
-                        {num}
-                      </span>
-                    ))
+                    acTableNums.map(num => {
+                      const strNum = String(num);
+                      const baseNum = strNum.replace(/[A-Z]/g, '');
+                      const subLetter = strNum.replace(/[^A-Z]/g, '') || 'A';
+                      const displayVal = (baseNum && !strNum.match(/[A-Z]/)) ? `${baseNum}A` : strNum;
+                      const isMatch = activeTableId === num || (activeTableId && String(activeTableId).replace(/[A-Z]/g, '') === baseNum);
+
+                      return (
+                        <span
+                          key={`ac-${num}`}
+                          onClick={() => {
+                            setActiveSubTable(subLetter);
+                            switchTable(num);
+                            setTableInput(displayVal);
+                            setShowSubTableMenu(false);
+                          }}
+                          title={`Click to view dishes for Table ${num}`}
+                          style={{
+                            cursor: 'pointer',
+                            padding: '1px 5px',
+                            fontWeight: 'bold',
+                            background: isMatch ? '#0a246a' : '#e4ebf5',
+                            color: isMatch ? '#ffffff' : '#000000',
+                            border: '1px solid',
+                            borderColor: isMatch ? '#001a4d' : '#b0c4de',
+                            borderRadius: '2px',
+                          }}
+                        >
+                          {num}
+                        </span>
+                      );
+                    })
                   ) : (
                     <span style={{ color: '#888' }}>None</span>
                   )}
@@ -1113,25 +1145,38 @@ const isAtEnd = (el) => {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', lineHeight: '1.4' }}>
                   {familyAcTableNums.length > 0 ? (
-                    familyAcTableNums.map(num => (
-                      <span
-                        key={`family-${num}`}
-                        onClick={() => switchTable(num)}
-                        title={`Click to view dishes for Family Table ${num}`}
-                        style={{
-                          cursor: 'pointer',
-                          padding: '1px 5px',
-                          fontWeight: 'bold',
-                          background: activeTableId === num ? '#0a246a' : '#e4ebf5',
-                          color: activeTableId === num ? '#ffffff' : '#000000',
-                          border: '1px solid',
-                          borderColor: activeTableId === num ? '#001a4d' : '#b0c4de',
-                          borderRadius: '2px',
-                        }}
-                      >
-                        {num}
-                      </span>
-                    ))
+                    familyAcTableNums.map(num => {
+                      const strNum = String(num);
+                      const baseNum = strNum.replace(/[A-Z]/g, '');
+                      const subLetter = strNum.replace(/[^A-Z]/g, '') || 'A';
+                      const displayVal = (baseNum && !strNum.match(/[A-Z]/)) ? `${baseNum}A` : strNum;
+                      const isMatch = activeTableId === num || (activeTableId && String(activeTableId).replace(/[A-Z]/g, '') === baseNum);
+
+                      return (
+                        <span
+                          key={`family-${num}`}
+                          onClick={() => {
+                            setActiveSubTable(subLetter);
+                            switchTable(num);
+                            setTableInput(displayVal);
+                            setShowSubTableMenu(false);
+                          }}
+                          title={`Click to view dishes for Family Table ${num}`}
+                          style={{
+                            cursor: 'pointer',
+                            padding: '1px 5px',
+                            fontWeight: 'bold',
+                            background: isMatch ? '#0a246a' : '#e4ebf5',
+                            color: isMatch ? '#ffffff' : '#000000',
+                            border: '1px solid',
+                            borderColor: isMatch ? '#001a4d' : '#b0c4de',
+                            borderRadius: '2px',
+                          }}
+                        >
+                          {num}
+                        </span>
+                      );
+                    })
                   ) : (
                     <span style={{ color: '#888' }}>None</span>
                   )}
@@ -1148,7 +1193,11 @@ const isAtEnd = (el) => {
                     deliveryTableNums.map(name => (
                       <div
                         key={`deliv-${name}`}
-                        onClick={() => switchTable(name)}
+                        onClick={() => {
+                          switchTable(name);
+                          setTableInput(name);
+                          setShowSubTableMenu(false);
+                        }}
                         title={`Click to view dishes for ${name}`}
                         style={{
                           cursor: 'pointer',
@@ -1180,7 +1229,11 @@ const isAtEnd = (el) => {
                     parcelTableNums.map(num => (
                       <span
                         key={`parcel-${num}`}
-                        onClick={() => switchTable(num)}
+                        onClick={() => {
+                          switchTable(num);
+                          setTableInput(num);
+                          setShowSubTableMenu(false);
+                        }}
                         title={`Click to view dishes for Parcel ${num}`}
                         style={{
                           cursor: 'pointer',
@@ -1283,14 +1336,16 @@ const isAtEnd = (el) => {
               >
                 Bill (F6)
               </button>
-              <button
-                className="win-btn"
-                style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', background: '#dcf5dc', color: '#006600' }}
-                onClick={() => openSettleModal(activeTableId)}
-                title="Settle bill via Cash, UPI, or Card"
-              >
-                Settle (F12)
-              </button>
+              {screenMode === 'CASH_MEMO' && (
+                <button
+                  className="win-btn"
+                  style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', background: '#dcf5dc', color: '#006600' }}
+                  onClick={() => openSettleModal(activeTableId)}
+                  title="Settle bill via Cash, UPI, or Card"
+                >
+                  Settle (F12)
+                </button>
+              )}
             </div>
           </div>
 

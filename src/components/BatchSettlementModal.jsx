@@ -110,13 +110,14 @@ export default function BatchSettlementModal() {
             <span style={{ fontWeight: 'bold', fontSize: '11px' }}>Bill No:</span>
             <input
               ref={inputRef}
+              id="batch-settle-bill-input"
               type="text"
               value={billInput}
               onChange={(e) => setBillInput(e.target.value)}
               onKeyDown={handleBillKeyDown}
               className="win-input"
               style={{ width: '90px', height: '24px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold', background: '#fff' }}
-              placeholder="e.g. 4"
+              placeholder="Bill No"
             />
             <span style={{ fontSize: '10px', color: '#666' }}>↵ to Add / Settle</span>
           </div>

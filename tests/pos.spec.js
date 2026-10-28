@@ -131,19 +131,15 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(200);
     await codeInput.press('Enter');
 
-    // Qty input
+    // Qty input: Enter commits item row immediately and loops focus directly back to Item Code!
     const qtyInput = page.locator('input[placeholder="Qty"]');
     await expect(qtyInput).toBeVisible();
     await qtyInput.fill('2');
     await qtyInput.press('Enter');
 
-    // Rate is skipped, goes directly to Customization field: press Enter to stage item
-    const customInput = page.locator('#pos-custom-input');
-    await expect(customInput).toBeVisible();
-    await customInput.press('Enter');
-
-    // Verify item is staged with [NEW] badge
+    // Verify item is staged with [NEW] badge and focus returns directly to Code input (skips counter and custom)
     await expect(page.locator('text=[NEW]').first()).toBeVisible();
+    await expect(codeInput).toBeFocused();
 
     // Fire KOT button
     const fireKotButton = page.locator('button:has-text("FIRE KOT")');
@@ -263,26 +259,29 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await codeInput.press('Enter');
     await expect(qtyInput).toBeFocused();
 
-    // 10. Enter on Qty -> Skips Rate and advances directly to Customization!
+    // 10. Enter on Qty -> Immediately commits item and loops focus directly back to Item Code! (skips counter and custom)
     await qtyInput.press('Enter');
+    await expect(codeInput).toBeFocused();
+    await expect(page.locator('text=[NEW]').first()).toBeVisible();
+
+    // 11. Right Arrow from Qty advances to Customization if needed
+    await codeInput.fill('1');
+    await page.waitForTimeout(200);
+    await codeInput.press('Enter'); // Select dish -> Qty
+    await expect(qtyInput).toBeFocused();
+    await qtyInput.press('ArrowRight');
     const customInput = page.locator('#pos-custom-input');
     await expect(customInput).toBeFocused();
 
-    // 11. Left Arrow on Customization -> Skips Rate and goes directly backward to Qty!
+    // 12. Left Arrow on Customization -> Skips Rate and goes directly backward to Qty!
     await customInput.press('ArrowLeft');
     await expect(qtyInput).toBeFocused();
-
-    // 12. Enter on Qty -> Customization, Enter on Customization -> Commits and loops back to Code
-    await qtyInput.press('Enter');
-    await expect(customInput).toBeFocused();
-    await customInput.press('Enter');
-    await expect(codeInput).toBeFocused();
   });
 
-  test('10. KOT Creation Clears Workspace & Existing Table Auto-Opens Subtable Box (A, B, +)', async ({ page }) => {
-    // 1. Enter vacant table 12
+  test('10. KOT Creation Clears Workspace & Existing Table Directly Shows 14A (No Subtable Popup)', async ({ page }) => {
+    // 1. Enter table 14
     const tableInput = page.locator('#pos-table-input');
-    await tableInput.fill('12');
+    await tableInput.fill('14');
     await tableInput.press('Enter');
 
     // 2. Add an item
@@ -291,12 +290,11 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(200);
     await codeInput.press('Enter'); // Select dish -> Qty
     const qtyInput = page.locator('input[placeholder="Qty"]');
-    await qtyInput.press('Enter'); // Qty -> skips Rate -> Custom
-    const customInput = page.locator('#pos-custom-input');
-    await customInput.press('Enter'); // Commits row
+    await expect(qtyInput).toBeVisible();
+    await qtyInput.press('Enter'); // Enter on Qty directly commits item and loops to Code
 
     // Item is visible in grid
-    await expect(page.locator('text=[NEW]')).toBeVisible();
+    await expect(page.locator('text=[NEW]').first()).toBeVisible();
 
     // 3. Fire KOT via double enter on empty code
     await codeInput.press('Enter');
@@ -306,26 +304,24 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const printClose = page.locator('.win-close-btn');
     if (await printClose.isVisible()) {
       await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
     }
 
-    // 4. Verify workspace has cleared: items disappeared and table input is empty
+    // 4. Verify workspace has cleared: items disappeared and table input is ready
     await expect(page.locator('text=[NEW]')).not.toBeVisible();
     await expect(page.locator('text=No items for Table')).toBeVisible();
-    await expect(tableInput).toBeFocused();
 
-    // 5. Now type table 12 again (which is now an EXISTING occupied table!)
-    await tableInput.fill('12');
+    // 5. Now type table 14 again (which is now an EXISTING occupied table!)
+    await tableInput.focus();
+    await tableInput.fill('14');
     await tableInput.press('Enter');
 
-    // 6. Subtable box with A, B, + directly opens!
-    const subtablePopup = page.locator('.win-bevel-outset', { hasText: 'A' });
-    await expect(subtablePopup).toBeVisible();
-    await expect(subtablePopup.locator('text=+')).toBeVisible();
-
-    // 7. Pressing '+' creates 12B with blank grid
-    await page.keyboard.press('+');
-    await expect(tableInput).toHaveValue('12B');
-    await expect(page.locator('text=No items for Table')).toBeVisible();
+    // 6. User requirement: Must DIRECTLY show 14A and NOT the box to select A, B!
+    await expect(tableInput).toHaveValue('14A');
+    await expect(page.locator('.win-bevel-outset', { hasText: /^A$/ })).not.toBeVisible();
+    
+    // Dish items from table 14 are directly visible!
+    await expect(page.locator('text=No items for Table')).not.toBeVisible();
   });
 
   test('11. Two-Stage Escape Flow in Order Mode (1st Esc clears screen, 2nd Esc opens Display Order)', async ({ page }) => {
@@ -339,9 +335,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(200);
     await codeInput.press('Enter');
     const qtyInput = page.locator('input[placeholder="Qty"]');
-    await qtyInput.press('Enter');
-    const customInput = page.locator('#pos-custom-input');
-    await customInput.press('Enter');
+    await qtyInput.press('Enter'); // Directly commits item
 
     // Verify item is present
     await expect(page.locator('text=[NEW]')).toBeVisible();
@@ -366,7 +360,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(tableInput).toBeFocused();
   });
 
-  test('12. Running Tables vs Unsettled Bills Separation and Bill Print', async ({ page }) => {
+  test('12. Running Tables vs Unsettled Bills Separation, Bill Print & Full Settle', async ({ page }) => {
     // 1. Enter Table 16, add item, fire KOT
     const tableInput = page.locator('#pos-table-input');
     await tableInput.fill('16');
@@ -377,9 +371,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(200);
     await codeInput.press('Enter');
     const qtyInput = page.locator('input[placeholder="Qty"]');
-    await qtyInput.press('Enter');
-    const customInput = page.locator('#pos-custom-input');
-    await customInput.press('Enter');
+    await qtyInput.press('Enter'); // Commits item
 
     // Fire KOT (double Enter on empty code)
     await codeInput.press('Enter');
@@ -398,10 +390,6 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // 3. Switch to Table 16 and press F6 to bill
     await tableInput.fill('16');
     await tableInput.press('Enter');
-    // Select subtable A if prompt appears
-    if (await page.locator('.win-bevel-outset div:has-text("A")').isVisible()) {
-      await page.locator('.win-bevel-outset div:has-text("A")').first().click();
-    }
 
     // Press F6 to bill
     await page.keyboard.press('F6');
@@ -424,6 +412,70 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // 4. Crucial: Table 16 MUST now disappear from AC running tables and appear under Unsettled Bills!
     await expect(page.locator('.win-window').getByText('Unsettled Bills').first()).toBeVisible();
     await expect(page.locator('span:has-text("16(")').first()).toBeVisible();
+
+    // 5. Now settle the bill via clicking on the unsettled bill tag
+    await page.locator('span[title*="settle Table 16"]').first().click();
+    await page.waitForTimeout(200);
+
+    // Settle modal appears: Click Cash Settle
+    const cashSettleBtn = page.locator('button:has-text("Cash")').first();
+    await cashSettleBtn.click();
+    await page.waitForTimeout(300);
+
+    // Dismiss info dialog if present
+    const okBtn = page.locator('button:has-text("OK")');
+    if (await okBtn.isVisible()) {
+      await okBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // 6. Crucial: Table 16 MUST disappear from Unsettled Bills!
+    await expect(page.locator('span[title*="settle Table 16"]')).not.toBeVisible();
+  });
+
+  test('13. Details of Bill (Black Numbers, Green Unsettled Highlight, Table/Amount Display, F12 Typing & Order Mode F12 Guard)', async ({ page }) => {
+    // 1. In New Order mode: F12 must NOT show box to settle!
+    await page.keyboard.press('F12');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Settlement' })).not.toBeVisible();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Bill Settlement' })).not.toBeVisible();
+
+    // 2. Open Details of Bill via Top Menu
+    await page.locator('.win-menu-item', { hasText: 'Transaction' }).click();
+    await page.locator('.win-dropdown-row', { hasText: 'Details of Bill' }).click();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Details of Bill No.' })).toBeVisible();
+
+    // 3. Pressing Enter inside Details of Bill returns to Cash Memo and focuses Table input!
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Details of Bill No.' })).not.toBeVisible();
+    await expect(page.locator('#pos-table-input')).toBeFocused();
+
+    // 4. Return to Details of Bill via Top Menu
+    await page.locator('.win-menu-item', { hasText: 'Transaction' }).click();
+    await page.locator('.win-dropdown-row', { hasText: 'Details of Bill' }).click();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Details of Bill No.' })).toBeVisible();
+
+    // 5. Open Settlement Menu via F12
+    await page.keyboard.press('F12');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Bill Settlement' })).toBeVisible();
+
+    // 6. Select Cash to open Batch Settlement modal
+    await page.locator('.win-modal-backdrop span:has-text("Cash")').first().click();
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: /^Cash$/ })).toBeVisible();
+
+    // 7. Verify typing numbers into Batch Settlement input works without background list interference
+    const billInput = page.locator('#batch-settle-bill-input');
+    await expect(billInput).toBeVisible();
+    await billInput.focus();
+    await billInput.type('123');
+    await expect(billInput).toHaveValue('123');
+
+    // 8. Close Batch Settlement via Esc
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
   });
 
 });

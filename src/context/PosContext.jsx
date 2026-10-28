@@ -246,15 +246,24 @@ export function PosProvider({ children }) {
     return `0${String.fromCharCode(65 + Math.floor(Math.random() * 20))}`;
   };
 
-  // Active table data
-  const currentTableData = (activeTableId && tables[activeTableId]) ? tables[activeTableId] : {
-    id: activeTableId || '',
-    section: parseInt(activeTableId) > 20 ? 'FAMILY AC' : (String(activeTableId).startsWith('00') ? 'HOME DELIVERY' : (String(activeTableId).startsWith('0') ? 'PARCEL' : 'AC')),
-    waiter: activeEmployee,
-    status: 'AVAILABLE',
-    items: [],
-    kotNos: [],
-  };
+  // Active table data (Seamless base/subtable lookup)
+  const currentTableData = (() => {
+    if (!activeTableId) {
+      return { id: '', section: 'AC', waiter: activeEmployee, status: 'AVAILABLE', items: [], kotNos: [] };
+    }
+    if (tables[activeTableId]) return tables[activeTableId];
+    const baseNum = String(activeTableId).replace(/[A-Z]/g, '');
+    if (baseNum && tables[baseNum]) return tables[baseNum];
+    if (baseNum && tables[`${baseNum}A`]) return tables[`${baseNum}A`];
+    return {
+      id: activeTableId,
+      section: parseInt(activeTableId) > 20 ? 'FAMILY AC' : (String(activeTableId).startsWith('00') ? 'HOME DELIVERY' : (String(activeTableId).startsWith('0') ? 'PARCEL' : 'AC')),
+      waiter: activeEmployee,
+      status: 'AVAILABLE',
+      items: [],
+      kotNos: [],
+    };
+  })();
 
   // Switch active table
   const switchTable = (tableId) => {
@@ -654,6 +663,7 @@ export function PosProvider({ children }) {
       billNo: nextBillNo,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      table: tableId,
       tableNo: tableId,
       section: table.section,
       employeeNo: '1',
@@ -661,6 +671,7 @@ export function PosProvider({ children }) {
       items: billItems,
       totalItems: billItems.length,
       totalQty: totalQty,
+      amount: totalAmount,
       totalAmount: totalAmount,
       isSettled: false,
       paymentMode: null,
@@ -674,24 +685,32 @@ export function PosProvider({ children }) {
     setAllBills(prev => [memoSlip, ...prev.filter(b => String(b.billNo) !== String(nextBillNo))]);
 
     // Add to unsettled bills (Rule 12 & 14)
+    const cleanTbl = String(tableId).trim().toUpperCase();
+    const baseTbl = cleanTbl.replace(/[A-Z]/g, '');
     setUnsettledBills(prev => {
-      const filtered = prev.filter(b => b.table !== tableId);
-      return [...filtered, { table: tableId, billNo: String(nextBillNo), amount: totalAmount }];
+      const filtered = prev.filter(b => {
+        const bT = String(b.table || b.tableNo || '').trim().toUpperCase();
+        const bB = bT.replace(/[A-Z]/g, '');
+        return bT !== cleanTbl && (!baseTbl || bB !== baseTbl);
+      });
+      return [...filtered, { table: tableId, tableNo: tableId, billNo: String(nextBillNo), amount: totalAmount, totalAmount: totalAmount }];
     });
 
     // Mark table as BILLED so it immediately leaves running tables list (AC, FAMILY AC, etc.)
     setTables(prev => {
-      const tbl = prev[tableId];
-      if (!tbl) return prev;
-      return {
-        ...prev,
-        [tableId]: {
-          ...tbl,
-          status: 'BILLED',
-          billedBillNo: String(nextBillNo),
-          billedAmount: totalAmount,
+      const updated = { ...prev };
+      const variants = [cleanTbl, baseTbl, `${baseTbl}A`].filter(Boolean);
+      variants.forEach(k => {
+        if (updated[k]) {
+          updated[k] = {
+            ...updated[k],
+            status: 'BILLED',
+            billedBillNo: String(nextBillNo),
+            billedAmount: totalAmount,
+          };
         }
-      };
+      });
+      return updated;
     });
 
     // Cloud sync bill
@@ -703,15 +722,17 @@ export function PosProvider({ children }) {
   // Open settle modal
   const openSettleModal = (tableId = activeTableId) => {
     const targetId = tableId || activeTableId;
-    const table = tables[targetId];
-    if (!table || table.items.length === 0) {
+    const cleanId = String(targetId).trim().toUpperCase();
+    const baseId = cleanId.replace(/[A-Z]/g, '');
+    const table = tables[cleanId] || (baseId && tables[baseId]) || (baseId && tables[`${baseId}A`]);
+    if (!table || !table.items || table.items.length === 0) {
       setInfoDialog({
         title: "Dominal's POS",
         message: `Table ${targetId} has no active items to settle!`,
       });
       return;
     }
-    setSettleTableId(targetId);
+    setSettleTableId(table.id || cleanId);
     setShowSettleModal(true);
   };
 
@@ -724,7 +745,12 @@ export function PosProvider({ children }) {
   const settleBillWithPayment = (tableId, paymentMode) => {
     const table = tables[tableId];
     const netAmount = table ? table.items.reduce((s, it) => s + it.amount, 0) : 0;
-    const unsettled = unsettledBills.find(b => b.table === tableId);
+    const cleanTbl = String(tableId).trim().toUpperCase();
+    const baseTbl = cleanTbl.replace(/[A-Z]/g, '');
+    const unsettled = unsettledBills.find(b => {
+      const bT = String(b.table || b.tableNo || '').trim().toUpperCase();
+      return bT === cleanTbl || (baseTbl && bT.replace(/[A-Z]/g, '') === baseTbl);
+    });
     const billNum = unsettled ? unsettled.billNo : String(billCounter);
 
     // Record into daily settled transactions journal
@@ -740,7 +766,8 @@ export function PosProvider({ children }) {
 
     // Update in allBills ledger
     setAllBills(prev => prev.map(b => {
-      if ((String(b.billNo) === String(billNum) || b.tableNo === tableId) && !b.isSettled) {
+      const bT = String(b.table || b.tableNo || '').trim().toUpperCase();
+      if ((String(b.billNo) === String(billNum) || bT === cleanTbl || (baseTbl && bT.replace(/[A-Z]/g, '') === baseTbl)) && !b.isSettled) {
         return {
           ...b,
           isSettled: true,
@@ -751,17 +778,28 @@ export function PosProvider({ children }) {
       return b;
     }));
 
-    // Free the table locally
-    setTables(prev => ({
-      ...prev,
-      [tableId]: {
-        ...prev[tableId],
-        status: 'AVAILABLE',
-        items: [],
-        kotNos: [],
-      }
+    // Free the table locally (clear all variants)
+    setTables(prev => {
+      const updated = { ...prev };
+      const variants = [cleanTbl, baseTbl, `${baseTbl}A`].filter(Boolean);
+      variants.forEach(k => {
+        if (updated[k]) {
+          updated[k] = {
+            ...updated[k],
+            status: 'AVAILABLE',
+            items: [],
+            kotNos: [],
+          };
+        }
+      });
+      return updated;
+    });
+
+    setUnsettledBills(prev => prev.filter(b => {
+      const bT = String(b.table || b.tableNo || '').trim().toUpperCase();
+      const bB = bT.replace(/[A-Z]/g, '');
+      return bT !== cleanTbl && (!baseTbl || bB !== baseTbl);
     }));
-    setUnsettledBills(prev => prev.filter(b => b.table !== tableId));
     setShowSettleModal(false);
 
     // Cloud sync settlement
@@ -806,22 +844,26 @@ export function PosProvider({ children }) {
 
     // 2. Identify tables and remove from unsettled bills
     const matchingBills = unsettledBills.filter(b => billNumStrings.includes(String(b.billNo)));
-    const matchingTableIds = matchingBills.map(b => b.table);
+    const matchingTableIds = matchingBills.map(b => String(b.table || b.tableNo || '').trim().toUpperCase());
 
     setUnsettledBills(prev => prev.filter(b => !billNumStrings.includes(String(b.billNo))));
 
-    // 3. Clear tables locally
+    // 3. Clear tables locally (all variants)
     setTables(prev => {
       const updated = { ...prev };
       matchingTableIds.forEach(tblId => {
-        if (updated[tblId]) {
-          updated[tblId] = {
-            ...updated[tblId],
-            status: 'AVAILABLE',
-            items: [],
-            kotNos: [],
-          };
-        }
+        const baseId = tblId.replace(/[A-Z]/g, '');
+        const variants = [tblId, baseId, `${baseId}A`].filter(Boolean);
+        variants.forEach(k => {
+          if (updated[k]) {
+            updated[k] = {
+              ...updated[k],
+              status: 'AVAILABLE',
+              items: [],
+              kotNos: [],
+            };
+          }
+        });
       });
       return updated;
     });

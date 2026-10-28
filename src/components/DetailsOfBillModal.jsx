@@ -7,6 +7,8 @@ export default function DetailsOfBillModal() {
     setScreenMode,
     allBills,
     setShowSettlementMenu,
+    showSettlementMenu,
+    batchSettleMode,
     triggerTableFocus,
   } = usePos();
 
@@ -22,7 +24,15 @@ export default function DetailsOfBillModal() {
     if (screenMode !== 'DETAILS_OF_BILL') return;
 
     function handleKeyDown(e) {
-      if (e.key === 'Escape') {
+      // If settlement menu or batch settlement dialog is active, DO NOT intercept any keys so user can type freely!
+      if (showSettlementMenu || batchSettleMode) return;
+
+      // If typing inside an input element, do not intercept
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) {
+        return;
+      }
+
+      if (e.key === 'Escape' || e.key === 'Enter') {
         e.preventDefault();
         setScreenMode('CASH_MEMO');
         triggerTableFocus?.();
@@ -51,12 +61,16 @@ export default function DetailsOfBillModal() {
         return;
       }
 
-      // Quick number typing (0-9): selects matching bill number and prevents background bleed
+      // Quick number typing (0-9): selects matching bill number ONLY when settlement modal is not open
       if (/^[0-9]$/.test(e.key)) {
         e.preventDefault();
         e.stopPropagation();
         const numKey = e.key;
-        const foundIdx = allBills.findIndex(b => String(b.billNo) === numKey || String(b.billNo).startsWith(numKey) || String(b.table) === numKey);
+        const foundIdx = allBills.findIndex(b => {
+          const bNo = String(b.billNo || '');
+          const bTbl = String(b.table || b.tableNo || '');
+          return bNo === numKey || bNo.startsWith(numKey) || bTbl === numKey;
+        });
         if (foundIdx !== -1) {
           setSelectedBillIndex(foundIdx);
         }
@@ -66,20 +80,21 @@ export default function DetailsOfBillModal() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screenMode, allBills, setScreenMode, setShowSettlementMenu, triggerTableFocus]);
+  }, [screenMode, allBills, setScreenMode, setShowSettlementMenu, showSettlementMenu, batchSettleMode, triggerTableFocus]);
 
   if (screenMode !== 'DETAILS_OF_BILL') return null;
 
-  const currentBill = allBills[selectedBillIndex] || {
-    billNo: 0,
-    table: '',
-    waiter: 'COUNTER',
-    items: [],
-    amount: 0,
-    disc: 0,
-    tax: 0,
-    isSettled: false,
-    hall: 'AC',
+  const rawBill = allBills[selectedBillIndex] || {};
+  const currentBill = {
+    billNo: rawBill.billNo || 0,
+    table: rawBill.table || rawBill.tableNo || '',
+    waiter: rawBill.waiter || 'COUNTER',
+    items: rawBill.items || [],
+    amount: Number(rawBill.amount ?? rawBill.totalAmount ?? 0),
+    disc: Number(rawBill.disc || 0),
+    tax: Number(rawBill.tax || 0),
+    isSettled: Boolean(rawBill.isSettled),
+    hall: rawBill.hall || rawBill.section || 'AC',
   };
 
   const totalQty = (currentBill.items || []).reduce((s, it) => s + (it.qty > 0 ? it.qty : 0), 0);
@@ -162,20 +177,23 @@ export default function DetailsOfBillModal() {
                       </td>
                     </tr>
                   ) : (
-                    currentBill.items.map((it, idx) => (
-                      <tr key={idx}>
-                        <td style={{ fontWeight: 'bold' }}>{it.name}</td>
-                        <td style={{ textAlign: 'right' }}>{it.qty}</td>
-                        <td style={{ textAlign: 'right' }}>{it.rate}</td>
-                        <td style={{ textAlign: 'right' }}>{it.amount.toFixed(2)}</td>
-                      </tr>
-                    ))
+                    currentBill.items.map((it, idx) => {
+                      const itAmt = Number(it.amount ?? (it.qty * it.rate) ?? 0);
+                      return (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: 'bold' }}>{it.name}</td>
+                          <td style={{ textAlign: 'right' }}>{it.qty}</td>
+                          <td style={{ textAlign: 'right' }}>{Number(it.rate || 0).toFixed(2)}</td>
+                          <td style={{ textAlign: 'right' }}>{itAmt.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
 
-            {/* Right: Tabular Bills Grid (Green = Unsettled, Black = Settled) */}
+            {/* Right: Tabular Bills Grid (Every number text black, green highlight row for unsettled) */}
             <div style={{ flex: '1', overflowY: 'auto', background: '#fafafa' }}>
               <table className="order-table" style={{ width: '100%', fontSize: '11px' }}>
                 <thead>
@@ -200,6 +218,9 @@ export default function DetailsOfBillModal() {
                     allBills.map((b, idx) => {
                       const isSelected = idx === selectedBillIndex;
                       const isUnsettled = !b.isSettled;
+                      const rowTable = b.table || b.tableNo || '';
+                      const rowAmount = Number(b.amount ?? b.totalAmount ?? 0);
+                      const rowColor = isSelected ? '#ffffff' : '#000000'; // Every number/text is strictly black (white only when selected)
 
                       return (
                         <tr
@@ -207,18 +228,20 @@ export default function DetailsOfBillModal() {
                           onClick={() => setSelectedBillIndex(idx)}
                           style={{
                             cursor: 'pointer',
-                            background: isSelected ? '#0a246a' : (idx % 2 === 0 ? '#ffffff' : '#f4f4f4'),
-                            color: isSelected ? '#ffffff' : (isUnsettled ? '#008800' : '#000000'), // Green for unsettled, Black for settled!
+                            background: isSelected 
+                              ? '#0a246a' 
+                              : (isUnsettled ? '#dcf5dc' : (idx % 2 === 0 ? '#ffffff' : '#f4f4f4')), // Green highlight ONLY for unsettled
+                            color: rowColor,
                             fontWeight: isUnsettled ? 'bold' : 'normal',
                           }}
                         >
-                          <td>{b.billNo}</td>
-                          <td>{b.table}</td>
-                          <td style={{ textAlign: 'right' }}>{Number(b.disc || 0).toFixed(0)}</td>
-                          <td style={{ textAlign: 'right' }}>{(Number(b.amount) || 0).toFixed(0)}</td>
-                          <td style={{ textAlign: 'center' }}>{b.employeeNo || 1}</td>
-                          <td>{b.isSettled ? (b.paymentType || 'Cash') : 'Cash'}</td>
-                          <td>{b.hall || 'AC'}</td>
+                          <td style={{ color: rowColor }}>{b.billNo}</td>
+                          <td style={{ color: rowColor }}>{rowTable}</td>
+                          <td style={{ textAlign: 'right', color: rowColor }}>{Number(b.disc || 0).toFixed(0)}</td>
+                          <td style={{ textAlign: 'right', color: rowColor }}>{rowAmount.toFixed(0)}</td>
+                          <td style={{ textAlign: 'center', color: rowColor }}>{b.employeeNo || 1}</td>
+                          <td style={{ color: rowColor }}>{b.isSettled ? (b.paymentType || b.paymentMode || 'Cash') : 'Cash'}</td>
+                          <td style={{ color: rowColor }}>{b.hall || b.section || 'AC'}</td>
                         </tr>
                       );
                     })
@@ -246,7 +269,7 @@ export default function DetailsOfBillModal() {
             </div>
 
             <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-              <span>Net Amt : <b style={{ fontSize: '14px', color: currentBill.isSettled ? '#000' : '#008800' }}>{currentBill.amount?.toFixed(2) || '0.00'}</b></span>
+              <span>Net Amt : <b style={{ fontSize: '14px', color: '#000000' }}>{currentBill.amount.toFixed(2)}</b></span>
               <span>Tax : <b>0</b></span>
               <span>Due: <b>0 min</b></span>
             </div>
