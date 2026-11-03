@@ -423,19 +423,19 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('span:has-text("16(")').first()).toBeVisible();
 
     // 5. Now settle the bill via clicking on the unsettled bill tag
-    await page.locator('span:has-text("16(")').first().click();
-    await page.waitForTimeout(200);
-
-    // Settle modal appears: Click Cash Settle
-    const cashSettleBtn = page.locator('button:has-text("Cash")').first();
-    await cashSettleBtn.click();
-    await page.waitForTimeout(300);
-
-    // Dismiss info dialog if present
-    const okBtn = page.locator('button:has-text("OK")');
-    if (await okBtn.isVisible()) {
-      await okBtn.click();
+    while (await page.locator('span:has-text("16(")').count() > 0) {
+      await page.locator('span:has-text("16(")').first().click();
       await page.waitForTimeout(200);
+      const cashBtn = page.locator('.win-modal-backdrop button:has-text("Cash")').first();
+      if (await cashBtn.isVisible()) {
+        await cashBtn.click();
+        await page.waitForTimeout(200);
+      }
+      const okBtn = page.locator('button:has-text("OK")');
+      if (await okBtn.isVisible()) {
+        await okBtn.click();
+        await page.waitForTimeout(200);
+      }
     }
 
     // 6. Crucial: Table 16 MUST disappear from Unsettled Bills!
@@ -485,6 +485,152 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // 8. Close Batch Settlement via Esc
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
+  });
+
+  test('14. Independent Bills on Reused Table (Table 18 Multiple Turnovers generate Independent Unsettled Bills without item bleed)', async ({ page }) => {
+    const tableInput = page.locator('#pos-table-input');
+    await expect(tableInput).toBeVisible();
+
+    // Settle any pre-existing bills for Table 18 first to guarantee a clean baseline
+    while (await page.locator('span:has-text("18(")').count() > 0) {
+      await page.locator('span:has-text("18(")').first().click();
+      await page.waitForTimeout(200);
+      const cashBtn = page.locator('.win-modal-backdrop button:has-text("Cash")').first();
+      if (await cashBtn.isVisible()) {
+        await cashBtn.click();
+        await page.waitForTimeout(200);
+      }
+      const okBtn = page.locator('button:has-text("OK")');
+      if (await okBtn.isVisible()) {
+        await okBtn.click();
+        await page.waitForTimeout(200);
+      }
+    }
+
+    // --- SESSION 1 on Table 18 ---
+    // 1. Order Table 18
+    await tableInput.fill('18');
+    await tableInput.press('Enter');
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+
+    // Enter Dish code '1', qty '1'
+    const codeInput = page.locator('input[placeholder="Code/CTM"]');
+    await codeInput.fill('1');
+    await page.waitForTimeout(200);
+    await codeInput.press('Enter');
+    const qtyInput = page.locator('input[placeholder="Qty"]');
+    await qtyInput.press('Enter'); // Commits item
+
+    // Fire KOT (double Enter on empty code)
+    await codeInput.press('Enter');
+    await page.waitForTimeout(100);
+    await codeInput.press('Enter');
+    await page.waitForTimeout(300);
+
+    // Close KOT print modal if open
+    const closeKotBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    if (await closeKotBtn.isVisible()) {
+      await closeKotBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // Table 18 appears in running tables
+    await expect(page.locator('.win-window span:has-text("18")').first()).toBeVisible();
+
+    // 2. Bill Table 18 (Bill #1)
+    await tableInput.fill('18');
+    await tableInput.press('Enter');
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+
+    await page.keyboard.press('F6');
+    await page.waitForTimeout(300);
+
+    const paxModal = page.locator('text=Number of Persons');
+    if (await paxModal.isVisible()) {
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(300);
+    }
+
+    const closeMemoBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    if (await closeMemoBtn.isVisible()) {
+      await closeMemoBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // Table 18 moves to Unsettled Bills (Bill #1)
+    await expect(page.locator('.win-window').getByText('Unsettled Bills').first()).toBeVisible();
+    await expect(page.locator('span:has-text("18(")').first()).toBeVisible();
+
+    // --- SESSION 2 on Table 18 (New Guest / Second Party) ---
+    // 3. Re-seat Table 18 immediately
+    await tableInput.fill('18');
+    await tableInput.press('Enter');
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+
+    // Enter Dish code '2', qty '1'
+    await codeInput.fill('2');
+    await page.waitForTimeout(200);
+    await codeInput.press('Enter');
+    await qtyInput.press('Enter'); // Commits item
+
+    // Fire KOT (double Enter on empty code)
+    await codeInput.press('Enter');
+    await page.waitForTimeout(100);
+    await codeInput.press('Enter');
+    await page.waitForTimeout(300);
+
+    if (await closeKotBtn.isVisible()) {
+      await closeKotBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // 4. Bill Table 18 second time (Bill #2)
+    await tableInput.fill('18');
+    await tableInput.press('Enter');
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+
+    await page.keyboard.press('F6');
+    await page.waitForTimeout(300);
+
+    if (await paxModal.isVisible()) {
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(300);
+    }
+
+    if (await closeMemoBtn.isVisible()) {
+      await closeMemoBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // 5. CRUCIAL: Both Bill #1 and Bill #2 for Table 18 MUST coexist independently in Unsettled Bills!
+    const tagsCount = await page.locator('span:has-text("18(")').count();
+    expect(tagsCount).toBe(2);
+
+    // 6. Settle the first bill for Table 18
+    await page.locator('span:has-text("18(")').first().click();
+    await page.waitForTimeout(200);
+
+    const cashSettleBtn = page.locator('.win-modal-backdrop button:has-text("Cash")').first();
+    await cashSettleBtn.click();
+    await page.waitForTimeout(300);
+
+    const okBtn = page.locator('button:has-text("OK")');
+    if (await okBtn.isVisible()) {
+      await okBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // 7. CRUCIAL: Exactly 1 bill for Table 18 should remain in Unsettled Bills!
+    const remainingCount = await page.locator('span:has-text("18(")').count();
+    expect(remainingCount).toBe(1);
   });
 
 });

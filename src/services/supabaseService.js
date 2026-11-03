@@ -51,7 +51,7 @@ export async function fetchLiveTables() {
 
     const tablesMap = {};
     (tablesData || []).forEach(tbl => {
-      const activeItems = itemsByTable[tbl.id] || [];
+      const activeItems = tbl.status === 'AVAILABLE' ? [] : (itemsByTable[tbl.id] || []);
       tablesMap[tbl.id] = {
         id: tbl.id,
         section: tbl.section === 'AC' ? 'GENERAL' : tbl.section,
@@ -77,6 +77,16 @@ export async function fetchOrderItemsForTable(tableId) {
   if (!isSupabaseConfigured() || !tableId) return [];
 
   try {
+    const { data: tblData } = await supabase
+      .from('tables')
+      .select('status')
+      .eq('id', String(tableId))
+      .maybeSingle();
+
+    if (tblData && tblData.status === 'AVAILABLE') {
+      return [];
+    }
+
     const { data, error } = await supabase
       .from('order_items')
       .select('*')
@@ -364,9 +374,13 @@ export async function saveBillInSupabase(billData) {
   if (!isSupabaseConfigured()) return null;
 
   try {
+    const cleanTbl = String(billData.tableNo || billData.table || '').trim().toUpperCase();
+    const baseTbl = cleanTbl.replace(/[A-Z]/g, '');
+    const variants = Array.from(new Set([cleanTbl, baseTbl, `${baseTbl}A`].filter(Boolean)));
+
     const payload = {
       bill_no: billData.billNo,
-      table_id: billData.tableNo,
+      table_id: cleanTbl,
       section: billData.section === 'AC' ? 'GENERAL' : billData.section,
       employee_no: billData.employeeNo || '1',
       customer_name: billData.customerName || '',
@@ -384,6 +398,7 @@ export async function saveBillInSupabase(billData) {
       created_at: new Date().toISOString()
     };
 
+    // 1. Insert independent bill record into bills table
     const { data, error } = await supabase
       .from('bills')
       .insert([payload])
@@ -392,11 +407,38 @@ export async function saveBillInSupabase(billData) {
 
     if (error) throw error;
 
-    // Increment bill counter
+    // 2. Increment daily bill counter
     await supabase
       .from('pos_counters')
       .update({ counter_val: billData.billNo + 1 })
       .eq('counter_key', 'daily_bill_counter');
+
+    // 3. Free table in Supabase so Captain App and POS immediately see it as AVAILABLE for new guests
+    await supabase
+      .from('tables')
+      .update({
+        status: 'AVAILABLE',
+        active_waiter: '1 COUNTER',
+        customer_name: '',
+        customer_phone: '',
+        pax: 2,
+        kot_nos: [],
+        updated_at: new Date().toISOString()
+      })
+      .in('id', variants);
+
+    // 4. Clear active order items for this table in Supabase (snapshot safely stored in bills.items_json)
+    await supabase
+      .from('order_items')
+      .delete()
+      .in('table_id', variants);
+
+    // 5. Mark KOTs for this table as SERVED in Supabase
+    await supabase
+      .from('kots')
+      .update({ status: 'SERVED' })
+      .in('table_id', variants)
+      .in('status', ['PENDING', 'ACCEPTED', 'PREPARING', 'READY']);
 
     return data;
   } catch (err) {
@@ -426,7 +468,7 @@ export async function settleBillInSupabase({ tableId, billNo, amount, paymentMod
         .eq('bill_no', Number(billNo));
     }
 
-    // B. Insert into Daily Transactions
+    // B. Insert into Daily Transactions journal
     await supabase
       .from('daily_transactions')
       .insert([{
@@ -438,30 +480,8 @@ export async function settleBillInSupabase({ tableId, billNo, amount, paymentMod
         settled_time: timeStr
       }]);
 
-    // C. Free the Table ONLY if currently in BILLED status (does not overwrite newly seated orders on Table)
-    const { data: currentTbl } = await supabase
-      .from('tables')
-      .select('status')
-      .eq('id', tableId)
-      .single();
-
-    if (currentTbl && currentTbl.status === 'BILLED') {
-      await supabase
-        .from('tables')
-        .update({
-          status: 'AVAILABLE',
-          kot_nos: [],
-          customer_name: '',
-          customer_phone: '',
-          updated_at: now.toISOString()
-        })
-        .eq('id', tableId);
-
-      await supabase
-        .from('order_items')
-        .delete()
-        .eq('table_id', tableId);
-    }
+    // Note: Decoupled from physical table. Table was already freed at billing time,
+    // so new guests may already be dining on this table with an independent bill.
 
     return true;
   } catch (err) {

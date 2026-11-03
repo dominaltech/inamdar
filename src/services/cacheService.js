@@ -192,7 +192,11 @@ export function applyIncomingKotDelta(prevTables, kotHeader, kotItems = []) {
     items: [],
   };
 
-  const updatedKotNos = Array.from(new Set([...(existing.kotNos || []), Number(kotHeader.kot_number)]));
+  const isFreshTable = existing.status === 'AVAILABLE' || !existing.items || existing.items.length === 0;
+  const baseItems = isFreshTable ? [] : (existing.items || []);
+  const baseKotNos = isFreshTable ? [] : (existing.kotNos || []);
+
+  const updatedKotNos = Array.from(new Set([...baseKotNos, Number(kotHeader.kot_number)]));
 
   // Format incoming items
   const formattedItems = (kotItems || []).map(it => ({
@@ -211,7 +215,7 @@ export function applyIncomingKotDelta(prevTables, kotHeader, kotItems = []) {
     status: it.status || 'PENDING',
   }));
 
-  const updatedItems = [...(existing.items || []), ...formattedItems];
+  const updatedItems = [...baseItems, ...formattedItems];
 
   const nextTables = {
     ...prevTables,

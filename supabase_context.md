@@ -381,16 +381,19 @@ The Counter POS acts as the central control terminal:
    - Flashes Table [X] on the Live Right Sidebar.
    - Triggers counter thermal receipt print if desired.
 
-2. **Billing (`F6`)**:
+2. **Billing (`F6`) & Table Turnover Lifecycle**:
    - Aggregates active dishes from `order_items`.
-   - Inserts row into `bills` (`status: 'UNSETTLED'`).
-   - Updates `tables` (`status: 'BILLED'`).
+   - Inserts row into `bills` (`status: 'UNSETTLED'`, `is_closed_for_ordering: true`).
+   - Immediately sets `tables` to `status: 'AVAILABLE'`, `kot_nos: []`, `customer_name: ''`.
+   - Deletes active rows from `order_items` for that table (the snapshot is permanently saved in `bills.items_json`).
+   - Marks active `kots` for this table as `'SERVED'`.
    - Prints Cash Memo slip.
+   - **Crucial Rule**: Because the table is immediately freed, new guests can be seated on that same table instantly. Any new KOT fired on that table (from Captain App or POS) starts a fresh dining session. When that new session is billed, it creates an independent bill. Both bills coexist in `Unsettled Bills` independently (e.g. `18(1, ₹250)` and `18(2, ₹320)`).
 
 3. **Settlement (`F12`) & 18 Payment Modes**:
-   - Updates `bills` (`status: 'SETTLED'`, `payment_mode`: Cash, Digital Payments, Online Payment, Swiggy, Zomato, UPI, Bill On Hold, Debit Card, Room Post, Cheque, Sodexo, Ticket, Bills Returned, Void, Guest, Complimentary, Staff, No Charge KOTs).
+   - Settles specific bill in `bills` (`status: 'SETTLED'`, `payment_mode`: Cash, Digital Payments, Online Payment, Swiggy, Zomato, UPI, Bill On Hold, Debit Card, Room Post, Cheque, Sodexo, Ticket, Bills Returned, Void, Guest, Complimentary, Staff, No Charge KOTs).
    - Inserts row into `daily_transactions`.
-   - Clears `tables` (`status: 'AVAILABLE'`).
+   - Does NOT alter the live physical table state (decoupled: live table may already be occupied by a new dining party).
    - Syncs with `credit_accounts` for customer ledger accounts.
 
 4. **Audit Trail & Cancellation Logs**:
@@ -405,14 +408,18 @@ The Counter POS acts as the central control terminal:
 
 ## 7. Migration Execution Checklist
 
-To initialize this schema in your Supabase project:
+To initialize or update this schema in your Supabase project:
 1. Open your **Supabase Dashboard** ➔ Go to the **SQL Editor**.
 2. Click **New Query**.
-3. Open `supabase/migrations/20261027_init_inamdar_pos_schema.sql` from this repository.
-4. Copy and paste the entire script into the SQL Editor.
-5. Click **Run**.
-6. Verify in the **Table Editor** that all 11 tables have been created:
-   - `staff_users`, `pos_counters`, `menu_items`, `tables`, `kots`, `order_items`, `bills`, `daily_transactions`, `cancellations_audit`, `credit_accounts`, `audit_logs`.
-7. Verify that all 215 menu items are seeded.
-8. Copy your `Project URL` and `anon public key` from **Project Settings ➔ API** and place them into your `.env` file or POS Cloud Settings.
+3. Apply the initial schema:
+   - Run `supabase/migrations/01_init_inamdar_pos_schema.sql` (or `20261027_init_inamdar_pos_schema.sql`).
+4. Apply the feature updates:
+   - Run `supabase/migrations/02_features_update.sql`.
+5. Apply the independent bills and table turnover migration:
+   - Run `supabase/migrations/03_independent_bills_support.sql`.
+6. Verify in the **Table Editor** that all tables and constraints are active:
+   - `bills` contains `is_closed_for_ordering` column.
+   - `order_items` status check constraint includes `'BILLED'`.
+   - `order_items` contains `is_billed` and `bill_no`.
+7. Copy your `Project URL` and `anon public key` from **Project Settings ➔ API** and place them into your `.env` file or POS Cloud Settings.
 
