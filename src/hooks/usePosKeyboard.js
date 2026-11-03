@@ -16,6 +16,7 @@ export default function usePosKeyboard() {
     showSettleModal,
     setShowSettleModal,
     openSettleModal,
+    openCancelModal,
     printData,
     setPrintData,
     infoDialog,
@@ -210,13 +211,13 @@ export default function usePosKeyboard() {
         }
       }
 
-      // '-' key (Numpad Subtract / Minus): Toggle Cancel Order mode
-      if (e.key === '-') {
+      // '-' key (Numpad Subtract / Minus): Open Cancel Order / Items Modal
+      if (e.key === '-' || e.key === 'Subtract') {
         const target = e.target;
-        const isTypingText = target && (target.tagName === 'INPUT' || target.tagName === 'SELECT') && target.value.length > 0;
+        const isTypingText = target && (target.tagName === 'INPUT' || target.tagName === 'SELECT') && target.id !== 'pos-table-input' && target.value.length > 0;
         if (!isTypingText) {
           e.preventDefault();
-          setIsCancelMode(prev => !prev);
+          openCancelModal(activeTableId);
           return;
         }
       }
@@ -255,6 +256,7 @@ export default function usePosKeyboard() {
     setPaxPrompt,
     activeModal,
     closeModal,
+    openCancelModal,
   ]);
 }
 

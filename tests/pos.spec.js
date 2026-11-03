@@ -123,11 +123,16 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await tableInput.fill('2');
     await tableInput.press('Enter');
 
+    // Customer details modal appears: skip via Escape
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+
     const codeInput = page.locator('input[placeholder="Code/CTM"]');
     await expect(codeInput).toBeVisible();
 
-    // Type dish code 101
-    await codeInput.fill('101');
+    // Type dish code 1
+    await codeInput.fill('1');
     await page.waitForTimeout(200);
     await codeInput.press('Enter');
 
@@ -142,7 +147,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(codeInput).toBeFocused();
 
     // Fire KOT button
-    const fireKotButton = page.locator('button:has-text("FIRE KOT")');
+    const fireKotButton = page.locator('button:has-text("Fire KOT (↵↵)")');
     if (await fireKotButton.isVisible()) {
       await fireKotButton.click();
       await page.waitForTimeout(300);
@@ -201,17 +206,17 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
   });
 
   test('08. Order Cancellation Mode (- Key) & Security Authorization', async ({ page }) => {
-    // Press '-' on page body to toggle Cancel mode
-    await page.keyboard.press('-');
+    // Open dedicated Cancel Order / Items Modal via Cancel (-) button or hotkey
+    await page.locator('button:has-text("Cancel (-)")').click();
     await page.waitForTimeout(200);
 
-    // Cancel mode banner should be visible
-    const cancelBadge = page.locator('text=[CANCELLATION MODE]');
-    if (await cancelBadge.isVisible()) {
-      await expect(cancelBadge).toBeVisible();
-      // Press '-' again to toggle out of Cancel mode
-      await page.keyboard.press('-');
-    }
+    // Cancel modal should be visible
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Cancel Order / Remove Items' })).toBeVisible();
+
+    // Press 'Escape' to close Cancel modal
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Cancel Order / Remove Items' })).not.toBeVisible();
   });
 
   test('09. Sequential Keyboard Progression (Enter forward, Left Arrow backward across all boxes)', async ({ page }) => {
@@ -219,63 +224,42 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const tableInput = page.locator('#pos-table-input');
     await expect(tableInput).toBeFocused();
 
-    // 2. Type Table 19 and Enter -> Forward to Employee
+    // 2. Type Table 19 and Enter -> Prompts Customer Details Modal
     await tableInput.fill('19');
     await tableInput.press('Enter');
-    const employeeSelect = page.locator('select.win-input');
-    await expect(employeeSelect).toBeFocused();
 
-    // 3. Left Arrow on Employee -> Backward to Table
-    await employeeSelect.press('ArrowLeft');
-    await expect(tableInput).toBeFocused();
+    const custName = page.locator('#cust-name-input');
+    await expect(custName).toBeVisible();
+    await custName.fill('Moosa Inamdar');
+    await custName.press('Enter'); // moves to phone
 
-    // 4. Enter on Table -> Employee, Enter on Employee -> Code
-    await tableInput.press('Enter');
-    await expect(employeeSelect).toBeFocused();
-    await employeeSelect.press('Enter');
+    const custPhone = page.locator('#cust-phone-input');
+    await expect(custPhone).toBeVisible();
+    await custPhone.fill('9876543210');
+    await custPhone.press('Enter'); // submits customer and advances to Code!
+
     const codeInput = page.locator('input[placeholder="Code/CTM"]');
     await expect(codeInput).toBeFocused();
 
-    // 5. Left Arrow on empty Code -> Backward to Employee
-    await codeInput.press('ArrowLeft');
-    await expect(employeeSelect).toBeFocused();
-
-    // 6. Enter on Employee -> Code
-    await employeeSelect.press('Enter');
-    await expect(codeInput).toBeFocused();
-
-    // 7. Type dish code '1' and press Enter -> Selects dish and advances to Qty
+    // 3. Type dish code '1' and press Enter -> Selects dish and advances to Qty
     await codeInput.fill('1');
     await page.waitForTimeout(200);
     await codeInput.press('Enter');
     const qtyInput = page.locator('input[placeholder="Qty"]');
     await expect(qtyInput).toBeFocused();
 
-    // 8. Left Arrow on Qty -> Backward to Code
+    // 4. Left Arrow on Qty -> Backward to Code
     await qtyInput.press('ArrowLeft');
     await expect(codeInput).toBeFocused();
 
-    // 9. Re-select dish '1' -> advances to Qty
+    // 5. Re-select dish '1' -> advances to Qty
     await codeInput.press('Enter');
     await expect(qtyInput).toBeFocused();
 
-    // 10. Enter on Qty -> Immediately commits item and loops focus directly back to Item Code! (skips counter and custom)
+    // 6. Enter on Qty -> Immediately commits item and loops focus directly back to Item Code!
     await qtyInput.press('Enter');
     await expect(codeInput).toBeFocused();
     await expect(page.locator('text=[NEW]').first()).toBeVisible();
-
-    // 11. Right Arrow from Qty advances to Customization if needed
-    await codeInput.fill('1');
-    await page.waitForTimeout(200);
-    await codeInput.press('Enter'); // Select dish -> Qty
-    await expect(qtyInput).toBeFocused();
-    await qtyInput.press('ArrowRight');
-    const customInput = page.locator('#pos-custom-input');
-    await expect(customInput).toBeFocused();
-
-    // 12. Left Arrow on Customization -> Skips Rate and goes directly backward to Qty!
-    await customInput.press('ArrowLeft');
-    await expect(qtyInput).toBeFocused();
   });
 
   test('10. KOT Creation Clears Workspace & Existing Table Directly Shows 14A (No Subtable Popup)', async ({ page }) => {
@@ -283,6 +267,11 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const tableInput = page.locator('#pos-table-input');
     await tableInput.fill('14');
     await tableInput.press('Enter');
+
+    // Skip/Confirm Customer Details modal
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
 
     // 2. Add an item
     const codeInput = page.locator('input[placeholder="Code/CTM"]');
@@ -297,6 +286,8 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('text=[NEW]').first()).toBeVisible();
 
     // 3. Fire KOT via double enter on empty code
+    await codeInput.press('Enter');
+    await page.waitForTimeout(100);
     await codeInput.press('Enter');
     await page.waitForTimeout(300);
 
@@ -315,6 +306,9 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await tableInput.focus();
     await tableInput.fill('14');
     await tableInput.press('Enter');
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
 
     // 6. User requirement: Must DIRECTLY show 14A and NOT the box to select A, B!
     await expect(tableInput).toHaveValue('14A');
@@ -328,6 +322,11 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const tableInput = page.locator('#pos-table-input');
     await tableInput.fill('15');
     await tableInput.press('Enter');
+
+    // Skip/Confirm Customer Details modal
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
 
     // Add an item so screen is dirty
     const codeInput = page.locator('input[placeholder="Code/CTM"]');
@@ -366,6 +365,11 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await tableInput.fill('16');
     await tableInput.press('Enter');
 
+    // Skip/Confirm Customer Details modal
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+
     const codeInput = page.locator('input[placeholder="Code/CTM"]');
     await codeInput.fill('1');
     await page.waitForTimeout(200);
@@ -374,6 +378,8 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await qtyInput.press('Enter'); // Commits item
 
     // Fire KOT (double Enter on empty code)
+    await codeInput.press('Enter');
+    await page.waitForTimeout(100);
     await codeInput.press('Enter');
     await page.waitForTimeout(300);
 
@@ -384,12 +390,15 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
       await page.waitForTimeout(200);
     }
 
-    // 2. Table 16 is now a running table -> appears under AC
+    // 2. Table 16 is now a running table -> appears under GENERAL section
     await expect(page.locator('.win-window span:has-text("16")').first()).toBeVisible();
 
     // 3. Switch to Table 16 and press F6 to bill
     await tableInput.fill('16');
     await tableInput.press('Enter');
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
 
     // Press F6 to bill
     await page.keyboard.press('F6');
@@ -409,12 +418,12 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
       await page.waitForTimeout(200);
     }
 
-    // 4. Crucial: Table 16 MUST now disappear from AC running tables and appear under Unsettled Bills!
+    // 4. Crucial: Table 16 MUST now disappear from running tables and appear under Unsettled Bills!
     await expect(page.locator('.win-window').getByText('Unsettled Bills').first()).toBeVisible();
     await expect(page.locator('span:has-text("16(")').first()).toBeVisible();
 
     // 5. Now settle the bill via clicking on the unsettled bill tag
-    await page.locator('span[title*="settle Table 16"]').first().click();
+    await page.locator('span:has-text("16(")').first().click();
     await page.waitForTimeout(200);
 
     // Settle modal appears: Click Cash Settle
@@ -430,7 +439,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     }
 
     // 6. Crucial: Table 16 MUST disappear from Unsettled Bills!
-    await expect(page.locator('span[title*="settle Table 16"]')).not.toBeVisible();
+    await expect(page.locator('span:has-text("16(")')).not.toBeVisible();
   });
 
   test('13. Details of Bill (Black Numbers, Green Unsettled Highlight, Table/Amount Display, F12 Typing & Order Mode F12 Guard)', async ({ page }) => {

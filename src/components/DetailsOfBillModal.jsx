@@ -10,6 +10,7 @@ export default function DetailsOfBillModal() {
     showSettlementMenu,
     batchSettleMode,
     triggerTableFocus,
+    openSettleModal,
   } = usePos();
 
   const [selectedBillIndex, setSelectedBillIndex] = useState(0);
@@ -41,7 +42,12 @@ export default function DetailsOfBillModal() {
 
       if (e.key === 'F12') {
         e.preventDefault();
-        setShowSettlementMenu(true);
+        const bill = allBills[selectedBillIndex];
+        if (bill && !bill.isSettled) {
+          openSettleModal(bill.table || bill.tableNo, bill.billNo);
+        } else {
+          setShowSettlementMenu(true);
+        }
         return;
       }
 
@@ -80,7 +86,7 @@ export default function DetailsOfBillModal() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screenMode, allBills, setScreenMode, setShowSettlementMenu, showSettlementMenu, batchSettleMode, triggerTableFocus]);
+  }, [screenMode, allBills, selectedBillIndex, setScreenMode, setShowSettlementMenu, showSettlementMenu, batchSettleMode, triggerTableFocus, openSettleModal]);
 
   if (screenMode !== 'DETAILS_OF_BILL') return null;
 
@@ -94,7 +100,7 @@ export default function DetailsOfBillModal() {
     disc: Number(rawBill.disc || 0),
     tax: Number(rawBill.tax || 0),
     isSettled: Boolean(rawBill.isSettled),
-    hall: rawBill.hall || rawBill.section || 'AC',
+    hall: rawBill.hall || rawBill.section || 'GENERAL',
   };
 
   const totalQty = (currentBill.items || []).reduce((s, it) => s + (it.qty > 0 ? it.qty : 0), 0);
@@ -107,7 +113,7 @@ export default function DetailsOfBillModal() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#6c8fa8',
+      background: '#ffffff',
       padding: '10px'
     }}>
       <div className="win-window" style={{
@@ -126,7 +132,13 @@ export default function DetailsOfBillModal() {
           <div style={{ display: 'flex', gap: '8px', fontSize: '11px' }}>
             <span
               style={{ cursor: 'pointer', color: '#fff', textDecoration: 'underline' }}
-              onClick={() => setShowSettlementMenu(true)}
+              onClick={() => {
+                if (currentBill && !currentBill.isSettled) {
+                  openSettleModal(currentBill.table, currentBill.billNo);
+                } else {
+                  setShowSettlementMenu(true);
+                }
+              }}
             >
               [F12 Settlement]
             </span>

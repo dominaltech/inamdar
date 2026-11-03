@@ -8,6 +8,7 @@ import {
   fetchLiveDailyTransactions,
   fetchLiveCounters,
   fetchLiveMenuItems,
+  fetchLiveAllBills,
   fetchOrderItemsForTable,
   fetchOrderItemsForKot,
   fireKotInSupabase,
@@ -81,9 +82,17 @@ export function PosProvider({ children }) {
   const [showCancelAuthModal, setShowCancelAuthModal] = useState(false);
   const [showSettleModal, setShowSettleModal] = useState(false);
   const [settleTableId, setSettleTableId] = useState('1');
+  const [settleBillData, setSettleBillData] = useState(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelModalTableId, setCancelModalTableId] = useState('');
   const [pendingCancelDetails, setPendingCancelDetails] = useState(null);
   const [printData, setPrintData] = useState(null);
   const [infoDialog, setInfoDialog] = useState(null);
+
+  const openCancelModal = (tableId) => {
+    setCancelModalTableId(tableId || activeTableId);
+    setShowCancelModal(true);
+  };
 
   // Trigger keyboard focus to table input box whenever actions complete or modals close
   const triggerTableFocus = useCallback(() => {
@@ -109,12 +118,13 @@ export function PosProvider({ children }) {
     let isMounted = true;
     async function loadCloudData() {
       try {
-        const [cloudTables, cloudBills, cloudTx, cloudCounters, cloudMenu] = await Promise.all([
+        const [cloudTables, cloudBills, cloudTx, cloudCounters, cloudMenu, cloudAllBills] = await Promise.all([
           fetchLiveTables(),
           fetchLiveUnsettledBills(),
           fetchLiveDailyTransactions(),
           fetchLiveCounters(),
           fetchLiveMenuItems(),
+          fetchLiveAllBills(),
         ]);
 
         if (!isMounted) return;
@@ -129,6 +139,10 @@ export function PosProvider({ children }) {
         if (cloudBills) {
           setUnsettledBills(cloudBills);
           saveCachedUnsettledBills(cloudBills);
+        }
+        if (cloudAllBills && Array.isArray(cloudAllBills) && cloudAllBills.length > 0) {
+          setAllBills(cloudAllBills);
+          saveCachedAllBills(cloudAllBills);
         }
         if (cloudTx) {
           setDailyTransactions(cloudTx);
@@ -156,6 +170,12 @@ export function PosProvider({ children }) {
         setTables(prev => applyIncomingKotDelta(prev, newKot, kotItems));
         setKotCounter(prev => Math.max(prev, Number(newKot.kot_number) + 1));
       },
+      onMenuUpdate: async () => {
+        const liveMenu = await fetchLiveMenuItems();
+        if (liveMenu && isMounted) {
+          loadDynamicMenuItems(liveMenu);
+        }
+      },
       onTableUpdate: async (payload) => {
         console.log('[Realtime Delta] Table updated:', payload);
         const updatedTable = payload.new;
@@ -173,10 +193,12 @@ export function PosProvider({ children }) {
               ...prev,
               [tableId]: {
                 id: tableId,
-                section: updatedTable.section,
+                section: updatedTable.section === 'AC' ? 'GENERAL' : updatedTable.section,
                 waiter: updatedTable.active_waiter || '1 COUNTER',
                 status: updatedTable.status,
                 pax: updatedTable.pax || 2,
+                customerName: updatedTable.customer_name || '',
+                customerPhone: updatedTable.customer_phone || '',
                 kotNos: updatedTable.kot_nos || [],
                 items: tblItems,
               }
@@ -281,7 +303,7 @@ export function PosProvider({ children }) {
 
     setActiveTableId(cleanId);
     if (!tables[cleanId]) {
-      let sec = 'AC';
+      let sec = 'GENERAL';
       const num = parseInt(cleanId);
       if (cleanId.startsWith('00')) sec = 'HOME DELIVERY';
       else if (cleanId.startsWith('0')) sec = 'PARCEL';
@@ -301,19 +323,42 @@ export function PosProvider({ children }) {
     }
   };
 
+  // Update customer name & phone for table
+  const updateTableCustomer = (tableId, customerName, customerPhone) => {
+    if (!tableId) return;
+    setTables(prev => {
+      const existing = prev[tableId] || {
+        id: tableId,
+        section: parseInt(tableId) > 20 ? 'FAMILY AC' : (String(tableId).startsWith('00') ? 'HOME DELIVERY' : (String(tableId).startsWith('0') ? 'PARCEL' : 'GENERAL')),
+        waiter: activeEmployee,
+        status: 'AVAILABLE',
+        items: [],
+        kotNos: [],
+      };
+      return {
+        ...prev,
+        [tableId]: {
+          ...existing,
+          customerName: customerName || existing.customerName || 'Guest',
+          customerPhone: customerPhone || existing.customerPhone || '',
+        }
+      };
+    });
+  };
+
   // Add line item to active table (marked as isStaged: true until KOT is fired)
   const addItemToActiveTable = (item) => {
     setTables(prev => {
       const existing = prev[activeTableId] || {
         id: activeTableId,
-        section: parseInt(activeTableId) > 20 ? 'FAMILY AC' : 'AC',
+        section: parseInt(activeTableId) > 20 ? 'FAMILY AC' : 'GENERAL',
         waiter: activeEmployee,
         status: 'OCCUPIED',
         items: [],
         kotNos: [],
       };
 
-      const rate = existing.section.includes('AC') ? (item.acRate || item.rate) : (item.hallRate || item.rate);
+      const rate = getApplicableRate(existing.section, item);
       const qty = item.qty || 1;
       const amount = qty * rate;
 
@@ -684,19 +729,27 @@ export function PosProvider({ children }) {
     // Save to allBills ledger (unsettled = green, settled = black)
     setAllBills(prev => [memoSlip, ...prev.filter(b => String(b.billNo) !== String(nextBillNo))]);
 
-    // Add to unsettled bills (Rule 12 & 14)
+    // Add to unsettled bills: NEVER overwrite prior bills for the same table!
     const cleanTbl = String(tableId).trim().toUpperCase();
     const baseTbl = cleanTbl.replace(/[A-Z]/g, '');
-    setUnsettledBills(prev => {
-      const filtered = prev.filter(b => {
-        const bT = String(b.table || b.tableNo || '').trim().toUpperCase();
-        const bB = bT.replace(/[A-Z]/g, '');
-        return bT !== cleanTbl && (!baseTbl || bB !== baseTbl);
-      });
-      return [...filtered, { table: tableId, tableNo: tableId, billNo: String(nextBillNo), amount: totalAmount, totalAmount: totalAmount }];
-    });
+    setUnsettledBills(prev => [
+      ...prev.filter(b => String(b.billNo) !== String(nextBillNo)),
+      {
+        table: tableId,
+        tableNo: tableId,
+        billNo: String(nextBillNo),
+        amount: totalAmount,
+        totalAmount: totalAmount,
+        customerName: table.customerName || '',
+        customerPhone: table.customerPhone || '',
+        section: table.section === 'AC' ? 'GENERAL' : table.section,
+        time: memoSlip.time,
+        date: memoSlip.date,
+        items: billItems,
+      }
+    ]);
 
-    // Mark table as BILLED so it immediately leaves running tables list (AC, FAMILY AC, etc.)
+    // Vacate table so new guests can sit immediately and take new orders
     setTables(prev => {
       const updated = { ...prev };
       const variants = [cleanTbl, baseTbl, `${baseTbl}A`].filter(Boolean);
@@ -704,9 +757,11 @@ export function PosProvider({ children }) {
         if (updated[k]) {
           updated[k] = {
             ...updated[k],
-            status: 'BILLED',
-            billedBillNo: String(nextBillNo),
-            billedAmount: totalAmount,
+            status: 'AVAILABLE',
+            customerName: '',
+            customerPhone: '',
+            items: [],
+            kotNos: [],
           };
         }
       });
@@ -719,44 +774,88 @@ export function PosProvider({ children }) {
     setPrintData({ type: 'BILL', data: memoSlip });
   };
 
-  // Open settle modal
-  const openSettleModal = (tableId = activeTableId) => {
+  // Open settle modal (Bill-centric: binds directly to bill snapshot)
+  const openSettleModal = (tableId = activeTableId, billNo = null) => {
     const targetId = tableId || activeTableId;
     const cleanId = String(targetId).trim().toUpperCase();
     const baseId = cleanId.replace(/[A-Z]/g, '');
+
+    // 1. Look for matching bill in unsettledBills or allBills first!
+    let matchingBill = null;
+    if (billNo) {
+      matchingBill = unsettledBills.find(b => String(b.billNo) === String(billNo)) ||
+                     allBills.find(b => String(b.billNo) === String(billNo));
+    }
+    if (!matchingBill) {
+      matchingBill = unsettledBills.find(b => {
+        const bT = String(b.table || b.tableNo || '').trim().toUpperCase();
+        return bT === cleanId || (baseId && bT.replace(/[A-Z]/g, '') === baseId);
+      });
+    }
+
+    if (matchingBill) {
+      setSettleTableId(matchingBill.table || cleanId);
+      setSettleBillData({
+        billNo: String(matchingBill.billNo),
+        table: matchingBill.table || cleanId,
+        amount: Number(matchingBill.amount ?? matchingBill.totalAmount ?? 0),
+        items: matchingBill.items || [],
+        customerName: matchingBill.customerName || '',
+        customerPhone: matchingBill.customerPhone || '',
+        waiter: matchingBill.waiter || '1 COUNTER',
+        section: matchingBill.section || 'GENERAL',
+      });
+      setShowSettleModal(true);
+      return;
+    }
+
+    // 2. Fallback to active physical table
     const table = tables[cleanId] || (baseId && tables[baseId]) || (baseId && tables[`${baseId}A`]);
     if (!table || !table.items || table.items.length === 0) {
       setInfoDialog({
         title: "Dominal's POS",
-        message: `Table ${targetId} has no active items to settle!`,
+        message: `Table ${targetId} has no active items or unsettled bill to settle!`,
       });
       return;
     }
+
+    const netAmount = table.items.reduce((s, it) => s + (it.amount || it.qty * it.rate || 0), 0);
     setSettleTableId(table.id || cleanId);
+    setSettleBillData({
+      billNo: String(table.kotNos?.[0] || billCounter),
+      table: table.id || cleanId,
+      amount: netAmount,
+      items: table.items,
+      customerName: table.customerName || '',
+      customerPhone: table.customerPhone || '',
+      waiter: table.waiter || '1 COUNTER',
+      section: table.section || 'GENERAL',
+    });
     setShowSettleModal(true);
   };
 
   // Settle bill directly
-  const settleBill = (tableId = activeTableId) => {
-    openSettleModal(tableId);
+  const settleBill = (tableId = activeTableId, billNo = null) => {
+    openSettleModal(tableId, billNo);
   };
 
   // Settle bill with selected payment mode (Rule 13: Direct amount)
-  const settleBillWithPayment = (tableId, paymentMode) => {
-    const table = tables[tableId];
-    const netAmount = table ? table.items.reduce((s, it) => s + it.amount, 0) : 0;
-    const cleanTbl = String(tableId).trim().toUpperCase();
+  const settleBillWithPayment = (tableId, paymentMode, specificBillNo = null) => {
+    const cleanTbl = String(tableId || '').trim().toUpperCase();
     const baseTbl = cleanTbl.replace(/[A-Z]/g, '');
-    const unsettled = unsettledBills.find(b => {
+
+    const billNum = specificBillNo || settleBillData?.billNo || unsettledBills.find(b => {
       const bT = String(b.table || b.tableNo || '').trim().toUpperCase();
       return bT === cleanTbl || (baseTbl && bT.replace(/[A-Z]/g, '') === baseTbl);
-    });
-    const billNum = unsettled ? unsettled.billNo : String(billCounter);
+    })?.billNo || String(billCounter);
+
+    const matchingUnsettled = unsettledBills.find(b => String(b.billNo) === String(billNum));
+    const netAmount = settleBillData?.amount ?? (matchingUnsettled ? matchingUnsettled.amount : 0);
 
     // Record into daily settled transactions journal
     const transaction = {
-      billNo: billNum,
-      tableId,
+      billNo: String(billNum),
+      tableId: cleanTbl,
       amount: netAmount,
       paymentMode,
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
@@ -766,45 +865,25 @@ export function PosProvider({ children }) {
 
     // Update in allBills ledger
     setAllBills(prev => prev.map(b => {
-      const bT = String(b.table || b.tableNo || '').trim().toUpperCase();
-      if ((String(b.billNo) === String(billNum) || bT === cleanTbl || (baseTbl && bT.replace(/[A-Z]/g, '') === baseTbl)) && !b.isSettled) {
+      if (String(b.billNo) === String(billNum)) {
         return {
           ...b,
           isSettled: true,
-          paymentMode: paymentMode,
+          paymentMode,
           settledAt: Date.now(),
         };
       }
       return b;
     }));
 
-    // Free the table locally (clear all variants)
-    setTables(prev => {
-      const updated = { ...prev };
-      const variants = [cleanTbl, baseTbl, `${baseTbl}A`].filter(Boolean);
-      variants.forEach(k => {
-        if (updated[k]) {
-          updated[k] = {
-            ...updated[k],
-            status: 'AVAILABLE',
-            items: [],
-            kotNos: [],
-          };
-        }
-      });
-      return updated;
-    });
-
-    setUnsettledBills(prev => prev.filter(b => {
-      const bT = String(b.table || b.tableNo || '').trim().toUpperCase();
-      const bB = bT.replace(/[A-Z]/g, '');
-      return bT !== cleanTbl && (!baseTbl || bB !== baseTbl);
-    }));
+    // Remove ONLY this bill from unsettledBills
+    setUnsettledBills(prev => prev.filter(b => String(b.billNo) !== String(billNum)));
     setShowSettleModal(false);
+    setSettleBillData(null);
 
     // Cloud sync settlement
     settleBillInSupabase({
-      tableId,
+      tableId: cleanTbl,
       billNo: billNum,
       amount: netAmount,
       paymentMode,
@@ -813,7 +892,7 @@ export function PosProvider({ children }) {
 
     setInfoDialog({
       title: "Dominal's POS",
-      message: `Table ${tableId} bill #${billNum} (₹${netAmount.toFixed(2)}) settled via ${paymentMode} successfully.`,
+      message: `Bill #${billNum} (₹${netAmount.toFixed(2)}) settled via ${paymentMode} successfully.`,
     });
   };
 
@@ -975,6 +1054,7 @@ export function PosProvider({ children }) {
       closeDay,
       getNextParcelTable,
       triggerTableFocus,
+      updateTableCustomer,
       // Cloud Supabase
       isCloudConnected,
       promptSupabaseConfig,
@@ -995,6 +1075,16 @@ export function PosProvider({ children }) {
       setPrintData,
       infoDialog,
       setInfoDialog,
+      // Settle Bill Snapshot Data
+      settleBillData,
+      setSettleBillData,
+      // Cancel Items / Table Modal
+      showCancelModal,
+      setShowCancelModal,
+      cancelModalTableId,
+      openCancelModal,
+      // Rate Helper
+      getApplicableRate,
       // All Bills & Details of Bill
       allBills,
       setAllBills,
@@ -1020,8 +1110,20 @@ export function PosProvider({ children }) {
   );
 }
 
+export function getApplicableRate(arg1, arg2) {
+  const item = (typeof arg1 === 'object' && arg1 !== null) ? arg1 : arg2;
+  const section = (typeof arg1 === 'string') ? arg1 : (typeof arg2 === 'string' ? arg2 : '');
+  if (!item) return 0;
+  const sec = String(section || '').toUpperCase();
+  if (sec === 'GENERAL') {
+    return Number(item.hallRate ?? item.hall_rate ?? item.rate ?? item.acRate ?? item.ac_rate) || 0;
+  }
+  return Number(item.acRate ?? item.ac_rate ?? item.rate ?? item.hallRate ?? item.hall_rate) || 0;
+}
+
 export function usePos() {
   const context = useContext(PosContext);
   if (!context) throw new Error('usePos must be used within PosProvider');
   return context;
 }
+

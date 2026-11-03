@@ -54,10 +54,12 @@ export async function fetchLiveTables() {
       const activeItems = itemsByTable[tbl.id] || [];
       tablesMap[tbl.id] = {
         id: tbl.id,
-        section: tbl.section,
+        section: tbl.section === 'AC' ? 'GENERAL' : tbl.section,
         waiter: tbl.active_waiter || '1 COUNTER',
         status: tbl.status || 'AVAILABLE',
         pax: tbl.pax || 2,
+        customerName: tbl.customer_name || '',
+        customerPhone: tbl.customer_phone || '',
         kotNos: tbl.kot_nos || [],
         items: activeItems,
       };
@@ -141,13 +143,75 @@ export async function fetchLiveUnsettledBills() {
 
     return (data || []).map(b => ({
       table: b.table_id,
+      tableNo: b.table_id,
       billNo: String(b.bill_no),
       amount: Number(b.total_amount),
+      totalAmount: Number(b.total_amount),
       id: b.id,
       time: b.bill_time,
+      date: b.bill_date,
+      customerName: b.customer_name || '',
+      customerPhone: b.customer_phone || '',
+      section: b.section === 'AC' ? 'GENERAL' : b.section,
+      hall: b.section === 'AC' ? 'GENERAL' : b.section,
+      isSettled: false,
+      items: (b.items_json || []).map(it => ({
+        code: it.code,
+        name: it.name,
+        qty: Number(it.qty),
+        rate: Number(it.rate),
+        amount: Number(it.amount ?? (it.qty * it.rate)),
+      })),
     }));
   } catch (err) {
     console.warn('fetchLiveUnsettledBills exception:', err);
+    return null;
+  }
+}
+
+// 2B. Fetch All Recent Bills (Both Settled & Unsettled for Ledger & F12)
+export async function fetchLiveAllBills() {
+  if (!isSupabaseConfigured()) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      console.warn('fetchLiveAllBills error:', error);
+      return null;
+    }
+
+    return (data || []).map(b => ({
+      billNo: String(b.bill_no),
+      table: b.table_id,
+      tableNo: b.table_id,
+      waiter: b.employee_no || '1 COUNTER',
+      section: b.section === 'AC' ? 'GENERAL' : b.section,
+      hall: b.section === 'AC' ? 'GENERAL' : b.section,
+      amount: Number(b.total_amount),
+      totalAmount: Number(b.total_amount),
+      disc: Number(b.discount || 0),
+      tax: Number(b.tax || 0),
+      isSettled: b.status === 'SETTLED',
+      paymentMode: b.payment_mode,
+      date: b.bill_date,
+      time: b.bill_time,
+      customerName: b.customer_name || '',
+      customerPhone: b.customer_phone || '',
+      items: (b.items_json || []).map(it => ({
+        code: it.code,
+        name: it.name,
+        qty: Number(it.qty),
+        rate: Number(it.rate),
+        amount: Number(it.amount ?? (it.qty * it.rate)),
+      })),
+    }));
+  } catch (err) {
+    console.warn('fetchLiveAllBills exception:', err);
     return null;
   }
 }
@@ -210,18 +274,22 @@ export async function fetchLiveCounters() {
 }
 
 // 5. Fire KOT and Save Items into Supabase
-export async function fireKotInSupabase({ tableId, section, waiterName, kotNumber, items, source = 'POS_COUNTER' }) {
+export async function fireKotInSupabase({ tableId, section, waiterName, customerName = '', customerPhone = '', kotNumber, items, source = 'POS_COUNTER' }) {
   if (!isSupabaseConfigured()) return null;
 
   try {
+    const sec = section === 'AC' ? 'GENERAL' : section;
+
     // A. Insert KOT Header
     const { data: kotRecord, error: kotErr } = await supabase
       .from('kots')
       .insert([{
         kot_number: kotNumber,
         table_id: tableId,
-        section: section,
+        section: sec,
         waiter_name: waiterName,
+        customer_name: customerName,
+        customer_phone: customerPhone,
         department: 'ALL',
         source: source,
         status: 'PENDING'
@@ -271,6 +339,8 @@ export async function fireKotInSupabase({ tableId, section, waiterName, kotNumbe
       .update({
         status: 'OCCUPIED',
         active_waiter: waiterName,
+        customer_name: customerName,
+        customer_phone: customerPhone,
         kot_nos: updatedKots,
         updated_at: new Date().toISOString()
       })
@@ -297,8 +367,10 @@ export async function saveBillInSupabase(billData) {
     const payload = {
       bill_no: billData.billNo,
       table_id: billData.tableNo,
-      section: billData.section,
+      section: billData.section === 'AC' ? 'GENERAL' : billData.section,
       employee_no: billData.employeeNo || '1',
+      customer_name: billData.customerName || '',
+      customer_phone: billData.customerPhone || '',
       subtotal: billData.totalAmount,
       discount: 0,
       tax: 0,
@@ -366,21 +438,30 @@ export async function settleBillInSupabase({ tableId, billNo, amount, paymentMod
         settled_time: timeStr
       }]);
 
-    // C. Free the Table (status = AVAILABLE) and clear active order items
-    await supabase
+    // C. Free the Table ONLY if currently in BILLED status (does not overwrite newly seated orders on Table)
+    const { data: currentTbl } = await supabase
       .from('tables')
-      .update({
-        status: 'AVAILABLE',
-        kot_nos: [],
-        updated_at: now.toISOString()
-      })
-      .eq('id', tableId);
+      .select('status')
+      .eq('id', tableId)
+      .single();
 
-    // Delete table items to keep order_items clean for future sessions
-    await supabase
-      .from('order_items')
-      .delete()
-      .eq('table_id', tableId);
+    if (currentTbl && currentTbl.status === 'BILLED') {
+      await supabase
+        .from('tables')
+        .update({
+          status: 'AVAILABLE',
+          kot_nos: [],
+          customer_name: '',
+          customer_phone: '',
+          updated_at: now.toISOString()
+        })
+        .eq('id', tableId);
+
+      await supabase
+        .from('order_items')
+        .delete()
+        .eq('table_id', tableId);
+    }
 
     return true;
   } catch (err) {
@@ -486,7 +567,7 @@ export async function closeDayInSupabase() {
 }
 
 // 11. Realtime Sync Listener (Subscribes to Captain orders, Table updates, and KDS changes)
-export function subscribeToSupabaseRealtime({ onTableUpdate, onIncomingKot, onBillUpdate }) {
+export function subscribeToSupabaseRealtime({ onTableUpdate, onIncomingKot, onBillUpdate, onMenuUpdate }) {
   if (!isSupabaseConfigured()) return () => {};
 
   const channel = supabase
@@ -501,8 +582,8 @@ export function subscribeToSupabaseRealtime({ onTableUpdate, onIncomingKot, onBi
       if (onBillUpdate) onBillUpdate(payload);
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, payload => {
-      // Menu changes propagate live
       console.log('Realtime Menu update:', payload);
+      if (onMenuUpdate) onMenuUpdate(payload);
     })
     .subscribe();
 

@@ -8,6 +8,7 @@ import ReportsView from './components/ReportsView';
 import LoginModal from './components/LoginModal';
 import TableShiftModal from './components/TableShiftModal';
 import CancelAuthModal from './components/CancelAuthModal';
+import CancelOrderModal from './components/CancelOrderModal';
 import ThermalPrintModal from './components/ThermalPrintModal';
 import SettlementModal from './components/SettlementModal';
 import InfoModal from './components/InfoModal';
@@ -32,7 +33,14 @@ import PrinterSetupModal from './components/modals/PrinterSetupModal';
 import CloudConfigModal from './components/modals/CloudConfigModal';
 
 function PosAppContent() {
-  const { screenMode, activeModal, closeModal } = usePos();
+  const {
+    screenMode,
+    activeModal,
+    closeModal,
+    showCancelModal,
+    setShowCancelModal,
+    cancelModalTableId,
+  } = usePos();
   usePosKeyboard();
 
   return (
@@ -52,6 +60,11 @@ function PosAppContent() {
       <LoginModal />
       <TableShiftModal />
       <CancelAuthModal />
+      <CancelOrderModal
+        show={showCancelModal}
+        tableId={cancelModalTableId}
+        onClose={() => setShowCancelModal(false)}
+      />
       <ThermalPrintModal />
       <SettlementModal />
       <InfoModal />

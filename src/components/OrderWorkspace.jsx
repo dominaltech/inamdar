@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { usePos } from '../context/PosContext';
+import { usePos, getApplicableRate } from '../context/PosContext';
 import { EMPLOYEES, CANCEL_REASONS } from '../data/initialData';
 import { searchMenuItems, MENU_BY_CODE } from '../data/menuService';
+import CustomerDetailsModal from './CustomerDetailsModal';
 
 export default function OrderWorkspace() {
   const {
@@ -20,17 +21,32 @@ export default function OrderWorkspace() {
     switchTable,
     addItemToActiveTable,
     removeStagedItem,
-    setShowCancelAuthModal,
-    setPendingCancelDetails,
     printKOT,
     printCashMemo,
     openSettleModal,
+    openCancelModal,
     getNextParcelTable,
     paxPrompt,
     setPaxPrompt,
     printData,
     activeModal,
+    showCancelModal,
+    updateTableCustomer,
   } = usePos();
+
+  // Multi-Order Tabs State (F1 key creates or cycles between concurrent order drafts)
+  const [orderDrafts, setOrderDrafts] = useState([
+    {
+      id: 1,
+      tableId: '',
+      tableInput: '',
+      customerName: '',
+      customerPhone: '',
+      employee: '1 COUNTER',
+      stagedItems: [],
+    }
+  ]);
+  const [activeDraftIdx, setActiveDraftIdx] = useState(0);
 
   // Active entry row inputs
   const [tableInput, setTableInput] = useState(activeTableId);
@@ -42,12 +58,25 @@ export default function OrderWorkspace() {
   const [customizationInput, setCustomizationInput] = useState('');
   const [cancelReasonInput, setCancelReasonInput] = useState(CANCEL_REASONS[0]);
 
+  // Customer Details Modal prompt state
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [pendingCustomerTable, setPendingCustomerTable] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+
+  // Double Enter confirmation badge state ('KOT' or 'BILL' or null)
+  const [doubleEnterBadge, setDoubleEnterBadge] = useState(null);
+  const doubleEnterTimerRef = useRef(null);
+
+  // Cash Memo item preview state
+  const [memoTableLoaded, setMemoTableLoaded] = useState(null);
+
   // Selected item object from search
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
 
-  // Field focus references for seamless Enter progression
+  // Field focus references
   const tableInputRef = useRef(null);
   const employeeSelectRef = useRef(null);
   const codeInputRef = useRef(null);
@@ -56,7 +85,7 @@ export default function OrderWorkspace() {
   const customInputRef = useRef(null);
   const cancelReasonRef = useRef(null);
 
-  // Synchronize table input: base tables like '2' or '14' directly format and display as '2A' or '14A'
+  // Synchronize table input
   useEffect(() => {
     if (activeTableId) {
       const baseNum = String(activeTableId).replace(/[A-Z]/g, '');
@@ -69,7 +98,7 @@ export default function OrderWorkspace() {
     } else {
       setTableInput('');
     }
-  }, [activeTableId]);
+  }, [activeTableId, setActiveSubTable]);
 
   const focusTableInput = () => {
     setTimeout(() => {
@@ -78,6 +107,15 @@ export default function OrderWorkspace() {
         tableInputRef.current.select();
       }
     }, 30);
+  };
+
+  const focusCodeInput = () => {
+    setTimeout(() => {
+      if (codeInputRef.current && !codeInputRef.current.disabled) {
+        codeInputRef.current.focus();
+        codeInputRef.current.select();
+      }
+    }, 40);
   };
 
   // Focus table input on mount, screen mode switch, or global focus event
@@ -95,14 +133,118 @@ export default function OrderWorkspace() {
     return () => window.removeEventListener('inamdar-focus-table', handleFocusTable);
   }, []);
 
-  // Two-Stage Escape Handling & Zero-Mouse Keyboard Workflow
+  // Multi-Order Tab Switcher via F1 Hotkey
+  const handleSwitchDraft = (targetIdx) => {
+    if (targetIdx === activeDraftIdx || targetIdx < 0 || targetIdx >= orderDrafts.length) return;
+
+    // Save current active draft data
+    setOrderDrafts(prev => {
+      const updated = [...prev];
+      updated[activeDraftIdx] = {
+        ...updated[activeDraftIdx],
+        tableId: activeTableId,
+        tableInput: tableInput,
+        customerName: customerName,
+        customerPhone: customerPhone,
+        employee: activeEmployee,
+      };
+      return updated;
+    });
+
+    const targetDraft = orderDrafts[targetIdx];
+    setActiveDraftIdx(targetIdx);
+    setCustomerName(targetDraft.customerName || '');
+    setCustomerPhone(targetDraft.customerPhone || '');
+    setTableInput(targetDraft.tableInput || '');
+    switchTable(targetDraft.tableId || '');
+    if (targetDraft.employee) setActiveEmployee(targetDraft.employee);
+
+    if (targetDraft.tableId) {
+      focusCodeInput();
+    } else {
+      focusTableInput();
+    }
+  };
+
+  const handleAddNewDraft = () => {
+    if (orderDrafts.length >= 5) {
+      // Cycle to first
+      handleSwitchDraft(0);
+      return;
+    }
+
+    // Save current active draft data
+    setOrderDrafts(prev => {
+      const updated = [...prev];
+      updated[activeDraftIdx] = {
+        ...updated[activeDraftIdx],
+        tableId: activeTableId,
+        tableInput: tableInput,
+        customerName: customerName,
+        customerPhone: customerPhone,
+        employee: activeEmployee,
+      };
+      const newDraft = {
+        id: Date.now(),
+        tableId: '',
+        tableInput: '',
+        customerName: '',
+        customerPhone: '',
+        employee: activeEmployee || '1 COUNTER',
+        stagedItems: [],
+      };
+      return [...updated, newDraft];
+    });
+
+    const newIdx = orderDrafts.length;
+    setActiveDraftIdx(newIdx);
+    setCustomerName('');
+    setCustomerPhone('');
+    setTableInput('');
+    switchTable('');
+    setCodeQuery('');
+    setSelectedItem(null);
+    setQtyInput('1');
+    setRateInput('');
+    focusTableInput();
+  };
+
+  const handleCloseDraft = (e, idxToClose) => {
+    e?.stopPropagation();
+    if (orderDrafts.length <= 1) {
+      // Just clear
+      setTableInput('');
+      switchTable('');
+      setCustomerName('');
+      setCustomerPhone('');
+      setCodeQuery('');
+      setSelectedItem(null);
+      focusTableInput();
+      return;
+    }
+
+    const nextDrafts = orderDrafts.filter((_, idx) => idx !== idxToClose);
+    const nextIdx = Math.max(0, activeDraftIdx >= idxToClose ? activeDraftIdx - 1 : activeDraftIdx);
+    setOrderDrafts(nextDrafts);
+    setActiveDraftIdx(nextIdx);
+
+    const target = nextDrafts[nextIdx];
+    setCustomerName(target.customerName || '');
+    setCustomerPhone(target.customerPhone || '');
+    setTableInput(target.tableInput || '');
+    switchTable(target.tableId || '');
+    focusTableInput();
+  };
+
+  // Two-Stage Escape Handling & F1 Tab Capture
   useEffect(() => {
     const handleCaptureKeyDown = (e) => {
-      // If modal or dialog or external screen is open, do not intercept
       if (
         printData ||
         paxPrompt ||
         activeModal ||
+        showCustomerModal ||
+        showCancelModal ||
         screenMode === 'DISPLAY_ORDER' ||
         screenMode === 'DETAILS_OF_BILL' ||
         screenMode === 'REPORTS'
@@ -110,12 +252,35 @@ export default function OrderWorkspace() {
         return;
       }
 
-      // Two-Stage Escape Handling
-      if (e.key === 'Escape') {
-        // If subtable menu is open, let tableKeyDown handle closing it
-        if (showSubTableMenu) {
+      // Hotkey '-' triggers dedicated Cancel Order / Items Modal!
+      if (e.key === '-' || e.key === 'Subtract') {
+        const target = e.target;
+        const isTypingText = target && (target.tagName === 'INPUT' || target.tagName === 'SELECT') && target.id !== 'pos-table-input' && target.value.length > 0;
+        if (!isTypingText) {
+          e.preventDefault();
+          e.stopPropagation();
+          openCancelModal(activeTableId || tableInput);
           return;
         }
+      }
+
+      // F1 Hotkey: Create new order tab or cycle between open tabs
+      if (e.key === 'F1') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (orderDrafts.length > 1 && (activeDraftIdx + 1 < orderDrafts.length)) {
+          handleSwitchDraft(activeDraftIdx + 1);
+        } else if (orderDrafts.length > 1 && (activeDraftIdx + 1 >= orderDrafts.length)) {
+          handleSwitchDraft(0);
+        } else {
+          handleAddNewDraft();
+        }
+        return;
+      }
+
+      // Two-Stage Escape Handling
+      if (e.key === 'Escape') {
+        if (showSubTableMenu) return;
 
         if (screenMode === 'ORDER') {
           const isDirty = Boolean(
@@ -126,7 +291,6 @@ export default function OrderWorkspace() {
           );
 
           if (isDirty) {
-            // 1st Esc: Clear workspace completely
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
@@ -138,10 +302,10 @@ export default function OrderWorkspace() {
             setRateInput('');
             setCustomizationInput('');
             setShowSubTableMenu(false);
+            setDoubleEnterBadge(null);
             focusTableInput();
             return;
           }
-          // If already clear, do not preventDefault/stopPropagation; let it bubble to usePosKeyboard to open DISPLAY_ORDER!
         } else if (screenMode === 'CASH_MEMO') {
           const isDirty = Boolean(
             tableInput.trim() ||
@@ -150,20 +314,20 @@ export default function OrderWorkspace() {
           );
 
           if (isDirty) {
-            // 1st Esc: Clear Cash Memo workspace completely
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
             setTableInput('');
             switchTable('');
+            setMemoTableLoaded(null);
+            setDoubleEnterBadge(null);
             focusTableInput();
             return;
           }
-          // If already clear, do not preventDefault/stopPropagation; let it bubble to usePosKeyboard to open DETAILS_OF_BILL!
         }
       }
 
-      // Zero-Mouse Workflow: If user presses Enter while focus is outside an input, bring cursor to Table!
+      // Zero-Mouse Workflow: Bring cursor to Table on unhandled Enter
       const activeEl = document.activeElement;
       const isInputFocused = activeEl && (
         activeEl.tagName === 'INPUT' ||
@@ -177,7 +341,6 @@ export default function OrderWorkspace() {
         return;
       }
 
-      // If user types an alphanumeric character while focus is outside inputs, focus Table input!
       if (!isInputFocused && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 && !e.key.startsWith('F')) {
         if (tableInputRef.current && !tableInputRef.current.disabled) {
           tableInputRef.current.focus();
@@ -187,14 +350,27 @@ export default function OrderWorkspace() {
 
     window.addEventListener('keydown', handleCaptureKeyDown, true);
     return () => window.removeEventListener('keydown', handleCaptureKeyDown, true);
-  }, [screenMode, tableInput, activeTableId, codeQuery, currentTableData.items, showSubTableMenu, printData, paxPrompt, activeModal]);
+  }, [
+    screenMode,
+    tableInput,
+    activeTableId,
+    codeQuery,
+    currentTableData.items,
+    showSubTableMenu,
+    printData,
+    paxPrompt,
+    activeModal,
+    showCustomerModal,
+    showCancelModal,
+    orderDrafts,
+    activeDraftIdx,
+  ]);
 
-  // Update search results when codeQuery changes
+  // Live dish search with section-aware rates
   useEffect(() => {
     if (!codeQuery.trim()) {
-      // In Cancel Mode: show all active dishes on current table by default!
       if (isCancelMode) {
-        const tableDishes = currentTableData.items.filter(it => it.qty > 0);
+        const tableDishes = (currentTableData.items || []).filter(it => it.qty > 0 && !it.isCancelled);
         setSearchResults(tableDishes);
         setHighlightedIndex(0);
       } else {
@@ -205,10 +381,9 @@ export default function OrderWorkspace() {
     }
 
     if (isCancelMode) {
-      // Strictly filter to dishes ordered on this table (Rule 4 & cancel order video)
-      const tableItems = currentTableData.items.filter(it => it.qty > 0);
-      const matches = tableItems.filter(it => 
-        it.code.startsWith(codeQuery.trim()) || 
+      const tableItems = (currentTableData.items || []).filter(it => it.qty > 0 && !it.isCancelled);
+      const matches = tableItems.filter(it =>
+        it.code.startsWith(codeQuery.trim()) ||
         it.name.toLowerCase().includes(codeQuery.trim().toLowerCase())
       );
       setSearchResults(matches);
@@ -220,63 +395,29 @@ export default function OrderWorkspace() {
     }
   }, [codeQuery, isCancelMode, currentTableData.items]);
 
-// Helper functions for cursor position check
-const isAtStart = (el) => {
-  if (!el) return true;
-  if (!el.value) return true;
-  try {
-    const start = el.selectionStart;
-    if (start === 0) return true;
-  } catch {
-    return true;
-  }
-  return false;
-};
-
-const isAtEnd = (el) => {
-  if (!el) return true;
-  if (!el.value) return true;
-  try {
-    const end = el.selectionEnd;
-    if (end === el.value.length) return true;
-  } catch {
-    return true;
-  }
-  return false;
-};
-
-  // Subtable options generator for active table (A, B, +)
+  // Helper for subtable options (A, B, +)
   const getSubTableOptions = (tableId) => {
     const base = String(tableId || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase() || '1';
-    const opts = ['A', 'B'];
-    ['C', 'D', 'E'].forEach(letter => {
-      const full = `${base}${letter}`;
-      if (tables[full] && (tables[full].status === 'OCCUPIED' || (tables[full].items && tables[full].items.length > 0))) {
-        opts.push(letter);
-      }
-    });
-    opts.push('+');
-    return opts;
+    return ['A', 'B', '+'];
   };
 
-  // Select subtable from menu (A, B, +) and advance to Employee
   const handleSelectSubTable = (st) => {
+    const base = String(tableInput || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase() || '1';
     setShowSubTableMenu(false);
-    const base = String(tableInput || activeTableId || '1').replace(/[A-Z]/g, '') || '1';
 
     if (st === '+') {
-      const letters = ['B', 'C', 'D', 'E'];
-      let nextLetter = 'B';
+      const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+      let nextSub = 'C';
       for (const l of letters) {
-        if (!tables[`${base}${l}`] || tables[`${base}${l}`].status !== 'OCCUPIED') {
-          nextLetter = l;
+        if (!tables[`${base}${l}`]) {
+          nextSub = l;
           break;
         }
       }
-      const newSubId = `${base}${nextLetter}`;
-      setActiveSubTable(nextLetter);
-      switchTable(newSubId);
-      setTableInput(newSubId);
+      setActiveSubTable(nextSub);
+      const full = `${base}${nextSub}`;
+      switchTable(full);
+      setTableInput(full);
     } else if (st === 'A') {
       setActiveSubTable('A');
       switchTable(base);
@@ -293,7 +434,7 @@ const isAtEnd = (el) => {
     }, 50);
   };
 
-  // Fire KOT, print thermal slip, and clear workspace so items disappear after the work is done
+  // Fire KOT, print thermal slip, and clear workspace
   const handleFireKOT = (tableId = activeTableId) => {
     if (!tableId) return;
     const table = tables[tableId];
@@ -301,7 +442,7 @@ const isAtEnd = (el) => {
 
     printKOT(tableId);
 
-    // After creating a KOT, the work is done: clear table, items disappear!
+    // Clear staged fields
     setTableInput('');
     switchTable('');
     setCodeQuery('');
@@ -310,19 +451,20 @@ const isAtEnd = (el) => {
     setRateInput('');
     setCustomizationInput('');
     setShowSubTableMenu(false);
+    setDoubleEnterBadge(null);
 
-    setTimeout(() => {
-      tableInputRef.current?.focus();
-      tableInputRef.current?.select();
-    }, 60);
+    // If more than 1 draft was open, close this draft
+    if (orderDrafts.length > 1) {
+      handleCloseDraft(null, activeDraftIdx);
+    }
+
+    focusTableInput();
   };
 
-  // Handle table field enter -> Steps to Employee dropdown or toggles screen or prompts subtable
+  // Handle table field enter -> Steps to Customer Details, or Cash Memo preview
   const handleTableKeyDown = (e) => {
-    // If Subtable dropdown is open, handle keyboard navigation directly in it!
     if (showSubTableMenu) {
       const opts = getSubTableOptions(tableInput || activeTableId);
-
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSubTableIndex(prev => (prev + 1) % opts.length);
@@ -351,102 +493,150 @@ const isAtEnd = (el) => {
       }
     }
 
-    // Arrow Right navigates forward to Employee dropdown if at end or empty
-    if (e.key === 'ArrowRight') {
-      if (isAtEnd(e.target)) {
-        e.preventDefault();
-        employeeSelectRef.current?.focus();
-        return;
-      }
-    }
-
-    // Hotkey '-' toggles subtable menu (Rule 4: minus key toggles subtables)
+    // Hotkey '-' triggers dedicated Cancel Order / Items Modal!
     if (e.key === '-' || e.key === 'Subtract') {
       e.preventDefault();
-      setShowSubTableMenu(prev => !prev);
-      setSubTableIndex(0);
+      openCancelModal(activeTableId || tableInput);
       return;
     }
 
     if (e.key === 'Enter') {
       e.preventDefault();
       const val = tableInput.trim().toUpperCase();
-      
-      // vid1 & vid2: Empty Table + Enter toggles between New Order and New Cash Memo!
+
+      // Empty Table + Enter toggles between New Order and Cash Memo
       if (!val) {
         setScreenMode(prev => prev === 'ORDER' ? 'CASH_MEMO' : 'ORDER');
+        setDoubleEnterBadge(null);
         return;
       }
 
       let targetTable = val;
       if (val === '0') {
         targetTable = getNextParcelTable();
-        switchTable(targetTable);
-        setTableInput(targetTable);
-        employeeSelectRef.current?.focus();
-        return;
       } else if (val === '00') {
         const custName = prompt("Enter Home Delivery Customer Name:", "MOOSA") || "GUEST";
-        const delivKey = `00 - ${custName.toUpperCase()}`;
-        targetTable = delivKey;
-        switchTable(delivKey);
-        setTableInput(delivKey);
-        employeeSelectRef.current?.focus();
-        return;
+        targetTable = `00 - ${custName.toUpperCase()}`;
       }
 
-      // In Cash Memo mode, entering a table selects table, and if it has items, triggers Number of Persons prompt & bill print
+      // CASH_MEMO Mode: Show items first, then Enter triggers PAX prompt!
       if (screenMode === 'CASH_MEMO') {
         switchTable(targetTable);
         const tbl = tables[targetTable];
         const hasItems = tbl && tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
+
         if (hasItems) {
-          setPaxPrompt({
-            show: true,
-            tableId: targetTable,
-            onConfirm: (pax) => {
-              printCashMemo(targetTable, pax);
-              setTableInput('');
-              switchTable('');
-              focusTableInput();
-            }
-          });
+          if (memoTableLoaded === targetTable) {
+            // Second Enter: Show PAX prompt and print Cash Memo!
+            setMemoTableLoaded(null);
+            setPaxPrompt({
+              show: true,
+              tableId: targetTable,
+              onConfirm: (pax) => {
+                printCashMemo(targetTable, pax);
+                setTableInput('');
+                switchTable('');
+                focusTableInput();
+              }
+            });
+          } else {
+            // First Enter: Load dishes and preview total for cashier inspection!
+            setMemoTableLoaded(targetTable);
+            setTableInput(targetTable);
+          }
         } else {
+          setMemoTableLoaded(null);
           focusTableInput();
         }
         return;
       }
 
-      // In ORDER mode: Directly show 2A and not the box to select A,B
-      const baseNum = val.replace(/[A-Z]/g, '');
-      const subLetter = val.replace(/[^A-Z]/g, '') || 'A';
-      const targetTableId = baseNum ? (val.match(/[A-Z]/) ? val : (tables[`${baseNum}A`] ? `${baseNum}A` : (tables[baseNum] ? baseNum : val))) : val;
-      const displayVal = (baseNum && !val.match(/[A-Z]/)) ? `${baseNum}A` : val;
+      // ORDER Mode: Pick subtable A automatically, then prompt Customer Details!
+      const baseNum = targetTable.replace(/[A-Z]/g, '');
+      const subLetter = targetTable.replace(/[^A-Z]/g, '') || 'A';
+      const targetTableId = baseNum ? (targetTable.match(/[A-Z]/) ? targetTable : (tables[`${baseNum}A`] ? `${baseNum}A` : (tables[baseNum] ? baseNum : targetTable))) : targetTable;
+      const displayVal = (baseNum && !targetTable.match(/[A-Z]/)) ? `${baseNum}A` : targetTable;
 
       setActiveSubTable(subLetter);
       switchTable(targetTableId);
       setTableInput(displayVal);
       setShowSubTableMenu(false);
-      employeeSelectRef.current?.focus();
+
+      // Prompt Customer Details modal before dish entry
+      setPendingCustomerTable(targetTableId);
+      setShowCustomerModal(true);
     }
   };
 
-  // Handle employee field navigation -> Enter/Right ➔ Code, Left ➔ Table!
+  // Callback when customer details confirmed or skipped
+  const handleCustomerConfirm = (custData) => {
+    const custName = custData?.name || 'Guest';
+    const custPhone = custData?.phone || '';
+    setCustomerName(custName);
+    setCustomerPhone(custPhone);
+    setShowCustomerModal(false);
+
+    const targetTable = pendingCustomerTable || activeTableId || '1';
+    switchTable(targetTable);
+    updateTableCustomer?.(targetTable, custName, custPhone);
+
+    // Update current draft
+    setOrderDrafts(prev => {
+      const updated = [...prev];
+      if (updated[activeDraftIdx]) {
+        updated[activeDraftIdx] = {
+          ...updated[activeDraftIdx],
+          tableId: targetTable,
+          tableInput: targetTable,
+          customerName: custName,
+          customerPhone: custPhone,
+        };
+      }
+      return updated;
+    });
+
+    // Direct progression to unified Code entry box!
+    setTimeout(() => {
+      focusCodeInput();
+    }, 50);
+  };
+
+  const handleCustomerCancel = () => {
+    setShowCustomerModal(false);
+    const targetTable = pendingCustomerTable || activeTableId || '1';
+    switchTable(targetTable);
+    setTimeout(() => {
+      focusCodeInput();
+    }, 50);
+  };
+
+  // Handle employee navigation
   const handleEmployeeKeyDown = (e) => {
     if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
-      // Forward: Employee ➔ Code!
-      codeInputRef.current?.focus();
-      codeInputRef.current?.select();
+      focusCodeInput();
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      // Backward: Employee ➔ Table!
-      tableInputRef.current?.focus();
-      tableInputRef.current?.select();
+      focusTableInput();
     }
   };
 
-  // Handle item code field enter / navigation -> Enter ➔ Qty, Left ➔ Employee!
+  // Select Item and resolve section-aware rate
+  const selectItem = (item) => {
+    setSelectedItem(item);
+    setCodeQuery(item.code);
+    const applicableRate = getApplicableRate(item, currentTableData.section);
+    setRateInput(String(applicableRate));
+    setSearchResults([]);
+    setDoubleEnterBadge(null);
+
+    setTimeout(() => {
+      qtyInputRef.current?.focus();
+      qtyInputRef.current?.select();
+    }, 40);
+  };
+
+  // Handle item code field enter / Double Enter for KOT!
   const handleCodeKeyDown = (e) => {
     if (e.key === 'ArrowDown') {
       if (searchResults.length > 0) {
@@ -459,224 +649,145 @@ const isAtEnd = (el) => {
         setHighlightedIndex(prev => (prev - 1 + searchResults.length) % searchResults.length);
       }
     } else if (e.key === 'ArrowLeft') {
-      if (isAtStart(e.target)) {
+      if (!codeQuery.trim()) {
         e.preventDefault();
-        setSearchResults([]);
-        // Backward: Code ➔ Employee!
         employeeSelectRef.current?.focus();
       }
     } else if (e.key === 'ArrowRight') {
-      if (selectedItem || isAtEnd(e.target)) {
+      if (selectedItem) {
         e.preventDefault();
-        // Forward: Code ➔ Qty!
         qtyInputRef.current?.focus();
         qtyInputRef.current?.select();
       }
     } else if (e.key === 'Enter') {
       e.preventDefault();
+
       // Double Enter on empty field fires KOT or Cash Memo!
       if (!codeQuery.trim()) {
         if (screenMode === 'ORDER') {
-          handleFireKOT(activeTableId);
+          if (doubleEnterBadge === 'KOT') {
+            if (doubleEnterTimerRef.current) clearTimeout(doubleEnterTimerRef.current);
+            setDoubleEnterBadge(null);
+            handleFireKOT(activeTableId);
+          } else {
+            setDoubleEnterBadge('KOT');
+            if (doubleEnterTimerRef.current) clearTimeout(doubleEnterTimerRef.current);
+            doubleEnterTimerRef.current = setTimeout(() => {
+              setDoubleEnterBadge(null);
+            }, 3000);
+          }
           return;
         } else {
-          setPaxPrompt({
-            show: true,
-            tableId: activeTableId,
-            onConfirm: (pax) => {
-              printCashMemo(activeTableId, pax);
-              setTableInput('');
-              switchTable('');
-              setTimeout(() => {
-                tableInputRef.current?.focus();
-                tableInputRef.current?.select();
-              }, 60);
-            }
-          });
+          // In Cash Memo mode
+          if (doubleEnterBadge === 'BILL') {
+            if (doubleEnterTimerRef.current) clearTimeout(doubleEnterTimerRef.current);
+            setDoubleEnterBadge(null);
+            setPaxPrompt({
+              show: true,
+              tableId: activeTableId,
+              onConfirm: (pax) => {
+                printCashMemo(activeTableId, pax);
+                setTableInput('');
+                switchTable('');
+                focusTableInput();
+              }
+            });
+          } else {
+            setDoubleEnterBadge('BILL');
+            if (doubleEnterTimerRef.current) clearTimeout(doubleEnterTimerRef.current);
+            doubleEnterTimerRef.current = setTimeout(() => {
+              setDoubleEnterBadge(null);
+            }, 3000);
+          }
           return;
         }
       }
 
+      setDoubleEnterBadge(null);
       const chosen = searchResults[highlightedIndex] || MENU_BY_CODE.get(codeQuery.trim());
       if (chosen) {
         selectItem(chosen);
       }
     } else if (e.key === 'Escape') {
       if (!codeQuery.trim()) {
-        tableInputRef.current?.focus();
-        tableInputRef.current?.select();
+        focusTableInput();
       } else {
         setCodeQuery('');
         setSearchResults([]);
+        setDoubleEnterBadge(null);
       }
+    } else {
+      setDoubleEnterBadge(null);
     }
   };
 
-  const selectItem = (item) => {
-    setSelectedItem(item);
-    setCodeQuery(item.code);
-    const applicableRate = currentTableData.section.includes('AC') ? (item.acRate || item.rate) : (item.hallRate || item.rate);
-    setRateInput(String(applicableRate));
-    setSearchResults([]);
-
-    // Set default Qty and advance focus: Code ➔ Qty!
-    setQtyInput('1');
-    setTimeout(() => {
-      qtyInputRef.current?.focus();
-      qtyInputRef.current?.select();
-    }, 20);
-  };
-
-  // Qty enter -> Progression: Enter commits item row and jumps directly back to Item Code box (not counter, not custom!)
+  // Handle Qty field enter -> Immediately adds dish and jumps directly back to Code input!
   const handleQtyKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (isCancelMode) {
-        cancelReasonRef.current?.focus();
-      } else {
-        commitItemRow();
-      }
-    } else if (e.key === 'ArrowRight') {
-      if (isAtEnd(e.target)) {
-        e.preventDefault();
-        if (isCancelMode) {
-          cancelReasonRef.current?.focus();
-        } else {
-          customInputRef.current?.focus();
-          customInputRef.current?.select();
-        }
-      }
-    } else if (e.key === 'ArrowLeft') {
-      if (isAtStart(e.target)) {
-        e.preventDefault();
-        // Backward: Qty ➔ Code!
-        codeInputRef.current?.focus();
-        codeInputRef.current?.select();
-      }
-    }
-  };
-
-  // Rate enter -> Progression: Rate ➔ Customization (Enter/Right), Rate ➔ Qty (Left)!
-  const handleRateKeyDown = (e) => {
-    e.preventDefault();
-    if (e.key === 'Enter' || e.key === 'ArrowRight') {
-      if (isCancelMode) {
-        cancelReasonRef.current?.focus();
-      } else {
-        customInputRef.current?.focus();
-        customInputRef.current?.select();
-      }
-    } else if (e.key === 'ArrowLeft') {
-      qtyInputRef.current?.focus();
-      qtyInputRef.current?.select();
-    }
-  };
-
-  // Customization enter -> Commits row and loops back: Customization ➔ Code (Enter), Customization ➔ Qty (Left, skipping Rate)!
-  const handleCustomKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       commitItemRow();
     } else if (e.key === 'ArrowLeft') {
-      if (isAtStart(e.target)) {
-        e.preventDefault();
-        // Backward: Customization ➔ skips Rate ➔ directly back to Qty!
-        qtyInputRef.current?.focus();
-        qtyInputRef.current?.select();
-      }
+      e.preventDefault();
+      focusCodeInput();
     }
   };
 
+  // Commit item row to active table
   const commitItemRow = () => {
-    if (!selectedItem) return;
+    if (!selectedItem) {
+      const match = MENU_BY_CODE.get(codeQuery.trim());
+      if (match) {
+        selectItem(match);
+      }
+      return;
+    }
 
-    addItemToActiveTable({
-      ...selectedItem,
-      qty: Number(qtyInput) || 1,
-      rate: Number(rateInput) || selectedItem.acRate,
-      customization: customizationInput,
-    });
+    const qty = Number(qtyInput) || 1;
+    if (qty <= 0) return;
 
+    const applicableRate = getApplicableRate(selectedItem, currentTableData.section);
+    const amount = qty * applicableRate;
+
+    const itemRow = {
+      code: selectedItem.code,
+      name: selectedItem.name,
+      qty,
+      rate: applicableRate,
+      amount,
+      category: selectedItem.category,
+      categoryOrder: selectedItem.categoryOrder,
+      customization: customizationInput.trim(),
+      isStaged: true,
+      isCancelled: false,
+      status: 'NEW',
+    };
+
+    addItemToActiveTable(itemRow);
+
+    // Reset entry inputs and jump back to Code input
     setCodeQuery('');
     setSelectedItem(null);
     setQtyInput('1');
     setRateInput('');
     setCustomizationInput('');
-    // Continuous blind entry: loops focus directly back to Item Code input!
-    setTimeout(() => {
-      codeInputRef.current?.focus();
-      codeInputRef.current?.select();
-    }, 20);
-  };
-
-  const handleCancelReasonKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (!selectedItem) return;
-
-      setPendingCancelDetails({
-        tableId: activeTableId,
-        itemCode: selectedItem.code,
-        qty: Number(qtyInput) || 1,
-        reason: cancelReasonInput,
-      });
-      setShowCancelAuthModal(true);
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      // Backward: Cancel Reason ➔ skips Rate ➔ directly back to Qty!
-      qtyInputRef.current?.focus();
-      qtyInputRef.current?.select();
-    }
+    setDoubleEnterBadge(null);
+    focusCodeInput();
   };
 
   // Calculations
-  const totalItemsCount = currentTableData.items.filter(it => it.qty > 0).length;
-  const totalQtyCount = currentTableData.items.reduce((s, it) => s + (it.qty > 0 ? it.qty : 0), 0);
-  const netAmount = currentTableData.items.reduce((sum, it) => sum + it.amount, 0);
+  const totalItemsCount = (currentTableData.items || []).filter(it => it.qty > 0 && !it.isCancelled).length;
+  const totalQtyCount = (currentTableData.items || []).reduce((s, it) => s + (it.qty > 0 && !it.isCancelled ? it.qty : 0), 0);
+  const netAmount = (currentTableData.items || []).reduce((sum, it) => sum + (it.isCancelled ? 0 : it.amount), 0);
+  const stagedCount = (currentTableData.items || []).filter(it => it.isStaged && it.qty > 0).length;
 
-  // Staged / unprinted items count
-  const stagedCount = currentTableData.items.filter(it => it.isStaged && it.qty > 0).length;
-
-  // F6 Bill Handler
-  const handleBillF6 = (tableId = activeTableId) => {
-    const target = tableId || activeTableId;
-    const tbl = tables[target];
-    const hasItems = tbl && tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
-    if (hasItems) {
-      setPaxPrompt({
-        show: true,
-        tableId: target,
-        onConfirm: (pax) => {
-          printCashMemo(target, pax);
-          setTableInput('');
-          switchTable('');
-          focusTableInput();
-        }
-      });
-    } else {
-      setScreenMode('CASH_MEMO');
-      focusTableInput();
-    }
-  };
-
-  // Group active running tables (Tables currently dining with unbilled items)
-  // When a bill is generated, the table immediately leaves this section and moves to Unsettled Bills!
+  // Real-time Running Tables filtering (GENERAL, FAMILY AC, PARCEL, HOME DELIVERY)
   const isRunningTable = (t) => {
     const hasActiveItems = t.items && t.items.some(it => it.qty > 0 && !it.isCancelled);
-    if (!hasActiveItems) return false;
-    if (t.status === 'BILLED') return false;
-    const cleanId = String(t.id).trim().toUpperCase();
-    const baseId = cleanId.replace(/[A-Z]/g, '');
-    const isBilledInUnsettled = unsettledBills.some(b => {
-      const bTable = String(b.table || b.tableNo || '').trim().toUpperCase();
-      const bBase = bTable.replace(/[A-Z]/g, '');
-      return bTable === cleanId || (baseId && bBase === baseId);
-    });
-    return !isBilledInUnsettled;
+    return Boolean(hasActiveItems);
   };
 
-  const acTableNums = Object.values(tables)
-    .filter(t => t.section === 'AC' && isRunningTable(t) && !t.id.startsWith('0'))
+  const generalTableNums = Object.values(tables)
+    .filter(t => (t.section === 'GENERAL' || t.section === 'AC') && isRunningTable(t) && !t.id.startsWith('0'))
     .map(t => t.id);
 
   const familyAcTableNums = Object.values(tables)
@@ -691,62 +802,158 @@ const isAtEnd = (el) => {
     .filter(t => t.section === 'HOME DELIVERY' && isRunningTable(t))
     .map(t => t.id);
 
-  // Window title depending on state - strictly 'Cash Memo' in Cash Memo mode!
   const windowTitle = isCancelMode 
     ? 'Cancel Order' 
     : (screenMode === 'ORDER' ? 'New Order' : 'Cash Memo');
 
   return (
-    <div style={{
-      height: 'calc(100vh - 48px)',
-      width: '100vw',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#6c8fa8',
-      padding: '10px'
-    }}>
-      {/* Centered, Authentic Sized Window Frame (Width ~850px, Height ~530px) */}
-      <div className="win-window" style={{
-        width: '850px',
-        height: '530px',
+    <div
+      style={{
+        height: 'calc(100vh - 48px)',
+        width: '100vw',
         display: 'flex',
-        flexDirection: 'column',
-        boxShadow: '3px 3px 10px rgba(0,0,0,0.4)',
-        background: '#ece9d8'
-      }}>
-        {/* Title Bar */}
-        <div className="win-titlebar" style={{
-          background: isCancelMode 
-            ? 'linear-gradient(90deg, #aa0000 0%, #dd4444 100%)' 
-            : 'linear-gradient(90deg, #1b62b7 0%, #4a90e2 100%)',
-          height: '24px',
-          padding: '2px 8px'
-        }}>
-          <div className="win-titlebar-title" style={{ fontSize: '12px' }}>
-            <span>{windowTitle}</span>
-            {isCancelMode && <span style={{ color: '#ffff00', marginLeft: '10px' }}>[CANCELLATION MODE]</span>}
-            {stagedCount > 0 && (
-              <span style={{ color: '#ffff99', marginLeft: '10px', fontSize: '11px' }}>
-                ({stagedCount} unprinted items staged - Press ↵↵ to Fire KOT)
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#ffffff',
+        padding: '10px',
+      }}
+    >
+      {/* Centered, Authentic Sized Window Frame (Width ~860px, Height ~540px) */}
+      <div
+        className="win-window"
+        style={{
+          width: '860px',
+          height: '540px',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '3px 3px 10px rgba(0,0,0,0.4)',
+          background: '#ece9d8',
+        }}
+      >
+        {/* Title Bar & Order Tabs */}
+        <div
+          className="win-titlebar"
+          style={{
+            background: isCancelMode 
+              ? 'linear-gradient(90deg, #aa0000 0%, #dd4444 100%)' 
+              : 'linear-gradient(90deg, #1b62b7 0%, #4a90e2 100%)',
+            height: '26px',
+            padding: '2px 8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          {/* Left: Window Title & Multi-Order Tabs */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="win-titlebar-title" style={{ fontSize: '11px', fontWeight: 'bold' }}>{windowTitle}</span>
+
+            {/* Multi-Order Tabs Strip */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '6px' }}>
+              {orderDrafts.map((draft, idx) => {
+                const isActive = idx === activeDraftIdx;
+                const draftLabel = draft.tableInput
+                  ? `T${draft.tableInput}${draft.customerName ? ` (${draft.customerName})` : ''}`
+                  : `Order ${idx + 1}`;
+                return (
+                  <div
+                    key={draft.id || idx}
+                    onClick={() => handleSwitchDraft(idx)}
+                    title={`Switch to Tab ${idx + 1} (F1)`}
+                    style={{
+                      padding: '1px 6px',
+                      fontSize: '10px',
+                      fontWeight: isActive ? 'bold' : 'normal',
+                      background: isActive ? '#ece9d8' : 'rgba(255,255,255,0.25)',
+                      color: isActive ? '#000000' : '#ffffff',
+                      borderTop: isActive ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.4)',
+                      borderLeft: isActive ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.4)',
+                      borderRight: isActive ? '2px solid #808080' : 'none',
+                      borderBottom: isActive ? 'none' : '1px solid rgba(255,255,255,0.4)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <span>{draftLabel}</span>
+                    {orderDrafts.length > 1 && (
+                      <span
+                        onClick={(e) => handleCloseDraft(e, idx)}
+                        style={{ fontSize: '9px', fontWeight: 'bold', color: isActive ? '#aa0000' : '#fff' }}
+                        title="Close Tab"
+                      >
+                        ×
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+
+              {orderDrafts.length < 5 && (
+                <button
+                  type="button"
+                  onClick={handleAddNewDraft}
+                  title="Open New Order Tab (F1)"
+                  style={{
+                    background: 'rgba(255,255,255,0.3)',
+                    border: '1px solid rgba(255,255,255,0.5)',
+                    color: '#fff',
+                    padding: '0 4px',
+                    fontSize: '10px',
+                    cursor: 'pointer',
+                    height: '18px',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  + F1
+                </button>
+              )}
+            </div>
+
+            {/* Double Enter Prompt Badge */}
+            {doubleEnterBadge && (
+              <span
+                style={{
+                  background: '#ffff00',
+                  color: '#000000',
+                  fontWeight: 'bold',
+                  padding: '1px 6px',
+                  borderRadius: '2px',
+                  fontSize: '10px',
+                  animation: 'pulse 1s infinite',
+                }}
+              >
+                Press ↵ Enter again to {doubleEnterBadge === 'KOT' ? 'Fire KOT' : 'Print Memo'}
+              </span>
+            )}
+
+            {stagedCount > 0 && !doubleEnterBadge && (
+              <span style={{ color: '#ffff99', fontSize: '10px' }}>
+                ({stagedCount} unprinted dishes staged - Press ↵↵ to Fire KOT)
               </span>
             )}
           </div>
+
+          {/* Right: Quick Screen Switcher */}
           <div style={{ display: 'flex', gap: '6px', fontSize: '11px' }}>
-            <span style={{ cursor: 'pointer', color: '#fff', textDecoration: 'underline' }} onClick={() => setScreenMode(screenMode === 'ORDER' ? 'CASH_MEMO' : 'ORDER')}>
+            <span
+              style={{ cursor: 'pointer', color: '#fff', textDecoration: 'underline' }}
+              onClick={() => setScreenMode(screenMode === 'ORDER' ? 'CASH_MEMO' : 'ORDER')}
+            >
               [F5 {screenMode === 'ORDER' ? 'Memo' : 'Order'}]
             </span>
           </div>
         </div>
 
         {/* Window Content */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '8px 10px', background: '#ece9d8', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '6px 8px', background: '#ece9d8', overflow: 'hidden' }}>
           
-          {/* Top Controls: Table, Employee, Terminal Icon */}
+          {/* Top Controls: Table, Customer, Employee */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div>
-                <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px' }}>Table</span>
+                <span style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', marginBottom: '2px' }}>Table</span>
                 <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
                   <input
                     ref={tableInputRef}
@@ -758,45 +965,44 @@ const isAtEnd = (el) => {
                     onChange={(e) => {
                       setTableInput(e.target.value);
                       setShowSubTableMenu(false);
+                      setMemoTableLoaded(null);
                     }}
                     onKeyDown={handleTableKeyDown}
                     className="win-input"
-                    style={{ width: '80px', height: '24px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}
+                    style={{ width: '70px', height: '22px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}
                   />
                   <div
-                    style={{
-                      marginLeft: '2px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '11px',
-                      fontWeight: 'bold',
-                      background: '#0a246a',
-                      color: '#ffffff',
-                      width: '26px',
-                      height: '24px',
-                      cursor: 'pointer',
-                      border: '1px solid #000000',
-                      userSelect: 'none',
-                    }}
                     onClick={() => {
                       setShowSubTableMenu(prev => !prev);
                       setSubTableIndex(0);
                     }}
                     title="Select Subtable (A, B, +)"
+                    style={{
+                      marginLeft: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      background: '#fff',
+                      border: '1px solid #7f9db9',
+                      height: '22px',
+                      padding: '0 4px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      color: '#0a246a',
+                      cursor: 'pointer',
+                    }}
                   >
                     <span>{activeSubTable}</span>
-                    <span style={{ fontSize: '7px', marginLeft: '2px' }}>▼</span>
+                    <span style={{ fontSize: '8px', marginLeft: '2px' }}>▼</span>
                   </div>
 
-                  {/* Vid 8: Subtable Dropdown Menu (A, B, +) */}
+                  {/* Subtable Dropdown Menu */}
                   {showSubTableMenu && (
                     <div
                       className="win-bevel-outset"
                       style={{
                         position: 'absolute',
                         top: '100%',
-                        left: '82px',
+                        left: '72px',
                         width: '48px',
                         background: '#ece9d8',
                         zIndex: 900,
@@ -832,15 +1038,43 @@ const isAtEnd = (el) => {
                 </div>
               </div>
 
+              {/* Customer Display */}
               <div>
-                <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px' }}>Employee</span>
+                <span style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', marginBottom: '2px' }}>Customer</span>
+                <div
+                  onClick={() => {
+                    setPendingCustomerTable(activeTableId || tableInput);
+                    setShowCustomerModal(true);
+                  }}
+                  title="Click to edit Customer Name and Phone"
+                  className="win-bevel-thin-inset"
+                  style={{
+                    height: '22px',
+                    width: '130px',
+                    padding: '2px 6px',
+                    fontSize: '11px',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    lineHeight: '16px',
+                  }}
+                >
+                  {customerName ? `${customerName} ${customerPhone ? `(${customerPhone})` : ''}` : 'Guest (Click to edit)'}
+                </div>
+              </div>
+
+              {/* Employee Dropdown */}
+              <div>
+                <span style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', marginBottom: '2px' }}>Employee</span>
                 <select
                   ref={employeeSelectRef}
                   value={activeEmployee}
                   onChange={(e) => setActiveEmployee(e.target.value)}
                   onKeyDown={handleEmployeeKeyDown}
                   className="win-input"
-                  style={{ width: '150px', height: '24px', fontSize: '12px' }}
+                  style={{ height: '22px', width: '130px', fontSize: '11px', fontWeight: 'bold' }}
                 >
                   {EMPLOYEES.map(emp => (
                     <option key={emp.id} value={emp.name}>{emp.name}</option>
@@ -848,193 +1082,173 @@ const isAtEnd = (el) => {
                 </select>
               </div>
 
-              <div style={{ fontSize: '11px', marginTop: '14px', color: '#0033aa', fontWeight: 'bold' }}>
-                Section: {currentTableData.section}
-              </div>
-            </div>
-
-            {/* Terminal Printer Icon with black 'X' in Cancel Mode */}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginRight: '6px' }}>
-              <div style={{ fontSize: '28px' }}>🖨️</div>
-              {isCancelMode && (
-                <div style={{
-                  position: 'absolute',
-                  top: '-6px',
-                  left: '-4px',
-                  color: '#000000',
-                  fontSize: '38px',
-                  fontWeight: '900',
-                  lineHeight: '1',
-                  userSelect: 'none',
-                  textShadow: '0 0 3px #ff0000'
-                }}>
-                  ✕
+              {/* Cash Memo preview notice */}
+              {screenMode === 'CASH_MEMO' && memoTableLoaded && (
+                <div style={{ marginLeft: '10px', fontSize: '11px', color: '#006600', fontWeight: 'bold', background: '#dcf5dc', padding: '2px 8px', border: '1px solid #99cc99' }}>
+                  ✓ Table {memoTableLoaded} Preview Ready — Press [Enter] to Print Cash Memo!
                 </div>
               )}
+            </div>
+
+            {/* Section Tag Indicator */}
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#0a246a' }}>
+                Section: {currentTableData.section === 'AC' ? 'GENERAL' : currentTableData.section}
+              </span>
             </div>
           </div>
 
-          {/* Quick Item Input Row: Strictly in ORDER mode; completely hidden in CASH_MEMO mode! */}
-          {screenMode === 'ORDER' && (
-            <div style={{
-              display: 'flex',
-              gap: '3px',
-              marginBottom: '4px',
-              background: '#d4d0c8',
-              padding: '3px 4px',
-              border: '1px solid #999'
-            }}>
-              <div style={{ width: '80px', position: 'relative' }}>
-                <input
-                  ref={codeInputRef}
-                  type="text"
-                  value={codeQuery}
-                  onChange={(e) => setCodeQuery(e.target.value)}
-                  onKeyDown={handleCodeKeyDown}
-                  placeholder="Code/CTM"
-                  className="win-input"
-                  style={{ width: '100%', height: '22px', fontSize: '11px', fontWeight: 'bold' }}
-                />
-                {/* Autocomplete dropdown */}
-                {searchResults.length > 0 && (
-                  <div className="win-bevel-outset" style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    width: '340px',
-                    maxHeight: '210px',
-                    overflowY: 'auto',
-                    background: '#ffffff',
-                    zIndex: 800,
-                    padding: '2px',
-                    boxShadow: '2px 2px 6px rgba(0,0,0,0.3)'
-                  }}>
-                    {searchResults.map((item, idx) => (
-                      <div
-                        key={`${item.code}-${idx}`}
-                        onClick={() => selectItem(item)}
-                        style={{
-                          padding: '3px 6px',
-                          cursor: 'pointer',
-                          fontSize: '11px',
-                          background: idx === highlightedIndex ? '#0a246a' : 'transparent',
-                          color: idx === highlightedIndex ? '#ffffff' : '#000000',
-                          display: 'flex',
-                          justifyContent: 'space-between'
-                        }}
-                      >
-                        <span style={{ fontWeight: 'bold', width: '35px' }}>{item.code}</span>
-                        <span style={{ flex: 1 }}>{item.name}</span>
-                        <span style={{ width: '45px', textAlign: 'right' }}>₹{currentTableData.section.includes('AC') ? (item.acRate || item.rate) : (item.hallRate || item.rate)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <input
-                  type="text"
-                  readOnly
-                  value={selectedItem?.name || ''}
-                  placeholder="Dish name (Type Code, Acronym e.g. CTM/CB, or Text)"
-                  className="win-input"
-                  style={{ width: '100%', height: '22px', background: '#f4f4f4', fontSize: '11px' }}
-                />
-              </div>
-
-              <div style={{ width: '45px' }}>
-                <input
-                  ref={qtyInputRef}
-                  type="text"
-                  inputMode="numeric"
-                  value={qtyInput}
-                  onChange={(e) => setQtyInput(e.target.value.replace(/[^0-9]/g, ''))}
-                  onKeyDown={handleQtyKeyDown}
-                  placeholder="Qty"
-                  className="win-input"
-                  style={{ width: '100%', height: '22px', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}
-                />
-              </div>
-
-              <div style={{ width: '55px' }}>
-                <input
-                  ref={rateInputRef}
-                  type="text"
-                  readOnly={true}
-                  tabIndex={-1}
-                  value={rateInput}
-                  onKeyDown={handleRateKeyDown}
-                  placeholder="Rate"
-                  className="win-input"
-                  style={{
-                    width: '100%',
-                    height: '22px',
-                    textAlign: 'right',
-                    background: '#e0e0e0',
-                    color: '#333333',
-                    fontSize: '11px',
-                    userSelect: 'none',
-                    pointerEvents: 'none'
-                  }}
-                  title="Fixed menu rate"
-                />
-              </div>
-
-              {isCancelMode ? (
-                <div style={{ width: '170px' }}>
-                  <select
-                    ref={cancelReasonRef}
-                    value={cancelReasonInput}
-                    onChange={(e) => setCancelReasonInput(e.target.value)}
-                    onKeyDown={handleCancelReasonKeyDown}
-                    className="win-input"
-                    style={{ width: '100%', height: '22px', fontSize: '10px', color: '#c00000', fontWeight: 'bold' }}
-                  >
-                    {CANCEL_REASONS.map(r => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div style={{ width: '120px' }}>
-                  <input
-                    ref={customInputRef}
-                    id="pos-custom-input"
-                    type="text"
-                    value={customizationInput}
-                    onChange={(e) => setCustomizationInput(e.target.value)}
-                    onKeyDown={handleCustomKeyDown}
-                    placeholder="Custom / ↵"
-                    className="win-input"
-                    style={{ width: '100%', height: '22px', fontSize: '11px' }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Main Body Split: Left Items Grid + Right Live Tables Board */}
+          {/* Main Body Split: Left Unified Grid + Right Live Tables Board */}
           <div style={{ flex: 1, display: 'flex', border: '1px solid #7f9db9', background: '#fff', overflow: 'hidden' }}>
             
-            {/* Left: Ordered Items Grid */}
+            {/* Left: Unified Table Columns & Ordered Items Grid */}
             <div style={{ flex: 1, overflowY: 'auto', borderRight: '1px solid #7f9db9' }}>
-              <table className="order-table">
+              <table className="order-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
+                  {/* Row 1: Unified Table Column Headers */}
                   <tr>
-                    <th style={{ width: '40px' }}>Code</th>
-                    <th>Item Name</th>
+                    <th style={{ width: '80px', textAlign: 'left' }}>Code</th>
+                    <th style={{ textAlign: 'left' }}>Item Name</th>
                     <th style={{ width: '45px', textAlign: 'right' }}>Qty</th>
                     <th style={{ width: '55px', textAlign: 'right' }}>Rate</th>
                     <th style={{ width: '65px', textAlign: 'right' }}>Amount</th>
-                    <th style={{ width: '80px', textAlign: 'center' }}>Status</th>
+                    <th style={{ width: '80px', textAlign: 'center' }}>Action / Status</th>
                   </tr>
+
+                  {/* Row 2: In-Table Input Controls (Only in ORDER mode) */}
+                  {screenMode === 'ORDER' && (
+                    <tr style={{ background: '#d4d0c8', borderBottom: '2px solid #808080' }}>
+                      {/* Code Input & Autocomplete Dropdown */}
+                      <td style={{ padding: '2px 3px', position: 'relative' }}>
+                        <input
+                          ref={codeInputRef}
+                          type="text"
+                          value={codeQuery}
+                          onChange={(e) => setCodeQuery(e.target.value)}
+                          onKeyDown={handleCodeKeyDown}
+                          placeholder="Code/CTM"
+                          className="win-input"
+                          style={{ width: '100%', height: '22px', fontSize: '11px', fontWeight: 'bold' }}
+                        />
+                        {/* Autocomplete dropdown anchored right under Code */}
+                        {searchResults.length > 0 && (
+                          <div
+                            className="win-bevel-outset"
+                            style={{
+                              position: 'absolute',
+                              top: '100%',
+                              left: 0,
+                              width: '360px',
+                              maxHeight: '220px',
+                              overflowY: 'auto',
+                              background: '#ffffff',
+                              zIndex: 800,
+                              padding: '2px',
+                              boxShadow: '2px 2px 6px rgba(0,0,0,0.3)',
+                            }}
+                          >
+                            {searchResults.map((item, idx) => {
+                              const applicable = getApplicableRate(item, currentTableData.section);
+                              return (
+                                <div
+                                  key={`${item.code}-${idx}`}
+                                  onClick={() => selectItem(item)}
+                                  style={{
+                                    padding: '3px 6px',
+                                    cursor: 'pointer',
+                                    fontSize: '11px',
+                                    background: idx === highlightedIndex ? '#0a246a' : 'transparent',
+                                    color: idx === highlightedIndex ? '#ffffff' : '#000000',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                  }}
+                                >
+                                  <span style={{ fontWeight: 'bold', width: '35px' }}>{item.code}</span>
+                                  <span style={{ flex: 1 }}>{item.name}</span>
+                                  <span style={{ width: '55px', textAlign: 'right' }}>₹{applicable.toFixed(2)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Read-Only Selected Dish Name Display */}
+                      <td style={{ padding: '2px 3px' }}>
+                        <input
+                          type="text"
+                          readOnly
+                          value={selectedItem?.name || ''}
+                          placeholder="Dish Name (Type Code e.g. 1, Acronym CTM/CB, or search)"
+                          className="win-input"
+                          style={{ width: '100%', height: '22px', background: '#f5f5f5', fontSize: '11px' }}
+                        />
+                      </td>
+
+                      {/* Qty Input */}
+                      <td style={{ padding: '2px 3px' }}>
+                        <input
+                          ref={qtyInputRef}
+                          type="text"
+                          inputMode="numeric"
+                          value={qtyInput}
+                          onChange={(e) => setQtyInput(e.target.value.replace(/[^0-9]/g, ''))}
+                          onKeyDown={handleQtyKeyDown}
+                          placeholder="Qty"
+                          className="win-input"
+                          style={{ width: '100%', height: '22px', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}
+                        />
+                      </td>
+
+                      {/* Rate Display */}
+                      <td style={{ padding: '2px 3px' }}>
+                        <input
+                          ref={rateInputRef}
+                          type="text"
+                          readOnly
+                          tabIndex={-1}
+                          value={rateInput}
+                          placeholder="Rate"
+                          className="win-input"
+                          style={{
+                            width: '100%',
+                            height: '22px',
+                            textAlign: 'right',
+                            background: '#e0e0e0',
+                            color: '#333333',
+                            fontSize: '11px',
+                          }}
+                        />
+                      </td>
+
+                      {/* Calculated Amount */}
+                      <td style={{ padding: '2px 6px', textAlign: 'right', fontSize: '11px', fontWeight: 'bold', color: '#006600', lineHeight: '22px' }}>
+                        ₹{selectedItem ? (Number(rateInput || 0) * (Number(qtyInput) || 1)).toFixed(2) : '0.00'}
+                      </td>
+
+                      {/* Add Button */}
+                      <td style={{ padding: '2px 3px', textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          className="win-btn"
+                          onClick={commitItemRow}
+                          style={{ width: '100%', height: '22px', fontSize: '10px', fontWeight: 'bold' }}
+                        >
+                          Add (↵)
+                        </button>
+                      </td>
+                    </tr>
+                  )}
                 </thead>
+
+                {/* Table Body: Ordered Dishes */}
                 <tbody>
-                  {currentTableData.items.length === 0 ? (
+                  {(currentTableData.items || []).length === 0 ? (
                     <tr>
                       <td colSpan="6" style={{ textAlign: 'center', padding: '40px 10px', color: '#999999' }}>
-                        No items for Table {activeTableId}. Type item code or acronym (e.g. CTM, CB, 1) and press Enter.
+                        {screenMode === 'ORDER'
+                          ? `No items for Table ${activeTableId || '—'}. Type dish number or acronym (e.g. 1, CTM) and press Enter.`
+                          : `Enter Table number above to preview items and print Cash Memo.`}
                       </td>
                     </tr>
                   ) : (
@@ -1048,38 +1262,43 @@ const isAtEnd = (el) => {
                             {row.code}
                           </td>
                           <td>
-                            {row.name}
-                            {row.customization && <span style={{ color: '#666', fontStyle: 'italic', marginLeft: '6px' }}>({row.customization})</span>}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span>
+                                {row.name}
+                                {row.customization && (
+                                  <span style={{ color: '#888888', fontStyle: 'italic', marginLeft: '6px' }}>
+                                    ({row.customization})
+                                  </span>
+                                )}
+                              </span>
+                              {isCancelled && (
+                                <span style={{ color: '#c00000', fontSize: '10px', fontWeight: 'bold' }}>
+                                  [CANCELLED: {row.cancelReason || 'Customer Request'}]
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{row.qty}</td>
-                          <td style={{ textAlign: 'right' }}>{row.rate}</td>
-                          <td style={{ textAlign: 'right' }}>{row.amount.toFixed(2)}</td>
-                          <td style={{ textAlign: 'center', fontSize: '10px' }}>
-                            {isCancelled ? (
-                              <span style={{ color: '#c00000', fontWeight: 'bold' }}>CANCELLED</span>
-                            ) : isStaged ? (
-                              <span style={{
-                                color: '#b45309',
-                                background: '#fef3c7',
-                                padding: '1px 4px',
-                                borderRadius: '2px',
-                                fontWeight: 'bold',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '3px'
-                              }}>
-                                [NEW]
-                                <span
+                          <td style={{ textAlign: 'right' }}>{Number(row.rate || 0).toFixed(2)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                            {Number(row.amount || row.qty * row.rate || 0).toFixed(2)}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {isStaged ? (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                                <span className="staged-badge" style={{ fontSize: '9px', padding: '1px 3px' }}>[NEW]</span>
+                                <button
+                                  className="win-btn"
                                   onClick={() => removeStagedItem(idx)}
-                                  style={{ cursor: 'pointer', color: '#aa0000', fontWeight: 'bold', marginLeft: '2px' }}
-                                  title="Delete unstaged item"
+                                  title="Remove item before firing KOT"
+                                  style={{ padding: '0 3px', fontSize: '9px', height: '18px' }}
                                 >
                                   ✕
-                                </span>
-                              </span>
+                                </button>
+                              </div>
                             ) : (
-                              <span style={{ color: '#006600', fontWeight: 'bold' }}>
-                                KOT #{row.kotNo || '✓'}
+                              <span style={{ fontSize: '10px', color: '#666666' }}>
+                                KOT #{row.kotNo || 1}
                               </span>
                             )}
                           </td>
@@ -1091,16 +1310,17 @@ const isAtEnd = (el) => {
               </table>
             </div>
 
-            {/* Right: Real-time Live Section Panels */}
+            {/* Right: Real-time Live Section Panels & Unsettled Bills */}
             <div style={{ width: '220px', background: '#f5f5f5', display: 'flex', flexDirection: 'column', fontSize: '11px', borderLeft: '2px inset #ffffff' }}>
-              {/* AC Section */}
+              
+              {/* GENERAL Section (Tables 1 to 20) */}
               <div style={{ borderBottom: '1px solid #ccc', padding: '4px 6px' }}>
                 <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '3px' }}>
-                  AC
+                  GENERAL ({generalTableNums.length})
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', lineHeight: '1.4' }}>
-                  {acTableNums.length > 0 ? (
-                    acTableNums.map(num => {
+                  {generalTableNums.length > 0 ? (
+                    generalTableNums.map(num => {
                       const strNum = String(num);
                       const baseNum = strNum.replace(/[A-Z]/g, '');
                       const subLetter = strNum.replace(/[^A-Z]/g, '') || 'A';
@@ -1109,7 +1329,7 @@ const isAtEnd = (el) => {
 
                       return (
                         <span
-                          key={`ac-${num}`}
+                          key={`gen-${num}`}
                           onClick={() => {
                             setActiveSubTable(subLetter);
                             switchTable(num);
@@ -1138,10 +1358,10 @@ const isAtEnd = (el) => {
                 </div>
               </div>
 
-              {/* FAMILY AC Section */}
+              {/* FAMILY AC Section (Tables 21 to 40) */}
               <div style={{ borderBottom: '1px solid #ccc', padding: '4px 6px' }}>
                 <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '3px' }}>
-                  FAMILY AC
+                  FAMILY AC ({familyAcTableNums.length})
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', lineHeight: '1.4' }}>
                   {familyAcTableNums.length > 0 ? (
@@ -1266,10 +1486,9 @@ const isAtEnd = (el) => {
                       <span
                         key={i}
                         onClick={() => {
-                          switchTable(b.table);
-                          openSettleModal(b.table);
+                          openSettleModal(b.table, b.billNo);
                         }}
-                        title={`Click to settle Table ${b.table} bill ${b.billNo} (₹${b.amount})`}
+                        title={`Click to settle Bill #${b.billNo} on Table ${b.table} (₹${b.amount})`}
                         style={{
                           cursor: 'pointer',
                           padding: '2px 5px',
@@ -1278,7 +1497,7 @@ const isAtEnd = (el) => {
                           background: activeTableId === b.table ? '#c00000' : '#ffeaea',
                           color: activeTableId === b.table ? '#ffffff' : '#990000',
                           border: '1px solid',
-                          borderColor: activeTableId === b.table ? '#660000' : '#ffb3b3',
+                          borderColor: activeTableId === b.table ? '#800000' : '#ffb3b3',
                           borderRadius: '2px',
                         }}
                       >
@@ -1286,71 +1505,100 @@ const isAtEnd = (el) => {
                       </span>
                     ))
                   ) : (
-                    <span style={{ color: '#888' }}>None</span>
+                    <span style={{ color: '#888', fontStyle: 'italic', fontSize: '10px' }}>No unsettled bills</span>
                   )}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Bottom Summary Bar */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '5px 8px',
-            marginTop: '4px',
-            background: '#ece9d8',
-            borderTop: '1px solid #999',
-            fontSize: '12px'
-          }}>
-            <div style={{ display: 'flex', gap: '20px' }}>
-              <span>Items : <b>{totalItemsCount}</b></span>
-              <span>Qty : <b>{totalQtyCount}</b></span>
-            </div>
-
-            <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-              <span>Net Amt : <b style={{ fontSize: '14px', color: '#000' }}>{netAmount.toFixed(2)}</b></span>
-              <span>Tax : <b>0.00</b></span>
+          {/* Bottom Summary Bar: Total Items, Qty, Net Amount, Action Buttons */}
+          <div
+            style={{
+              height: '34px',
+              background: '#d4d0c8',
+              borderTop: '2px solid #ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0 8px',
+              marginTop: '4px',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '16px', fontSize: '11px', fontWeight: 'bold' }}>
+              <span>Items: <b style={{ color: '#0a246a' }}>{totalItemsCount}</b></span>
+              <span>Total Qty: <b style={{ color: '#0a246a' }}>{totalQtyCount}</b></span>
+              <span>Net Amount: <b style={{ color: '#006600', fontSize: '13px' }}>₹{netAmount.toFixed(2)}</b></span>
             </div>
 
             <div style={{ display: 'flex', gap: '6px' }}>
+              {/* Cancel Button */}
               <button
+                type="button"
                 className="win-btn"
-                style={{
-                  padding: '2px 8px',
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                  background: stagedCount > 0 ? '#ffea88' : '#e0dcc8',
-                  borderColor: stagedCount > 0 ? '#b45309' : '#999'
-                }}
-                onClick={() => handleFireKOT(activeTableId)}
-                title="FIRE KOT (↵↵)"
+                onClick={() => openCancelModal(activeTableId)}
+                title="Cancel selective items or entire table (-)"
+                style={{ height: '24px', fontSize: '11px', color: '#aa0000' }}
               >
-                KOT (↵↵){stagedCount > 0 ? ` (${stagedCount})` : ''}
+                Cancel (-)
               </button>
-              <button
-                className="win-btn"
-                style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 'bold' }}
-                onClick={() => handleBillF6(activeTableId)}
-              >
-                Bill (F6)
-              </button>
+
+              {/* Fire KOT Button */}
+              {screenMode === 'ORDER' && (
+                <button
+                  type="button"
+                  className="win-btn"
+                  onClick={() => handleFireKOT(activeTableId)}
+                  disabled={stagedCount === 0}
+                  style={{
+                    height: '24px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    background: stagedCount > 0 ? '#dcf5dc' : '#ece9d8',
+                  }}
+                >
+                  Fire KOT (↵↵)
+                </button>
+              )}
+
+              {/* Cash Memo Button */}
               {screenMode === 'CASH_MEMO' && (
                 <button
+                  type="button"
                   className="win-btn"
-                  style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', background: '#dcf5dc', color: '#006600' }}
-                  onClick={() => openSettleModal(activeTableId)}
-                  title="Settle bill via Cash, UPI, or Card"
+                  onClick={() => {
+                    if (activeTableId) {
+                      setPaxPrompt({
+                        show: true,
+                        tableId: activeTableId,
+                        onConfirm: (pax) => {
+                          printCashMemo(activeTableId, pax);
+                          setTableInput('');
+                          switchTable('');
+                          focusTableInput();
+                        }
+                      });
+                    }
+                  }}
+                  style={{ height: '24px', fontSize: '11px', fontWeight: 'bold', background: '#dcf5dc' }}
                 >
-                  Settle (F12)
+                  Print Bill (F6)
                 </button>
               )}
             </div>
           </div>
-
         </div>
       </div>
+
+      {/* Customer Details Modal Prompt */}
+      <CustomerDetailsModal
+        show={showCustomerModal}
+        tableId={pendingCustomerTable}
+        initialName={customerName}
+        initialPhone={customerPhone}
+        onConfirm={handleCustomerConfirm}
+        onCancel={handleCustomerCancel}
+      />
     </div>
   );
 }
