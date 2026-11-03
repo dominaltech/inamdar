@@ -327,6 +327,33 @@ export default function OrderWorkspace() {
         }
       }
 
+      // CASH_MEMO Mode: Enter anywhere when a table with items is loaded opens PAX prompt
+      if (screenMode === 'CASH_MEMO' && e.key === 'Enter' && !paxPrompt?.show && !activeModal && !showCustomerModal && !showCancelModal) {
+        if (e.target?.id === 'pos-table-input' && !tableInput.trim()) {
+          return;
+        }
+        const target = tableInput.trim().toUpperCase() || activeTableId;
+        const tbl = target ? tables[target] : null;
+        const hasItems = tbl && tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
+        if (hasItems && (e.target?.id !== 'pos-table-input' || tableInput.trim())) {
+          const tableToPrint = tbl.id;
+          e.preventDefault();
+          e.stopPropagation();
+          setPaxPrompt({
+            show: true,
+            tableId: tableToPrint,
+            onConfirm: (pax) => {
+              printCashMemo(tableToPrint, pax);
+              setTableInput('');
+              switchTable('');
+              setMemoTableLoaded(null);
+              focusTableInput();
+            }
+          });
+          return;
+        }
+      }
+
       // Zero-Mouse Workflow: Bring cursor to Table on unhandled Enter
       const activeEl = document.activeElement;
       const isInputFocused = activeEl && (
@@ -395,43 +422,40 @@ export default function OrderWorkspace() {
     }
   }, [codeQuery, isCancelMode, currentTableData.items]);
 
-  // Helper for subtable options (A, B, +)
+  // Helper for subtable options (A, B, C, +)
   const getSubTableOptions = (tableId) => {
     const base = String(tableId || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase() || '1';
-    return ['A', 'B', '+'];
+    return ['A', 'B', 'C', '+'];
   };
 
   const handleSelectSubTable = (st) => {
     const base = String(tableInput || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase() || '1';
     setShowSubTableMenu(false);
 
+    let chosenSub = st;
     if (st === '+') {
       const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-      let nextSub = 'C';
+      chosenSub = 'C';
       for (const l of letters) {
-        if (!tables[`${base}${l}`]) {
-          nextSub = l;
+        if (!tables[`${base}${l}`] || !tables[`${base}${l}`].items?.some(it => it.qty > 0 && !it.isCancelled)) {
+          chosenSub = l;
           break;
         }
       }
-      setActiveSubTable(nextSub);
-      const full = `${base}${nextSub}`;
-      switchTable(full);
-      setTableInput(full);
-    } else if (st === 'A') {
-      setActiveSubTable('A');
-      switchTable(base);
-      setTableInput(base);
-    } else {
-      setActiveSubTable(st);
-      const full = `${base}${st}`;
-      switchTable(full);
-      setTableInput(full);
     }
 
-    setTimeout(() => {
-      employeeSelectRef.current?.focus();
-    }, 50);
+    setActiveSubTable(chosenSub);
+    const full = `${base}${chosenSub}`;
+    switchTable(full);
+    setTableInput(full);
+
+    if (screenMode === 'ORDER') {
+      setPendingCustomerTable(full);
+      setShowCustomerModal(true);
+    } else {
+      setMemoTableLoaded(full);
+      focusTableInput();
+    }
   };
 
   // Fire KOT, print thermal slip, and clear workspace
@@ -519,31 +543,39 @@ export default function OrderWorkspace() {
         targetTable = `00 - ${custName.toUpperCase()}`;
       }
 
-      // CASH_MEMO Mode: Show items first, then Enter triggers PAX prompt!
+      // CASH_MEMO Mode: Show items and prompt PAX immediately on Enter!
       if (screenMode === 'CASH_MEMO') {
-        switchTable(targetTable);
-        const tbl = tables[targetTable];
+        let resolvedTableId = targetTable;
+        if (!tables[resolvedTableId]?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
+          if (tables[`${resolvedTableId}A`]?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
+            resolvedTableId = `${resolvedTableId}A`;
+          } else {
+            const base = String(resolvedTableId).replace(/[A-Z]/g, '');
+            if (base && tables[base]?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
+              resolvedTableId = base;
+            }
+          }
+        }
+
+        switchTable(resolvedTableId);
+        setTableInput(resolvedTableId);
+        setMemoTableLoaded(resolvedTableId);
+
+        const tbl = tables[resolvedTableId];
         const hasItems = tbl && tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
 
         if (hasItems) {
-          if (memoTableLoaded === targetTable) {
-            // Second Enter: Show PAX prompt and print Cash Memo!
-            setMemoTableLoaded(null);
-            setPaxPrompt({
-              show: true,
-              tableId: targetTable,
-              onConfirm: (pax) => {
-                printCashMemo(targetTable, pax);
-                setTableInput('');
-                switchTable('');
-                focusTableInput();
-              }
-            });
-          } else {
-            // First Enter: Load dishes and preview total for cashier inspection!
-            setMemoTableLoaded(targetTable);
-            setTableInput(targetTable);
-          }
+          setPaxPrompt({
+            show: true,
+            tableId: resolvedTableId,
+            onConfirm: (pax) => {
+              printCashMemo(resolvedTableId, pax);
+              setTableInput('');
+              switchTable('');
+              setMemoTableLoaded(null);
+              focusTableInput();
+            }
+          });
         } else {
           setMemoTableLoaded(null);
           focusTableInput();
@@ -554,7 +586,7 @@ export default function OrderWorkspace() {
       // ORDER Mode: Pick subtable A automatically, then prompt Customer Details!
       const baseNum = targetTable.replace(/[A-Z]/g, '');
       const subLetter = targetTable.replace(/[^A-Z]/g, '') || 'A';
-      const targetTableId = baseNum ? (targetTable.match(/[A-Z]/) ? targetTable : (tables[`${baseNum}A`] ? `${baseNum}A` : (tables[baseNum] ? baseNum : targetTable))) : targetTable;
+      const targetTableId = baseNum ? (targetTable.match(/[A-Z]/) ? targetTable : (tables[`${baseNum}A`] ? `${baseNum}A` : (tables[baseNum] ? baseNum : `${baseNum}A`))) : targetTable;
       const displayVal = (baseNum && !targetTable.match(/[A-Z]/)) ? `${baseNum}A` : targetTable;
 
       setActiveSubTable(subLetter);
@@ -815,15 +847,17 @@ export default function OrderWorkspace() {
         alignItems: 'center',
         justifyContent: 'center',
         background: '#ffffff',
-        padding: '10px',
+        padding: '4px',
+        boxSizing: 'border-box',
       }}
     >
-      {/* Centered, Authentic Sized Window Frame (Width ~860px, Height ~540px) */}
+      {/* Centered, Compact Retro Sized Window Frame (Width ~860px, Height ~480px) */}
       <div
         className="win-window"
         style={{
           width: '860px',
-          height: '540px',
+          height: '480px',
+          maxHeight: 'calc(100vh - 54px)',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '3px 3px 10px rgba(0,0,0,0.4)',
@@ -837,11 +871,12 @@ export default function OrderWorkspace() {
             background: isCancelMode 
               ? 'linear-gradient(90deg, #aa0000 0%, #dd4444 100%)' 
               : 'linear-gradient(90deg, #1b62b7 0%, #4a90e2 100%)',
-            height: '26px',
-            padding: '2px 8px',
+            height: '24px',
+            padding: '2px 6px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexShrink: 0,
           }}
         >
           {/* Left: Window Title & Multi-Order Tabs */}
@@ -947,10 +982,10 @@ export default function OrderWorkspace() {
         </div>
 
         {/* Window Content */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '6px 8px', background: '#ece9d8', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '4px 6px', background: '#ece9d8', overflow: 'hidden', minHeight: 0 }}>
           
           {/* Top Controls: Table, Customer, Employee */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div>
                 <span style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', marginBottom: '2px' }}>Table</span>
@@ -1003,7 +1038,7 @@ export default function OrderWorkspace() {
                         position: 'absolute',
                         top: '100%',
                         left: '72px',
-                        width: '48px',
+                        width: '54px',
                         background: '#ece9d8',
                         zIndex: 900,
                         border: '2px solid #808080',
@@ -1013,6 +1048,7 @@ export default function OrderWorkspace() {
                       {getSubTableOptions(tableInput || activeTableId).map((st, idx) => {
                         const isPlus = st === '+';
                         const isHighlighted = idx === subTableIndex;
+                        const base = String(tableInput || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase() || '1';
                         return (
                           <div
                             key={st}
@@ -1020,14 +1056,14 @@ export default function OrderWorkspace() {
                             style={{
                               padding: '3px 4px',
                               cursor: 'pointer',
-                              fontSize: isPlus ? '13px' : '11px',
+                              fontSize: isPlus ? '12px' : '11px',
                               fontWeight: 'bold',
                               background: isHighlighted ? '#0a246a' : (isPlus ? '#e0ffe0' : 'transparent'),
                               color: isHighlighted ? '#ffffff' : (isPlus ? '#006600' : '#000000'),
                               textAlign: 'center',
                               borderTop: isPlus ? '1px solid #aaa' : 'none',
                             }}
-                            title={isPlus ? 'Create new subtable (+)' : `Select Subtable ${st}`}
+                            title={isPlus ? 'Create new subtable (+)' : `Select Subtable ${base}${st}`}
                           >
                             {st}
                           </div>
@@ -1099,7 +1135,7 @@ export default function OrderWorkspace() {
           </div>
 
           {/* Main Body Split: Left Unified Grid + Right Live Tables Board */}
-          <div style={{ flex: 1, display: 'flex', border: '1px solid #7f9db9', background: '#fff', overflow: 'hidden' }}>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', border: '1px solid #7f9db9', background: '#fff', overflow: 'hidden' }}>
             
             {/* Left: Unified Table Columns & Ordered Items Grid */}
             <div style={{ flex: 1, overflowY: 'auto', borderRight: '1px solid #7f9db9' }}>
@@ -1331,10 +1367,42 @@ export default function OrderWorkspace() {
                         <span
                           key={`gen-${num}`}
                           onClick={() => {
-                            setActiveSubTable(subLetter);
-                            switchTable(num);
-                            setTableInput(displayVal);
-                            setShowSubTableMenu(false);
+                            if (screenMode === 'CASH_MEMO') {
+                              setActiveSubTable(subLetter || 'A');
+                              switchTable(num);
+                              setTableInput(String(num));
+                              setMemoTableLoaded(String(num));
+                              setShowSubTableMenu(false);
+                              focusTableInput();
+                            } else {
+                              // ORDER Mode:
+                              const strNum = String(num);
+                              const baseNum = strNum.replace(/[A-Z]/g, '');
+                              const isRunning = tables[num]?.items?.some(it => it.qty > 0 && !it.isCancelled) ||
+                                                tables[`${baseNum}A`]?.items?.some(it => it.qty > 0 && !it.isCancelled);
+
+                              if (isRunning) {
+                                setTableInput(baseNum);
+                                const letters = ['A', 'B', 'C', 'D'];
+                                let nextLetter = 'A';
+                                for (const l of letters) {
+                                  if (!tables[`${baseNum}${l}`] || !tables[`${baseNum}${l}`].items?.some(it => it.qty > 0 && !it.isCancelled)) {
+                                    nextLetter = l;
+                                    break;
+                                  }
+                                }
+                                setActiveSubTable(nextLetter);
+                                setShowSubTableMenu(true);
+                                focusTableInput();
+                              } else {
+                                setActiveSubTable(subLetter || 'A');
+                                switchTable(num);
+                                setTableInput(String(num));
+                                setShowSubTableMenu(false);
+                                setPendingCustomerTable(String(num));
+                                setShowCustomerModal(true);
+                              }
+                            }
                           }}
                           title={`Click to view dishes for Table ${num}`}
                           style={{
@@ -1369,17 +1437,48 @@ export default function OrderWorkspace() {
                       const strNum = String(num);
                       const baseNum = strNum.replace(/[A-Z]/g, '');
                       const subLetter = strNum.replace(/[^A-Z]/g, '') || 'A';
-                      const displayVal = (baseNum && !strNum.match(/[A-Z]/)) ? `${baseNum}A` : strNum;
                       const isMatch = activeTableId === num || (activeTableId && String(activeTableId).replace(/[A-Z]/g, '') === baseNum);
 
                       return (
                         <span
                           key={`family-${num}`}
                           onClick={() => {
-                            setActiveSubTable(subLetter);
-                            switchTable(num);
-                            setTableInput(displayVal);
-                            setShowSubTableMenu(false);
+                            if (screenMode === 'CASH_MEMO') {
+                              setActiveSubTable(subLetter || 'A');
+                              switchTable(num);
+                              setTableInput(String(num));
+                              setMemoTableLoaded(String(num));
+                              setShowSubTableMenu(false);
+                              focusTableInput();
+                            } else {
+                              // ORDER Mode:
+                              const strNum = String(num);
+                              const baseNum = strNum.replace(/[A-Z]/g, '');
+                              const isRunning = tables[num]?.items?.some(it => it.qty > 0 && !it.isCancelled) ||
+                                                tables[`${baseNum}A`]?.items?.some(it => it.qty > 0 && !it.isCancelled);
+
+                              if (isRunning) {
+                                setTableInput(baseNum);
+                                const letters = ['A', 'B', 'C', 'D'];
+                                let nextLetter = 'A';
+                                for (const l of letters) {
+                                  if (!tables[`${baseNum}${l}`] || !tables[`${baseNum}${l}`].items?.some(it => it.qty > 0 && !it.isCancelled)) {
+                                    nextLetter = l;
+                                    break;
+                                  }
+                                }
+                                setActiveSubTable(nextLetter);
+                                setShowSubTableMenu(true);
+                                focusTableInput();
+                              } else {
+                                setActiveSubTable(subLetter || 'A');
+                                switchTable(num);
+                                setTableInput(String(num));
+                                setShowSubTableMenu(false);
+                                setPendingCustomerTable(String(num));
+                                setShowCustomerModal(true);
+                              }
+                            }
                           }}
                           title={`Click to view dishes for Family Table ${num}`}
                           style={{
@@ -1515,14 +1614,15 @@ export default function OrderWorkspace() {
           {/* Bottom Summary Bar: Total Items, Qty, Net Amount, Action Buttons */}
           <div
             style={{
-              height: '34px',
+              height: '30px',
               background: '#d4d0c8',
               borderTop: '2px solid #ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '0 8px',
-              marginTop: '4px',
+              marginTop: '3px',
+              flexShrink: 0,
             }}
           >
             <div style={{ display: 'flex', gap: '16px', fontSize: '11px', fontWeight: 'bold' }}>

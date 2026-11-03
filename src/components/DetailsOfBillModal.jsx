@@ -42,12 +42,7 @@ export default function DetailsOfBillModal() {
 
       if (e.key === 'F12') {
         e.preventDefault();
-        const bill = allBills[selectedBillIndex];
-        if (bill && !bill.isSettled) {
-          openSettleModal(bill.table || bill.tableNo, bill.billNo);
-        } else {
-          setShowSettlementMenu(true);
-        }
+        setShowSettlementMenu(true);
         return;
       }
 
@@ -133,11 +128,7 @@ export default function DetailsOfBillModal() {
             <span
               style={{ cursor: 'pointer', color: '#fff', textDecoration: 'underline' }}
               onClick={() => {
-                if (currentBill && !currentBill.isSettled) {
-                  openSettleModal(currentBill.table, currentBill.billNo);
-                } else {
-                  setShowSettlementMenu(true);
-                }
+                setShowSettlementMenu(true);
               }}
             >
               [F12 Settlement]
