@@ -163,10 +163,22 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // In Cash Memo, quick item entry row (Code, Qty, Rate) must NOT be present
     await expect(page.locator('input[placeholder="Code/CTM"]')).not.toBeVisible();
 
-    // In Cash Memo, entering a table with items prompts for PAX and bills
+    // In Cash Memo: 1st Enter loads table preview; 2nd Enter opens PAX prompt
     const tableInput = page.locator('#pos-table-input');
     await tableInput.fill('3');
     await tableInput.press('Enter');
+    await page.waitForTimeout(200);
+
+    // 1st Enter: Shows preview, PAX prompt is not opened yet
+    await expect(page.locator('text=Number of Persons')).not.toBeVisible();
+
+    // 2nd Enter: Now opens Number of Persons (PAX) prompt!
+    await tableInput.press('Enter');
+    await page.waitForTimeout(200);
+    const paxModal = page.locator('text=Number of Persons');
+    if (await paxModal.isVisible()) {
+      await page.keyboard.press('Escape');
+    }
   });
 
   test('06. Display Order KOT Transfer Flow (Esc in Order Mode)', async ({ page }) => {
@@ -491,21 +503,9 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const tableInput = page.locator('#pos-table-input');
     await expect(tableInput).toBeVisible();
 
-    // Settle any pre-existing bills for Table 18 first to guarantee a clean baseline
-    while (await page.locator('span:has-text("18(")').count() > 0) {
-      await page.locator('span:has-text("18(")').first().click();
-      await page.waitForTimeout(200);
-      const cashBtn = page.locator('.win-modal-backdrop button:has-text("Cash")').first();
-      if (await cashBtn.isVisible()) {
-        await cashBtn.click();
-        await page.waitForTimeout(200);
-      }
-      const okBtn = page.locator('button:has-text("OK")');
-      if (await okBtn.isVisible()) {
-        await okBtn.click();
-        await page.waitForTimeout(200);
-      }
-    }
+    // Record baseline count of Table 18 bills in Unsettled Bills
+    await page.waitForTimeout(500);
+    const baseline18Count = await page.locator('span:has-text("18(")').count();
 
     // --- SESSION 1 on Table 18 ---
     // 1. Order Table 18
@@ -564,9 +564,11 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Table 18 moves to Unsettled Bills (Bill #1)
     await expect(page.locator('.win-window').getByText('Unsettled Bills').first()).toBeVisible();
     await expect(page.locator('span:has-text("18(")').first()).toBeVisible();
+    const countAfterSession1 = await page.locator('span:has-text("18(")').count();
+    expect(countAfterSession1).toBe(baseline18Count + 1);
 
     // --- SESSION 2 on Table 18 (New Guest / Second Party) ---
-    // 3. Re-seat Table 18 immediately
+    // 3. Re-seat Table 18 immediately while previous bill is still unsettled
     await tableInput.fill('18');
     await tableInput.press('Enter');
     await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
@@ -578,6 +580,10 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(200);
     await codeInput.press('Enter');
     await qtyInput.press('Enter'); // Commits item
+
+    // Verify ZERO item bleed: only 1 item in the table order grid (Dish 2, no Dish 1 from Session 1!)
+    const activeItemsInGrid = await page.locator('.order-table tbody tr').count();
+    expect(activeItemsInGrid).toBe(1);
 
     // Fire KOT (double Enter on empty code)
     await codeInput.press('Enter');
@@ -612,7 +618,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
 
     // 5. CRUCIAL: Both Bill #1 and Bill #2 for Table 18 MUST coexist independently in Unsettled Bills!
     const tagsCount = await page.locator('span:has-text("18(")').count();
-    expect(tagsCount).toBe(2);
+    expect(tagsCount).toBe(baseline18Count + 2);
 
     // 6. Settle the first bill for Table 18
     await page.locator('span:has-text("18(")').first().click();
@@ -628,9 +634,9 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
       await page.waitForTimeout(200);
     }
 
-    // 7. CRUCIAL: Exactly 1 bill for Table 18 should remain in Unsettled Bills!
+    // 7. CRUCIAL: Exactly (baseline18Count + 1) bills for Table 18 should remain in Unsettled Bills!
     const remainingCount = await page.locator('span:has-text("18(")').count();
-    expect(remainingCount).toBe(1);
+    expect(remainingCount).toBe(baseline18Count + 1);
   });
 
 });

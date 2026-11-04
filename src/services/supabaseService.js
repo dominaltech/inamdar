@@ -51,7 +51,10 @@ export async function fetchLiveTables() {
 
     const tablesMap = {};
     (tablesData || []).forEach(tbl => {
-      const activeItems = tbl.status === 'AVAILABLE' ? [] : (itemsByTable[tbl.id] || []);
+      const activeKotNos = Array.isArray(tbl.kot_nos) ? tbl.kot_nos.map(Number) : [];
+      const activeItems = (tbl.status === 'AVAILABLE' || activeKotNos.length === 0)
+        ? []
+        : (itemsByTable[tbl.id] || []).filter(it => activeKotNos.includes(Number(it.kotNo)));
       tablesMap[tbl.id] = {
         id: tbl.id,
         section: tbl.section === 'AC' ? 'GENERAL' : tbl.section,
@@ -79,19 +82,25 @@ export async function fetchOrderItemsForTable(tableId) {
   try {
     const { data: tblData } = await supabase
       .from('tables')
-      .select('status')
+      .select('status, kot_nos')
       .eq('id', String(tableId))
       .maybeSingle();
 
-    if (tblData && tblData.status === 'AVAILABLE') {
+    if (!tblData || tblData.status === 'AVAILABLE' || !tblData.kot_nos || tblData.kot_nos.length === 0) {
       return [];
     }
 
-    const { data, error } = await supabase
+    const activeKotNos = Array.isArray(tblData.kot_nos) ? tblData.kot_nos.map(Number) : [];
+    let query = supabase
       .from('order_items')
       .select('*')
-      .eq('table_id', String(tableId))
-      .order('created_at', { ascending: true });
+      .eq('table_id', String(tableId));
+
+    if (activeKotNos.length > 0) {
+      query = query.in('kot_number', activeKotNos);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: true });
 
     if (error) throw error;
 

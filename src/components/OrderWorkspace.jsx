@@ -327,15 +327,15 @@ export default function OrderWorkspace() {
         }
       }
 
-      // CASH_MEMO Mode: Enter anywhere when a table with items is loaded opens PAX prompt
+      // CASH_MEMO Mode: If a table preview is already loaded and user presses Enter outside the table input, or presses Enter again:
       if (screenMode === 'CASH_MEMO' && e.key === 'Enter' && !paxPrompt?.show && !activeModal && !showCustomerModal && !showCancelModal) {
-        if (e.target?.id === 'pos-table-input' && !tableInput.trim()) {
+        if (e.target?.id === 'pos-table-input') {
           return;
         }
-        const target = tableInput.trim().toUpperCase() || activeTableId;
+        const target = memoTableLoaded || tableInput.trim().toUpperCase() || activeTableId;
         const tbl = target ? tables[target] : null;
         const hasItems = tbl && tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
-        if (hasItems && (e.target?.id !== 'pos-table-input' || tableInput.trim())) {
+        if (hasItems) {
           const tableToPrint = tbl.id;
           e.preventDefault();
           e.stopPropagation();
@@ -543,7 +543,7 @@ export default function OrderWorkspace() {
         targetTable = `00 - ${custName.toUpperCase()}`;
       }
 
-      // CASH_MEMO Mode: Show items and prompt PAX immediately on Enter!
+      // CASH_MEMO Mode: 1st Enter loads preview; 2nd Enter opens PAX prompt
       if (screenMode === 'CASH_MEMO') {
         let resolvedTableId = targetTable;
         if (!tables[resolvedTableId]?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
@@ -557,14 +557,11 @@ export default function OrderWorkspace() {
           }
         }
 
-        switchTable(resolvedTableId);
-        setTableInput(resolvedTableId);
-        setMemoTableLoaded(resolvedTableId);
-
         const tbl = tables[resolvedTableId];
         const hasItems = tbl && tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
 
-        if (hasItems) {
+        // If this table is ALREADY loaded in preview, pressing Enter now proceeds to PAX prompt!
+        if (memoTableLoaded && memoTableLoaded === resolvedTableId && hasItems) {
           setPaxPrompt({
             show: true,
             tableId: resolvedTableId,
@@ -576,7 +573,15 @@ export default function OrderWorkspace() {
               focusTableInput();
             }
           });
-        } else {
+          return;
+        }
+
+        // 1st Enter: Load table and show items in preview!
+        switchTable(resolvedTableId);
+        setTableInput(resolvedTableId);
+        setMemoTableLoaded(resolvedTableId);
+
+        if (!hasItems) {
           setMemoTableLoaded(null);
           focusTableInput();
         }
