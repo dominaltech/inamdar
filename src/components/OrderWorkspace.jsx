@@ -88,15 +88,12 @@ export default function OrderWorkspace() {
   // Synchronize table input
   useEffect(() => {
     if (activeTableId) {
-      const baseNum = String(activeTableId).replace(/[A-Z]/g, '');
-      if (baseNum && !String(activeTableId).match(/[A-Z]/) && !String(activeTableId).startsWith('0')) {
-        setTableInput(`${baseNum}A`);
-        setActiveSubTable('A');
-      } else {
-        setTableInput(activeTableId);
-      }
+      setTableInput(activeTableId);
+      const subLetter = String(activeTableId).replace(/[^A-Z]/g, '');
+      setActiveSubTable(subLetter || '');
     } else {
       setTableInput('');
+      setActiveSubTable('');
     }
   }, [activeTableId, setActiveSubTable]);
 
@@ -435,7 +432,7 @@ export default function OrderWorkspace() {
     let chosenSub = st;
     if (st === '+') {
       const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-      chosenSub = 'C';
+      chosenSub = 'B';
       for (const l of letters) {
         if (!tables[`${base}${l}`] || !tables[`${base}${l}`].items?.some(it => it.qty > 0 && !it.isCancelled)) {
           chosenSub = l;
@@ -450,6 +447,10 @@ export default function OrderWorkspace() {
     setTableInput(full);
 
     if (screenMode === 'ORDER') {
+      const tableCustName = tables[full]?.customerName || '';
+      const tableCustPhone = tables[full]?.customerPhone || '';
+      setCustomerName(tableCustName);
+      setCustomerPhone(tableCustPhone);
       setPendingCustomerTable(full);
       setShowCustomerModal(true);
     } else {
@@ -469,6 +470,8 @@ export default function OrderWorkspace() {
     // Clear staged fields
     setTableInput('');
     switchTable('');
+    setCustomerName('');
+    setCustomerPhone('');
     setCodeQuery('');
     setSelectedItem(null);
     setQtyInput('1');
@@ -546,9 +549,10 @@ export default function OrderWorkspace() {
       // CASH_MEMO Mode: 1st Enter loads preview; 2nd Enter opens PAX prompt
       if (screenMode === 'CASH_MEMO') {
         let resolvedTableId = targetTable;
-        if (!tables[resolvedTableId]?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
-          if (tables[`${resolvedTableId}A`]?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
-            resolvedTableId = `${resolvedTableId}A`;
+        const hasItemsOnTarget = tables[targetTable]?.items?.some(it => it.qty > 0 && !it.isCancelled);
+        if (!hasItemsOnTarget) {
+          if (tables[`${targetTable}A`]?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
+            resolvedTableId = `${targetTable}A`;
           } else {
             const base = String(resolvedTableId).replace(/[A-Z]/g, '');
             if (base && tables[base]?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
@@ -569,6 +573,8 @@ export default function OrderWorkspace() {
               printCashMemo(resolvedTableId, pax);
               setTableInput('');
               switchTable('');
+              setCustomerName('');
+              setCustomerPhone('');
               setMemoTableLoaded(null);
               focusTableInput();
             }
@@ -588,16 +594,36 @@ export default function OrderWorkspace() {
         return;
       }
 
-      // ORDER Mode: Pick subtable A automatically, then prompt Customer Details!
-      const baseNum = targetTable.replace(/[A-Z]/g, '');
-      const subLetter = targetTable.replace(/[^A-Z]/g, '') || 'A';
-      const targetTableId = baseNum ? (targetTable.match(/[A-Z]/) ? targetTable : (tables[`${baseNum}A`] ? `${baseNum}A` : (tables[baseNum] ? baseNum : `${baseNum}A`))) : targetTable;
-      const displayVal = (baseNum && !targetTable.match(/[A-Z]/)) ? `${baseNum}A` : targetTable;
+      // ORDER Mode:
+      const hasExplicitSub = Boolean(targetTable.match(/[A-Z]/));
+      const subLetter = targetTable.replace(/[^A-Z]/g, '');
 
-      setActiveSubTable(subLetter);
+      // Check if table is ALREADY RUNNING with active items
+      const isAlreadyRunning = !hasExplicitSub && Boolean(
+        tables[targetTable]?.status === 'OCCUPIED' && tables[targetTable]?.items?.some(it => it.qty > 0 && !it.isCancelled)
+      );
+
+      // If typing the same table number that is ALREADY RUNNING, open the subtable selection menu!
+      if (isAlreadyRunning) {
+        setTableInput(targetTable);
+        setActiveSubTable('A');
+        setSubTableIndex(0);
+        setShowSubTableMenu(true);
+        return;
+      }
+
+      // If not running, or explicitly typed subtable (e.g. 23A):
+      const targetTableId = targetTable;
+      setActiveSubTable(subLetter || '');
       switchTable(targetTableId);
-      setTableInput(displayVal);
+      setTableInput(targetTableId);
       setShowSubTableMenu(false);
+
+      // Reset customer prefill so previous customer details never leak into a new bill/table
+      const tableCustName = tables[targetTableId]?.customerName || '';
+      const tableCustPhone = tables[targetTableId]?.customerPhone || '';
+      setCustomerName(tableCustName);
+      setCustomerPhone(tableCustPhone);
 
       // Prompt Customer Details modal before dish entry
       setPendingCustomerTable(targetTableId);
@@ -607,8 +633,8 @@ export default function OrderWorkspace() {
 
   // Callback when customer details confirmed or skipped
   const handleCustomerConfirm = (custData) => {
-    const custName = custData?.name || 'Guest';
-    const custPhone = custData?.phone || '';
+    const custName = custData?.name?.trim() || '';
+    const custPhone = custData?.phone?.trim() || '';
     setCustomerName(custName);
     setCustomerPhone(custPhone);
     setShowCustomerModal(false);
@@ -639,6 +665,8 @@ export default function OrderWorkspace() {
   };
 
   const handleCustomerCancel = () => {
+    setCustomerName('');
+    setCustomerPhone('');
     setShowCustomerModal(false);
     const targetTable = pendingCustomerTable || activeTableId || '1';
     switchTable(targetTable);
@@ -771,28 +799,30 @@ export default function OrderWorkspace() {
 
   // Commit item row to active table
   const commitItemRow = () => {
-    if (!selectedItem) {
+    let itemToAdd = selectedItem;
+    if (!itemToAdd) {
       const match = MENU_BY_CODE.get(codeQuery.trim());
       if (match) {
+        itemToAdd = match;
         selectItem(match);
       }
-      return;
     }
+    if (!itemToAdd) return;
 
     const qty = Number(qtyInput) || 1;
     if (qty <= 0) return;
 
-    const applicableRate = getApplicableRate(selectedItem, currentTableData.section);
+    const applicableRate = getApplicableRate(itemToAdd, currentTableData.section);
     const amount = qty * applicableRate;
 
     const itemRow = {
-      code: selectedItem.code,
-      name: selectedItem.name,
+      code: itemToAdd.code,
+      name: itemToAdd.name,
       qty,
       rate: applicableRate,
       amount,
-      category: selectedItem.category,
-      categoryOrder: selectedItem.categoryOrder,
+      category: itemToAdd.category,
+      categoryOrder: itemToAdd.categoryOrder,
       customization: customizationInput.trim(),
       isStaged: true,
       isCancelled: false,
@@ -1031,7 +1061,7 @@ export default function OrderWorkspace() {
                       cursor: 'pointer',
                     }}
                   >
-                    <span>{activeSubTable}</span>
+                    <span>{activeSubTable || '-'}</span>
                     <span style={{ fontSize: '8px', marginLeft: '2px' }}>▼</span>
                   </div>
 
@@ -1363,17 +1393,14 @@ export default function OrderWorkspace() {
                   {generalTableNums.length > 0 ? (
                     generalTableNums.map(num => {
                       const strNum = String(num);
-                      const baseNum = strNum.replace(/[A-Z]/g, '');
-                      const subLetter = strNum.replace(/[^A-Z]/g, '') || 'A';
-                      const displayVal = (baseNum && !strNum.match(/[A-Z]/)) ? `${baseNum}A` : strNum;
-                      const isMatch = activeTableId === num || (activeTableId && String(activeTableId).replace(/[A-Z]/g, '') === baseNum);
+                      const isMatch = activeTableId === num || activeTableId === strNum;
 
                       return (
                         <span
                           key={`gen-${num}`}
                           onClick={() => {
                             if (screenMode === 'CASH_MEMO') {
-                              setActiveSubTable(subLetter || 'A');
+                              setActiveSubTable('');
                               switchTable(num);
                               setTableInput(String(num));
                               setMemoTableLoaded(String(num));
@@ -1381,29 +1408,24 @@ export default function OrderWorkspace() {
                               focusTableInput();
                             } else {
                               // ORDER Mode:
-                              const strNum = String(num);
-                              const baseNum = strNum.replace(/[A-Z]/g, '');
-                              const isRunning = tables[num]?.items?.some(it => it.qty > 0 && !it.isCancelled) ||
-                                                tables[`${baseNum}A`]?.items?.some(it => it.qty > 0 && !it.isCancelled);
+                              const isRunning = tables[num]?.status === 'OCCUPIED' &&
+                                                tables[num]?.items?.some(it => it.qty > 0 && !it.isCancelled);
 
                               if (isRunning) {
-                                setTableInput(baseNum);
-                                const letters = ['A', 'B', 'C', 'D'];
-                                let nextLetter = 'A';
-                                for (const l of letters) {
-                                  if (!tables[`${baseNum}${l}`] || !tables[`${baseNum}${l}`].items?.some(it => it.qty > 0 && !it.isCancelled)) {
-                                    nextLetter = l;
-                                    break;
-                                  }
-                                }
-                                setActiveSubTable(nextLetter);
+                                setTableInput(String(num));
+                                setActiveSubTable('A');
+                                setSubTableIndex(0);
                                 setShowSubTableMenu(true);
                                 focusTableInput();
                               } else {
-                                setActiveSubTable(subLetter || 'A');
+                                setActiveSubTable('');
                                 switchTable(num);
                                 setTableInput(String(num));
                                 setShowSubTableMenu(false);
+                                const tableCustName = tables[num]?.customerName || '';
+                                const tableCustPhone = tables[num]?.customerPhone || '';
+                                setCustomerName(tableCustName);
+                                setCustomerPhone(tableCustPhone);
                                 setPendingCustomerTable(String(num));
                                 setShowCustomerModal(true);
                               }
@@ -1440,16 +1462,14 @@ export default function OrderWorkspace() {
                   {familyAcTableNums.length > 0 ? (
                     familyAcTableNums.map(num => {
                       const strNum = String(num);
-                      const baseNum = strNum.replace(/[A-Z]/g, '');
-                      const subLetter = strNum.replace(/[^A-Z]/g, '') || 'A';
-                      const isMatch = activeTableId === num || (activeTableId && String(activeTableId).replace(/[A-Z]/g, '') === baseNum);
+                      const isMatch = activeTableId === num || activeTableId === strNum;
 
                       return (
                         <span
                           key={`family-${num}`}
                           onClick={() => {
                             if (screenMode === 'CASH_MEMO') {
-                              setActiveSubTable(subLetter || 'A');
+                              setActiveSubTable('');
                               switchTable(num);
                               setTableInput(String(num));
                               setMemoTableLoaded(String(num));
@@ -1457,29 +1477,24 @@ export default function OrderWorkspace() {
                               focusTableInput();
                             } else {
                               // ORDER Mode:
-                              const strNum = String(num);
-                              const baseNum = strNum.replace(/[A-Z]/g, '');
-                              const isRunning = tables[num]?.items?.some(it => it.qty > 0 && !it.isCancelled) ||
-                                                tables[`${baseNum}A`]?.items?.some(it => it.qty > 0 && !it.isCancelled);
+                              const isRunning = tables[num]?.status === 'OCCUPIED' &&
+                                                tables[num]?.items?.some(it => it.qty > 0 && !it.isCancelled);
 
                               if (isRunning) {
-                                setTableInput(baseNum);
-                                const letters = ['A', 'B', 'C', 'D'];
-                                let nextLetter = 'A';
-                                for (const l of letters) {
-                                  if (!tables[`${baseNum}${l}`] || !tables[`${baseNum}${l}`].items?.some(it => it.qty > 0 && !it.isCancelled)) {
-                                    nextLetter = l;
-                                    break;
-                                  }
-                                }
-                                setActiveSubTable(nextLetter);
+                                setTableInput(String(num));
+                                setActiveSubTable('A');
+                                setSubTableIndex(0);
                                 setShowSubTableMenu(true);
                                 focusTableInput();
                               } else {
-                                setActiveSubTable(subLetter || 'A');
+                                setActiveSubTable('');
                                 switchTable(num);
                                 setTableInput(String(num));
                                 setShowSubTableMenu(false);
+                                const tableCustName = tables[num]?.customerName || '';
+                                const tableCustPhone = tables[num]?.customerPhone || '';
+                                setCustomerName(tableCustName);
+                                setCustomerPhone(tableCustPhone);
                                 setPendingCustomerTable(String(num));
                                 setShowCustomerModal(true);
                               }

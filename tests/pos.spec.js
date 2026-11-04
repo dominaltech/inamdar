@@ -274,11 +274,14 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('text=[NEW]').first()).toBeVisible();
   });
 
-  test('10. KOT Creation Clears Workspace & Existing Table Directly Shows 14A (No Subtable Popup)', async ({ page }) => {
-    // 1. Enter table 14
+  test('10. KOT Creation Clears Workspace & Typing Running Table Opens Subtable Menu (A/B)', async ({ page }) => {
+    // 1. Enter table 14 (starts as clean table 14 without 'A' suffix)
     const tableInput = page.locator('#pos-table-input');
     await tableInput.fill('14');
     await tableInput.press('Enter');
+
+    // Verify tableInput stayed '14'
+    await expect(tableInput).toHaveValue('14');
 
     // Skip/Confirm Customer Details modal
     await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
@@ -314,20 +317,26 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('text=[NEW]')).not.toBeVisible();
     await expect(page.locator('text=No items for Table')).toBeVisible();
 
-    // 5. Now type table 14 again (which is now an EXISTING occupied table!)
+    // 5. Now type table 14 again (which is now an ALREADY RUNNING occupied table!)
     await tableInput.focus();
     await tableInput.fill('14');
     await tableInput.press('Enter');
+
+    // User requirement: When typing a table that is ALREADY RUNNING, open the subtable box (A or B)!
+    const subtableMenu = page.locator('.win-bevel-outset');
+    await expect(subtableMenu).toBeVisible();
+
+    // Select A and press Enter
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+
+    // Customer modal appears for 14A
     await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
     await page.keyboard.press('Escape');
     await page.waitForTimeout(100);
 
-    // 6. User requirement: Must DIRECTLY show 14A and NOT the box to select A, B!
+    // Now table input shows 14A!
     await expect(tableInput).toHaveValue('14A');
-    await expect(page.locator('.win-bevel-outset', { hasText: /^A$/ })).not.toBeVisible();
-    
-    // Dish items from table 14 are directly visible!
-    await expect(page.locator('text=No items for Table')).not.toBeVisible();
   });
 
   test('11. Two-Stage Escape Flow in Order Mode (1st Esc clears screen, 2nd Esc opens Display Order)', async ({ page }) => {
@@ -405,21 +414,20 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // 2. Table 16 is now a running table -> appears under GENERAL section
     await expect(page.locator('.win-window span:has-text("16")').first()).toBeVisible();
 
-    // 3. Switch to Table 16 and press F6 to bill
-    await tableInput.fill('16');
-    await tableInput.press('Enter');
-    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(100);
+    // 3. Switch to Cash Memo mode and bill Table 16
+    await page.locator('.win-menu-item', { hasText: 'Transaction' }).click();
+    await page.locator('.win-dropdown-row', { hasText: 'Billing (Cash Memo)' }).click();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
 
-    // Press F6 to bill
-    await page.keyboard.press('F6');
+    await tableInput.fill('16');
+    await tableInput.press('Enter'); // 1st Enter: preview
+    await page.waitForTimeout(200);
+    await tableInput.press('Enter'); // 2nd Enter: opens PAX prompt
     await page.waitForTimeout(300);
 
-    // Number of Persons modal
     const paxModal = page.locator('text=Number of Persons');
     if (await paxModal.isVisible()) {
-      await page.keyboard.press('Enter');
+      await page.keyboard.press('Enter'); // 3rd Enter: prints bill
       await page.waitForTimeout(300);
     }
 
@@ -503,9 +511,12 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const tableInput = page.locator('#pos-table-input');
     await expect(tableInput).toBeVisible();
 
-    // Record baseline count of Table 18 bills in Unsettled Bills
-    await page.waitForTimeout(500);
-    const baseline18Count = await page.locator('span:has-text("18(")').count();
+    // Wait for Supabase live sync and unsettled bills initial load to complete
+    await expect(page.locator('text=SUPABASE: LIVE')).toBeVisible({ timeout: 10000 });
+    await page.waitForTimeout(2000);
+
+    // Record baseline unsettled bills count for Table 18
+    const base18Count = await page.locator('span:has-text("18(")').count();
 
     // --- SESSION 1 on Table 18 ---
     // 1. Order Table 18
@@ -522,11 +533,11 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await codeInput.press('Enter');
     const qtyInput = page.locator('input[placeholder="Qty"]');
     await qtyInput.press('Enter'); // Commits item
+    await expect(page.locator('text=[NEW]').first()).toBeVisible();
 
-    // Fire KOT (double Enter on empty code)
-    await codeInput.press('Enter');
-    await page.waitForTimeout(100);
-    await codeInput.press('Enter');
+    // Fire KOT via button
+    const fireKotBtn = page.locator('button:has-text("Fire KOT (↵↵)")');
+    await fireKotBtn.click();
     await page.waitForTimeout(300);
 
     // Close KOT print modal if open
@@ -539,14 +550,15 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Table 18 appears in running tables
     await expect(page.locator('.win-window span:has-text("18")').first()).toBeVisible();
 
-    // 2. Bill Table 18 (Bill #1)
-    await tableInput.fill('18');
-    await tableInput.press('Enter');
-    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(100);
+    // 2. Bill Table 18 via Cash Memo (Bill #1)
+    await page.locator('.win-menu-item', { hasText: 'Transaction' }).click();
+    await page.locator('.win-dropdown-row', { hasText: 'Billing (Cash Memo)' }).click();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
 
-    await page.keyboard.press('F6');
+    await tableInput.fill('18');
+    await tableInput.press('Enter'); // 1st Enter: preview Table 18 items
+    await page.waitForTimeout(200);
+    await tableInput.press('Enter'); // 2nd Enter: opens PAX prompt
     await page.waitForTimeout(300);
 
     const paxModal = page.locator('text=Number of Persons');
@@ -563,15 +575,23 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
 
     // Table 18 moves to Unsettled Bills (Bill #1)
     await expect(page.locator('.win-window').getByText('Unsettled Bills').first()).toBeVisible();
-    await expect(page.locator('span:has-text("18(")').first()).toBeVisible();
-    const countAfterSession1 = await page.locator('span:has-text("18(")').count();
-    expect(countAfterSession1).toBe(baseline18Count + 1);
+    await expect(page.locator('span:has-text("18(")')).toHaveCount(base18Count + 1);
 
     // --- SESSION 2 on Table 18 (New Guest / Second Party) ---
+    // Switch to New Order (KOT)
+    await page.locator('.win-menu-item', { hasText: 'Transaction' }).click();
+    await page.locator('.win-dropdown-row', { hasText: 'New Order' }).click();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'New Order' })).toBeVisible();
+
     // 3. Re-seat Table 18 immediately while previous bill is still unsettled
     await tableInput.fill('18');
     await tableInput.press('Enter');
+    // Table input must stay '18' without automatic 'A' suffix!
+    await expect(tableInput).toHaveValue('18');
+
     await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    // Verify customer input is completely clean and empty (no old customer data prefilled!)
+    await expect(page.locator('#cust-name-input')).toHaveValue('');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(100);
 
@@ -584,11 +604,10 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Verify ZERO item bleed: only 1 item in the table order grid (Dish 2, no Dish 1 from Session 1!)
     const activeItemsInGrid = await page.locator('.order-table tbody tr').count();
     expect(activeItemsInGrid).toBe(1);
+    await expect(page.locator('text=[NEW]').first()).toBeVisible();
 
-    // Fire KOT (double Enter on empty code)
-    await codeInput.press('Enter');
-    await page.waitForTimeout(100);
-    await codeInput.press('Enter');
+    // Fire KOT via button
+    await fireKotBtn.click();
     await page.waitForTimeout(300);
 
     if (await closeKotBtn.isVisible()) {
@@ -596,14 +615,15 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
       await page.waitForTimeout(200);
     }
 
-    // 4. Bill Table 18 second time (Bill #2)
-    await tableInput.fill('18');
-    await tableInput.press('Enter');
-    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(100);
+    // 4. Bill Table 18 second time via Cash Memo (Bill #2)
+    await page.locator('.win-menu-item', { hasText: 'Transaction' }).click();
+    await page.locator('.win-dropdown-row', { hasText: 'Billing (Cash Memo)' }).click();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
 
-    await page.keyboard.press('F6');
+    await tableInput.fill('18');
+    await tableInput.press('Enter'); // 1st Enter: preview Table 18 items
+    await page.waitForTimeout(200);
+    await tableInput.press('Enter'); // 2nd Enter: opens PAX prompt
     await page.waitForTimeout(300);
 
     if (await paxModal.isVisible()) {
@@ -617,11 +637,10 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     }
 
     // 5. CRUCIAL: Both Bill #1 and Bill #2 for Table 18 MUST coexist independently in Unsettled Bills!
-    const tagsCount = await page.locator('span:has-text("18(")').count();
-    expect(tagsCount).toBe(baseline18Count + 2);
+    await expect(page.locator('span:has-text("18(")')).toHaveCount(base18Count + 2);
 
     // 6. Settle the first bill for Table 18
-    await page.locator('span:has-text("18(")').first().click();
+    await page.locator('span:has-text("18(")').last().click();
     await page.waitForTimeout(200);
 
     const cashSettleBtn = page.locator('.win-modal-backdrop button:has-text("Cash")').first();
@@ -634,9 +653,23 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
       await page.waitForTimeout(200);
     }
 
-    // 7. CRUCIAL: Exactly (baseline18Count + 1) bills for Table 18 should remain in Unsettled Bills!
-    const remainingCount = await page.locator('span:has-text("18(")').count();
-    expect(remainingCount).toBe(baseline18Count + 1);
+    // 7. CRUCIAL: Exactly 1 bill for Table 18 should remain in Unsettled Bills!
+    await expect(page.locator('span:has-text("18(")')).toHaveCount(base18Count + 1);
+
+    // Clean up remaining bill
+    await page.locator('span:has-text("18(")').last().click();
+    await page.waitForTimeout(200);
+    const cashSettleBtn2 = page.locator('.win-modal-backdrop button:has-text("Cash")').first();
+    if (await cashSettleBtn2.isVisible()) {
+      await cashSettleBtn2.click();
+      await page.waitForTimeout(300);
+      const okBtn2 = page.locator('button:has-text("OK")');
+      if (await okBtn2.isVisible()) {
+        await okBtn2.click();
+        await page.waitForTimeout(200);
+      }
+    }
+    await expect(page.locator('span:has-text("18(")')).toHaveCount(base18Count);
   });
 
 });

@@ -54,7 +54,7 @@ export default function CustomerDetailsModal({
     if (e.key === 'Enter') {
       e.preventDefault();
       onConfirm?.({
-        name: name.trim() || 'Guest',
+        name: name.trim() || '',
         phone: phone.trim(),
       });
     } else if (e.key === 'Escape') {

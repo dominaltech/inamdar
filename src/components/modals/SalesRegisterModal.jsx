@@ -79,7 +79,7 @@ export default function SalesRegisterModal({ isOpen, onClose }) {
                 const isUnsettled = !b.isSettled;
                 return (
                   <tr
-                    key={b.billNo}
+                    key={`${b.billNo}-${b.id || idx}`}
                     onDoubleClick={() => reprintBill(b.billNo)}
                     style={{
                       background: idx % 2 === 0 ? '#ffffff' : '#f8f8f8',

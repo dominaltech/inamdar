@@ -52,7 +52,7 @@ export function PosProvider({ children }) {
 
   // Active table (Starts at Table 1)
   const [activeTableId, setActiveTableId] = useState('1');
-  const [activeSubTable, setActiveSubTable] = useState('A');
+  const [activeSubTable, setActiveSubTable] = useState('');
   const [activeEmployee, setActiveEmployee] = useState(EMPLOYEES[0].name);
 
   // Cloud status
