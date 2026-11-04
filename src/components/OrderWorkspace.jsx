@@ -85,17 +85,27 @@ export default function OrderWorkspace() {
   const customInputRef = useRef(null);
   const cancelReasonRef = useRef(null);
 
-  // Synchronize table input
+  // Synchronize table input and active table customer details
   useEffect(() => {
     if (activeTableId) {
       setTableInput(activeTableId);
-      const subLetter = String(activeTableId).replace(/[^A-Z]/g, '');
-      setActiveSubTable(subLetter || '');
+      const isHomeDelivery = String(activeTableId).startsWith('00');
+      const subMatch = !isHomeDelivery && String(activeTableId).match(/^[0-9]+([A-Z])$/);
+      setActiveSubTable(subMatch ? subMatch[1] : '');
+
+      const tbl = tables[activeTableId];
+      if (tbl) {
+        const extracted = isHomeDelivery ? String(activeTableId).replace(/^00\s*-\s*/, '') : '';
+        setCustomerName(tbl.customerName || (extracted !== 'GUEST' ? extracted : ''));
+        setCustomerPhone(tbl.customerPhone || '');
+      }
     } else {
       setTableInput('');
       setActiveSubTable('');
+      setCustomerName('');
+      setCustomerPhone('');
     }
-  }, [activeTableId, setActiveSubTable]);
+  }, [activeTableId, tables, setActiveSubTable]);
 
   const focusTableInput = () => {
     setTimeout(() => {
@@ -426,13 +436,13 @@ export default function OrderWorkspace() {
   };
 
   const handleSelectSubTable = (st) => {
-    const base = String(tableInput || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase() || '1';
+    const base = String(pendingCustomerTable || tableInput || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase() || '1';
     setShowSubTableMenu(false);
 
     let chosenSub = st;
     if (st === '+') {
       const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-      chosenSub = 'B';
+      chosenSub = 'A';
       for (const l of letters) {
         if (!tables[`${base}${l}`] || !tables[`${base}${l}`].items?.some(it => it.qty > 0 && !it.isCancelled)) {
           chosenSub = l;
@@ -529,7 +539,8 @@ export default function OrderWorkspace() {
 
     if (e.key === 'Enter') {
       e.preventDefault();
-      const val = tableInput.trim().toUpperCase();
+      const rawVal = e.target?.value !== undefined ? e.target.value : tableInput;
+      const val = String(rawVal).trim().toUpperCase();
 
       // Empty Table + Enter toggles between New Order and Cash Memo
       if (!val) {
@@ -542,8 +553,16 @@ export default function OrderWorkspace() {
       if (val === '0') {
         targetTable = getNextParcelTable();
       } else if (val === '00') {
-        const custName = prompt("Enter Home Delivery Customer Name:", "MOOSA") || "GUEST";
-        targetTable = `00 - ${custName.toUpperCase()}`;
+        if (screenMode === 'ORDER') {
+          // Home Delivery: directly open Customer Details Modal without browser prompt or hardcoded names
+          setPendingCustomerTable('00');
+          setCustomerName('');
+          setCustomerPhone('');
+          setShowCustomerModal(true);
+          return;
+        } else {
+          targetTable = deliveryTableNums[0] || '00 - GUEST';
+        }
       }
 
       // CASH_MEMO Mode: 1st Enter loads preview; 2nd Enter opens PAX prompt
@@ -606,6 +625,7 @@ export default function OrderWorkspace() {
       // If typing the same table number that is ALREADY RUNNING, open the subtable selection menu!
       if (isAlreadyRunning) {
         setTableInput(targetTable);
+        setPendingCustomerTable(targetTable);
         setActiveSubTable('A');
         setSubTableIndex(0);
         setShowSubTableMenu(true);
@@ -639,8 +659,13 @@ export default function OrderWorkspace() {
     setCustomerPhone(custPhone);
     setShowCustomerModal(false);
 
-    const targetTable = pendingCustomerTable || activeTableId || '1';
+    let targetTable = pendingCustomerTable || activeTableId || '1';
+    if (targetTable === '00' || targetTable.startsWith('00')) {
+      targetTable = custName ? `00 - ${custName.toUpperCase()}` : '00 - GUEST';
+    }
+
     switchTable(targetTable);
+    setTableInput(targetTable);
     updateTableCustomer?.(targetTable, custName, custPhone);
 
     // Update current draft
@@ -668,8 +693,12 @@ export default function OrderWorkspace() {
     setCustomerName('');
     setCustomerPhone('');
     setShowCustomerModal(false);
-    const targetTable = pendingCustomerTable || activeTableId || '1';
+    let targetTable = pendingCustomerTable || activeTableId || '1';
+    if (targetTable === '00' || targetTable.startsWith('00')) {
+      targetTable = '00 - GUEST';
+    }
     switchTable(targetTable);
+    setTableInput(targetTable);
     setTimeout(() => {
       focusCodeInput();
     }, 50);
@@ -1109,19 +1138,20 @@ export default function OrderWorkspace() {
                 </div>
               </div>
 
-              {/* Customer Display */}
+              {/* Customer Name Box */}
               <div>
                 <span style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', marginBottom: '2px' }}>Customer</span>
                 <div
+                  id="topbar-customer-name"
                   onClick={() => {
                     setPendingCustomerTable(activeTableId || tableInput);
                     setShowCustomerModal(true);
                   }}
-                  title="Click to edit Customer Name and Phone"
+                  title="Click to edit Customer Name and Number"
                   className="win-bevel-thin-inset"
                   style={{
                     height: '22px',
-                    width: '130px',
+                    width: '110px',
                     padding: '2px 6px',
                     fontSize: '11px',
                     background: '#ffffff',
@@ -1130,9 +1160,40 @@ export default function OrderWorkspace() {
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                     lineHeight: '16px',
+                    fontWeight: customerName ? 'bold' : 'normal',
+                    color: customerName ? '#000000' : '#777777',
                   }}
                 >
-                  {customerName ? `${customerName} ${customerPhone ? `(${customerPhone})` : ''}` : 'Guest (Click to edit)'}
+                  {customerName || 'Guest'}
+                </div>
+              </div>
+
+              {/* Customer Number Box */}
+              <div>
+                <span style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', marginBottom: '2px' }}>Number</span>
+                <div
+                  id="topbar-customer-phone"
+                  onClick={() => {
+                    setPendingCustomerTable(activeTableId || tableInput);
+                    setShowCustomerModal(true);
+                  }}
+                  title="Click to edit Customer Name and Number"
+                  className="win-bevel-thin-inset"
+                  style={{
+                    height: '22px',
+                    width: '95px',
+                    padding: '2px 6px',
+                    fontSize: '11px',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    lineHeight: '16px',
+                    color: customerPhone ? '#000000' : '#777777',
+                  }}
+                >
+                  {customerPhone || '-'}
                 </div>
               </div>
 
@@ -1533,9 +1594,20 @@ export default function OrderWorkspace() {
                       <div
                         key={`deliv-${name}`}
                         onClick={() => {
-                          switchTable(name);
-                          setTableInput(name);
-                          setShowSubTableMenu(false);
+                          if (screenMode === 'CASH_MEMO') {
+                            switchTable(name);
+                            setTableInput(name);
+                            setMemoTableLoaded(name);
+                            focusTableInput();
+                          } else {
+                            switchTable(name);
+                            setTableInput(name);
+                            setShowSubTableMenu(false);
+                            const tbl = tables[name];
+                            const extracted = name.replace(/^00\s*-\s*/, '');
+                            setCustomerName(tbl?.customerName || (extracted !== 'GUEST' ? extracted : ''));
+                            setCustomerPhone(tbl?.customerPhone || '');
+                          }
                         }}
                         title={`Click to view dishes for ${name}`}
                         style={{
@@ -1569,9 +1641,19 @@ export default function OrderWorkspace() {
                       <span
                         key={`parcel-${num}`}
                         onClick={() => {
-                          switchTable(num);
-                          setTableInput(num);
-                          setShowSubTableMenu(false);
+                          if (screenMode === 'CASH_MEMO') {
+                            switchTable(num);
+                            setTableInput(num);
+                            setMemoTableLoaded(num);
+                            focusTableInput();
+                          } else {
+                            switchTable(num);
+                            setTableInput(num);
+                            setShowSubTableMenu(false);
+                            const tbl = tables[num];
+                            setCustomerName(tbl?.customerName || '');
+                            setCustomerPhone(tbl?.customerPhone || '');
+                          }
                         }}
                         title={`Click to view dishes for Parcel ${num}`}
                         style={{

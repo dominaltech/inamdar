@@ -54,8 +54,8 @@ function generateCleanTables() {
     };
   }
 
-  // Parcel / Takeaway Section: 0, 0B, 0C, 0D, 0E
-  ['0', '0B', '0C', '0D', '0E'].forEach(id => {
+  // Parcel / Takeaway Section: 0, 0A, 0B, 0C, 0D, 0E
+  ['0', '0A', '0B', '0C', '0D', '0E'].forEach(id => {
     tbls[id] = {
       id,
       section: 'PARCEL',

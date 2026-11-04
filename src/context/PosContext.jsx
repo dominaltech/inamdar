@@ -255,13 +255,14 @@ export function PosProvider({ children }) {
     saveCachedCounters(kotCounter, billCounter);
   }, [kotCounter, billCounter]);
 
-  // Helper: Find next available parcel table (0, 0B, 0C, 0D, ...)
+  // Helper: Find next available parcel table (0, 0A, 0B, 0C, 0D, ...)
   const getNextParcelTable = () => {
-    const suffixes = ['', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+    const suffixes = ['', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
     for (const s of suffixes) {
       const key = `0${s}`;
       const t = tables[key];
-      if (!t || !t.items || t.items.length === 0) {
+      const hasActive = t && t.items && t.items.some(it => it.qty > 0 && !it.isCancelled);
+      if (!hasActive) {
         return key;
       }
     }
@@ -302,14 +303,15 @@ export function PosProvider({ children }) {
     }
 
     setActiveTableId(cleanId);
-    if (!tables[cleanId]) {
-      let sec = 'GENERAL';
-      const num = parseInt(cleanId);
-      if (cleanId.startsWith('00')) sec = 'HOME DELIVERY';
-      else if (cleanId.startsWith('0')) sec = 'PARCEL';
-      else if (!isNaN(num) && num > 20) sec = 'FAMILY AC';
+    let sec = 'GENERAL';
+    const num = parseInt(cleanId);
+    if (cleanId.startsWith('00')) sec = 'HOME DELIVERY';
+    else if (cleanId.startsWith('0')) sec = 'PARCEL';
+    else if (!isNaN(num) && num > 20) sec = 'FAMILY AC';
 
-      setTables(prev => ({
+    setTables(prev => {
+      if (prev[cleanId]) return prev;
+      return {
         ...prev,
         [cleanId]: {
           id: cleanId,
@@ -319,8 +321,8 @@ export function PosProvider({ children }) {
           items: [],
           kotNos: [],
         }
-      }));
-    }
+      };
+    });
   };
 
   // Update customer name & phone for table
@@ -339,8 +341,8 @@ export function PosProvider({ children }) {
         ...prev,
         [tableId]: {
           ...existing,
-          customerName: customerName || existing.customerName || 'Guest',
-          customerPhone: customerPhone || existing.customerPhone || '',
+          customerName: customerName !== undefined ? customerName : (existing.customerName || ''),
+          customerPhone: customerPhone !== undefined ? customerPhone : (existing.customerPhone || ''),
         }
       };
     });
@@ -645,6 +647,8 @@ export function PosProvider({ children }) {
         tableId,
         section: table.section,
         waiterName: table.waiter || activeEmployee,
+        customerName: table.customerName || '',
+        customerPhone: table.customerPhone || '',
         kotNumber: currentKotNo,
         items: stagedItems,
         source: 'POS_COUNTER',

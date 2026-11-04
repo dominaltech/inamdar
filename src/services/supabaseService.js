@@ -299,6 +299,19 @@ export async function fireKotInSupabase({ tableId, section, waiterName, customer
   try {
     const sec = section === 'AC' ? 'GENERAL' : section;
 
+    // Ensure table record exists in 'tables' table (prevents FK violation on dynamic subtables / home delivery)
+    await supabase
+      .from('tables')
+      .upsert({
+        id: tableId,
+        section: sec,
+        active_waiter: waiterName || '1 COUNTER',
+        status: 'OCCUPIED',
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        pax: 2,
+      }, { onConflict: 'id' });
+
     // A. Insert KOT Header
     const { data: kotRecord, error: kotErr } = await supabase
       .from('kots')

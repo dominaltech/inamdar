@@ -1,10 +1,49 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import { createClient } from '@supabase/supabase-js';
+
+async function resetSupabaseTables() {
+  try {
+    const env = fs.readFileSync('.env', 'utf-8');
+    const url = env.match(/VITE_SUPABASE_URL=(.*)/)?.[1]?.trim();
+    const key = env.match(/VITE_SUPABASE_ANON_KEY=(.*)/)?.[1]?.trim();
+    if (!url || !key) return;
+    const sb = createClient(url, key);
+    await sb.from('tables').update({
+      status: 'AVAILABLE',
+      kot_nos: [],
+      active_waiter: null,
+      customer_name: '',
+      customer_phone: ''
+    }).neq('id', 'dummy');
+  } catch (err) {
+    console.warn('resetSupabaseTables notice:', err.message);
+  }
+}
 
 test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () => {
+
+  test.beforeAll(async () => {
+    await resetSupabaseTables();
+  });
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
+    await expect(page.locator('text=SUPABASE: LIVE')).toBeVisible({ timeout: 10000 });
+    await page.waitForTimeout(1000);
+
+    // Ensure screen is in ORDER (New Order) mode
+    const orderTitle = page.locator('.win-titlebar-title', { hasText: 'New Order' });
+    if (!await orderTitle.isVisible()) {
+      const memoToggle = page.locator('span:has-text("[F5 Order]")');
+      if (await memoToggle.isVisible()) {
+        await memoToggle.click();
+      } else {
+        await page.locator('.win-menu-item', { hasText: 'Transaction' }).click();
+        await page.locator('.win-dropdown-row', { hasText: 'New Order' }).click();
+      }
+    }
   });
 
   test('01. Top Menu Navigation - All 6 Top Menus and Zero Dummy Elements', async ({ page }) => {
@@ -300,17 +339,23 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Item is visible in grid
     await expect(page.locator('text=[NEW]').first()).toBeVisible();
 
-    // 3. Fire KOT via double enter on empty code
-    await codeInput.press('Enter');
-    await page.waitForTimeout(100);
-    await codeInput.press('Enter');
-    await page.waitForTimeout(300);
+    // 3. Fire KOT
+    const fireKotBtn = page.locator('button:has-text("Fire KOT (↵↵)")');
+    if (await fireKotBtn.isVisible()) {
+      await fireKotBtn.click();
+      await page.waitForTimeout(300);
+    } else {
+      await codeInput.press('Enter');
+      await page.waitForTimeout(100);
+      await codeInput.press('Enter');
+      await page.waitForTimeout(300);
+    }
 
     // Close print modal if open
-    const printClose = page.locator('.win-close-btn');
-    if (await printClose.isVisible()) {
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(300);
+    const closeKotBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    if (await closeKotBtn.isVisible()) {
+      await closeKotBtn.click();
+      await page.waitForTimeout(200);
     }
 
     // 4. Verify workspace has cleared: items disappeared and table input is ready
@@ -320,6 +365,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // 5. Now type table 14 again (which is now an ALREADY RUNNING occupied table!)
     await tableInput.focus();
     await tableInput.fill('14');
+    await expect(tableInput).toHaveValue('14');
     await tableInput.press('Enter');
 
     // User requirement: When typing a table that is ALREADY RUNNING, open the subtable box (A or B)!
@@ -383,7 +429,9 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
   test('12. Running Tables vs Unsettled Bills Separation, Bill Print & Full Settle', async ({ page }) => {
     // 1. Enter Table 16, add item, fire KOT
     const tableInput = page.locator('#pos-table-input');
+    await tableInput.click();
     await tableInput.fill('16');
+    await expect(tableInput).toHaveValue('16');
     await tableInput.press('Enter');
 
     // Skip/Confirm Customer Details modal
@@ -398,11 +446,17 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const qtyInput = page.locator('input[placeholder="Qty"]');
     await qtyInput.press('Enter'); // Commits item
 
-    // Fire KOT (double Enter on empty code)
-    await codeInput.press('Enter');
-    await page.waitForTimeout(100);
-    await codeInput.press('Enter');
-    await page.waitForTimeout(300);
+    // Fire KOT
+    const fireKotBtn = page.locator('button:has-text("Fire KOT (↵↵)")');
+    if (await fireKotBtn.isVisible()) {
+      await fireKotBtn.click();
+      await page.waitForTimeout(300);
+    } else {
+      await codeInput.press('Enter');
+      await page.waitForTimeout(100);
+      await codeInput.press('Enter');
+      await page.waitForTimeout(300);
+    }
 
     // Close KOT print modal if open
     const closeKotBtn = page.locator('button:has-text("Close (Esc/↵)")');
@@ -425,11 +479,9 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await tableInput.press('Enter'); // 2nd Enter: opens PAX prompt
     await page.waitForTimeout(300);
 
-    const paxModal = page.locator('text=Number of Persons');
-    if (await paxModal.isVisible()) {
-      await page.keyboard.press('Enter'); // 3rd Enter: prints bill
-      await page.waitForTimeout(300);
-    }
+    await expect(page.locator('text=Number of Persons')).toBeVisible({ timeout: 5000 });
+    await page.keyboard.press('Enter'); // 3rd Enter: prints bill
+    await page.waitForTimeout(300);
 
     // Close cash memo print preview
     const closeMemoBtn = page.locator('button:has-text("Close (Esc/↵)")');
@@ -555,17 +607,17 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.locator('.win-dropdown-row', { hasText: 'Billing (Cash Memo)' }).click();
     await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
 
+    await tableInput.click();
     await tableInput.fill('18');
+    await expect(tableInput).toHaveValue('18');
     await tableInput.press('Enter'); // 1st Enter: preview Table 18 items
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(300);
     await tableInput.press('Enter'); // 2nd Enter: opens PAX prompt
     await page.waitForTimeout(300);
 
-    const paxModal = page.locator('text=Number of Persons');
-    if (await paxModal.isVisible()) {
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(300);
-    }
+    await expect(page.locator('text=Number of Persons')).toBeVisible({ timeout: 5000 });
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
 
     const closeMemoBtn = page.locator('button:has-text("Close (Esc/↵)")');
     if (await closeMemoBtn.isVisible()) {
@@ -620,16 +672,17 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.locator('.win-dropdown-row', { hasText: 'Billing (Cash Memo)' }).click();
     await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
 
+    await tableInput.click();
     await tableInput.fill('18');
+    await expect(tableInput).toHaveValue('18');
     await tableInput.press('Enter'); // 1st Enter: preview Table 18 items
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(300);
     await tableInput.press('Enter'); // 2nd Enter: opens PAX prompt
     await page.waitForTimeout(300);
 
-    if (await paxModal.isVisible()) {
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(300);
-    }
+    await expect(page.locator('text=Number of Persons')).toBeVisible({ timeout: 5000 });
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
 
     if (await closeMemoBtn.isVisible()) {
       await closeMemoBtn.click();
@@ -670,6 +723,142 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
       }
     }
     await expect(page.locator('span:has-text("18(")')).toHaveCount(base18Count);
+  });
+
+  test('15. Parcel Allocation Progression (0 -> 0A -> 0B) without skipping 0A', async ({ page }) => {
+    const tableInput = page.locator('#pos-table-input');
+    await expect(tableInput).toBeVisible();
+
+    // Wait for Supabase live sync and tables load to complete
+    await expect(page.locator('text=SUPABASE: LIVE')).toBeVisible({ timeout: 10000 });
+    await page.waitForTimeout(1500);
+
+    // 1. First parcel order: Type 0, press Enter
+    await tableInput.fill('0');
+    await tableInput.press('Enter');
+
+    // Customer modal appears: skip via Escape
+    const custInput = page.locator('#cust-name-input');
+    await custInput.waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+
+    const firstParcelTable = await tableInput.inputValue();
+
+    // Add Dish code '1'
+    const codeInput = page.locator('input[placeholder="Code/CTM"]');
+    await codeInput.fill('1');
+    await page.waitForTimeout(200);
+    await codeInput.press('Enter');
+    const qtyInput = page.locator('input[placeholder="Qty"]');
+    await qtyInput.press('Enter');
+
+    // Fire KOT
+    const fireKotBtn = page.locator('button:has-text("Fire KOT (↵↵)")');
+    await fireKotBtn.click();
+    await page.waitForTimeout(300);
+
+    const closeKotBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    if (await closeKotBtn.isVisible()) {
+      await closeKotBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // 2. Second parcel order: Type 0, press Enter
+    await tableInput.fill('0');
+    await tableInput.press('Enter');
+
+    await custInput.waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+
+    // Verify next sequential suffix without skipping (e.g. 0 -> 0A, 0B -> 0C)
+    const secondParcelTable = await tableInput.inputValue();
+    const suffixes = ['', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+    const s1 = firstParcelTable.replace(/^0/, '');
+    const idx1 = suffixes.indexOf(s1);
+    const expectedSecond = `0${suffixes[idx1 + 1]}`;
+    expect(secondParcelTable).toBe(expectedSecond);
+  });
+
+  test('16. Home Delivery 00 Flow without Browser Prompt & Separate Name/Number Topbar Display', async ({ page }) => {
+    const tableInput = page.locator('#pos-table-input');
+    await expect(tableInput).toBeVisible();
+
+    // Ensure dialog event listener verifies NO native window.prompt is triggered
+    let dialogTriggered = false;
+    page.on('dialog', async (dialog) => {
+      dialogTriggered = true;
+      await dialog.dismiss();
+    });
+
+    // 1. Type '00' and press Enter
+    await tableInput.click();
+    await tableInput.fill('00');
+    await expect(tableInput).toHaveValue('00');
+    await tableInput.press('Enter');
+    await page.waitForTimeout(200);
+
+    // Verify native dialog was NEVER triggered
+    expect(dialogTriggered).toBe(false);
+
+    // Verify CustomerDetailsModal opened directly with title 'Customer Details - Home Delivery'
+    const modalTitle = page.locator('.win-titlebar-title', { hasText: 'Home Delivery' });
+    await expect(modalTitle).toBeVisible();
+
+    // Fill customer name and phone
+    const nameInput = page.locator('#cust-name-input');
+    await expect(nameInput).toBeFocused();
+    await nameInput.fill('ADIL');
+    await nameInput.press('Enter');
+
+    const phoneInput = page.locator('#cust-phone-input');
+    await phoneInput.fill('9876543210');
+    await phoneInput.press('Enter'); // Submits modal and focuses code input
+    await page.waitForTimeout(200);
+
+    // Verify Table input value is '00 - ADIL'
+    await expect(tableInput).toHaveValue('00 - ADIL');
+
+    // Verify subtable dropdown shows '-' (NOT 'ADIL'!)
+    const subtableTrigger = page.locator('div[title*="Select Subtable"]');
+    await expect(subtableTrigger).toContainText('-');
+
+    // Verify dedicated topbar Customer Name box shows 'ADIL'
+    const custNameBox = page.locator('#topbar-customer-name');
+    await expect(custNameBox).toHaveText('ADIL');
+
+    // Verify dedicated topbar Customer Number box shows '9876543210'
+    const custPhoneBox = page.locator('#topbar-customer-phone');
+    await expect(custPhoneBox).toHaveText('9876543210');
+
+    // Add item and Fire KOT
+    const codeInput = page.locator('input[placeholder="Code/CTM"]');
+    await codeInput.fill('2');
+    await page.waitForTimeout(200);
+    await codeInput.press('Enter');
+    const qtyInput = page.locator('input[placeholder="Qty"]');
+    await qtyInput.press('Enter');
+
+    const fireKotBtn = page.locator('button:has-text("Fire KOT (↵↵)")');
+    await fireKotBtn.click();
+    await page.waitForTimeout(300);
+
+    const closeKotBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    if (await closeKotBtn.isVisible()) {
+      await closeKotBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // Verify '00 - ADIL' appears under HOME DELIVERY on the right sidebar
+    const deliveryTag = page.locator('.win-window div[title="Click to view dishes for 00 - ADIL"]');
+    await expect(deliveryTag).toBeVisible();
+
+    // Click '00 - ADIL' in sidebar: customer name and number remain populated
+    await deliveryTag.click();
+    await page.waitForTimeout(100);
+    await expect(custNameBox).toHaveText('ADIL');
+    await expect(custPhoneBox).toHaveText('9876543210');
   });
 
 });

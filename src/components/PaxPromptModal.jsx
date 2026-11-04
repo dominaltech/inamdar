@@ -6,21 +6,14 @@ export default function PaxPromptModal() {
   const [paxCount, setPaxCount] = useState('2');
   const inputRef = useRef(null);
 
-  useEffect(() => {
-    if (paxPrompt?.show) {
-      setPaxCount('2');
-      setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      }, 50);
-    }
-  }, [paxPrompt]);
-
-  if (!paxPrompt?.show) return null;
+  const paxPromptRef = useRef(paxPrompt);
+  paxPromptRef.current = paxPrompt;
+  const paxCountRef = useRef(paxCount);
+  paxCountRef.current = paxCount;
 
   const handleConfirm = () => {
-    const count = parseInt(paxCount, 10) || 1;
-    const cb = paxPrompt.onConfirm;
+    const count = parseInt(paxCountRef.current, 10) || 1;
+    const cb = paxPromptRef.current?.onConfirm;
     setPaxPrompt(null);
     if (cb) {
       cb(count);
@@ -31,6 +24,35 @@ export default function PaxPromptModal() {
     setPaxPrompt(null);
     triggerTableFocus?.();
   };
+
+  useEffect(() => {
+    if (paxPrompt?.show) {
+      setPaxCount('2');
+      paxCountRef.current = '2';
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }, 50);
+
+      const handleGlobalKeyDown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          handleConfirm();
+        } else if (e.key === 'Escape' || e.key === 'ArrowLeft') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          handleClose();
+        }
+      };
+      window.addEventListener('keydown', handleGlobalKeyDown, true);
+      return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
+    }
+  }, [paxPrompt?.show]);
+
+  if (!paxPrompt?.show) return null;
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {

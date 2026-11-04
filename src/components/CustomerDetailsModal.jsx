@@ -13,27 +13,34 @@ export default function CustomerDetailsModal({
   const nameInputRef = useRef(null);
   const phoneInputRef = useRef(null);
 
+  const wasShown = useRef(false);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
+
   useEffect(() => {
     if (show) {
-      setName(initialName || '');
-      setPhone(initialPhone || '');
-      setTimeout(() => {
-        nameInputRef.current?.focus();
-        nameInputRef.current?.select();
-      }, 50);
+      if (!wasShown.current) {
+        setName(initialName || '');
+        setPhone(initialPhone || '');
+        setTimeout(() => {
+          nameInputRef.current?.focus();
+          nameInputRef.current?.select();
+        }, 50);
+      }
 
       const handleCaptureEscape = (e) => {
         if (e.key === 'Escape') {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
-          onCancel?.();
+          onCancelRef.current?.();
         }
       };
       window.addEventListener('keydown', handleCaptureEscape, true);
       return () => window.removeEventListener('keydown', handleCaptureEscape, true);
     }
-  }, [show, initialName, initialPhone, onCancel]);
+    wasShown.current = show;
+  }, [show, initialName, initialPhone]);
 
   if (!show) return null;
 
@@ -72,7 +79,7 @@ export default function CustomerDetailsModal({
   const handleSubmit = (e) => {
     e?.preventDefault();
     onConfirm?.({
-      name: name.trim() || 'Guest',
+      name: name.trim() || '',
       phone: phone.trim(),
     });
   };
@@ -90,7 +97,7 @@ export default function CustomerDetailsModal({
         {/* Title Bar */}
         <div className="win-titlebar" style={{ height: '22px', padding: '1px 8px' }}>
           <div className="win-titlebar-title" style={{ fontSize: '11px', fontWeight: 'bold' }}>
-            <span>Customer Details - Table {tableId}</span>
+            <span>Customer Details - {String(tableId).startsWith('00') ? 'Home Delivery' : `Table ${tableId}`}</span>
           </div>
           <button
             className="win-close-btn"
