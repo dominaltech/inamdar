@@ -3,6 +3,7 @@ import { usePos } from '../context/PosContext';
 
 export default function HeaderMenuBar() {
   const { 
+    screenMode,
     setShowLoginModal, 
     setScreenMode, 
     setIsCancelMode,
@@ -28,7 +29,9 @@ export default function HeaderMenuBar() {
 
   const handleMenuClick = (menuName) => {
     if (menuName === 'Reports') {
+      setActiveMenu(null);
       setScreenMode('REPORTS');
+      return;
     }
     setActiveMenu(activeMenu === menuName ? null : menuName);
   };
@@ -243,28 +246,12 @@ export default function HeaderMenuBar() {
           )}
         </div>
 
-        {/* 5. Reports */}
-        <div className={`win-menu-item ${activeMenu === 'Reports' ? 'active' : ''}`} onClick={() => handleMenuClick('Reports')}>
+        {/* 5. Reports (Direct View - No Dropdown) */}
+        <div 
+          className={`win-menu-item ${screenMode === 'REPORTS' ? 'active' : ''}`} 
+          onClick={() => handleMenuClick('Reports')}
+        >
           <u>R</u>eports
-          {activeMenu === 'Reports' && (
-            <div className="win-dropdown">
-              <div className="win-dropdown-row" onClick={() => handleAction('REPORTS_DAY_SUMMARY')}>
-                <span style={{ fontWeight: 'bold' }}>Reports Center (All Sections A-K)</span>
-              </div>
-              <div className="win-dropdown-row" onClick={() => handleAction('ITEM_SALES')}>
-                <span>Item Sales Report</span>
-              </div>
-              <div className="win-dropdown-row" onClick={() => handleAction('CANCELLED_ORDERS')}>
-                <span>Cancelled Orders &amp; Waste Report</span>
-              </div>
-              <div className="win-dropdown-row" onClick={() => handleAction('AUDIT_TRAIL')}>
-                <span>Audit Alteration Report &amp; System Log</span>
-              </div>
-              <div className="win-dropdown-row" onClick={() => handleAction('SALES_REGISTER')}>
-                <span>Sales Register &amp; Bills Ledger</span>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* 6. Utilities */}

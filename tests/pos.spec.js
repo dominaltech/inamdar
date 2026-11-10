@@ -51,32 +51,14 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // 0. Verify main application title bar
     await expect(page.locator('.win-titlebar-title').first()).toContainText('Dominal\'s POS - INAMDAR RESTAURANT');
 
-    // 1. Reports Menu -> Item Sales Report
+    // 1. Reports Menu -> Opens Retro Reports Center directly with NO dropdown
     await page.locator('.win-menu-item', { hasText: 'Reports' }).click();
-    await page.locator('.win-dropdown-row', { hasText: 'Item Sales Report' }).click();
-    await expect(page.locator('.win-titlebar-title', { hasText: 'Item Sales Report' })).toBeVisible();
-    await page.locator('button:has-text("Close (Esc)")').click();
-    await expect(page.locator('.win-titlebar-title', { hasText: 'Item Sales Report' })).not.toBeVisible();
-
-    // 2. Reports Menu -> Cancelled Orders Report
-    await page.locator('.win-menu-item', { hasText: 'Reports' }).click();
-    await page.locator('.win-dropdown-row', { hasText: 'Cancelled Orders & Waste Report' }).click();
-    await expect(page.locator('.win-titlebar-title', { hasText: 'Cancelled Orders & Waste Audit Report' })).toBeVisible();
-    await page.locator('button:has-text("Close (Esc)")').click();
-    await expect(page.locator('.win-titlebar-title', { hasText: 'Cancelled Orders & Waste Audit Report' })).not.toBeVisible();
-
-    // 3. Reports Menu -> Audit Alteration Report
-    await page.locator('.win-menu-item', { hasText: 'Reports' }).click();
-    await page.locator('.win-dropdown-row', { hasText: 'Audit Alteration Report' }).click();
-    await expect(page.locator('.win-titlebar-title', { hasText: 'System Audit Trail & Alteration Register' })).toBeVisible();
-    await page.locator('button:has-text("Close (Esc)")').click();
-    await expect(page.locator('.win-titlebar-title', { hasText: 'System Audit Trail & Alteration Register' })).not.toBeVisible();
-
-    // 4. Reports Menu -> Sales Register
-    await page.locator('.win-menu-item', { hasText: 'Reports' }).click();
-    await page.locator('.win-dropdown-row', { hasText: 'Sales Register & Bills Ledger' }).click();
-    await expect(page.locator('.win-titlebar-title', { hasText: 'Sales Register & Bill Settlement Ledger' })).toBeVisible();
-    await page.locator('button:has-text("Close (Esc)")').click();
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: "Menson's POS 9.08.431" })).toBeVisible();
+    await expect(page.locator('.win-dropdown')).not.toBeVisible();
+    await page.locator('button:has-text("Exit")').click();
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'New Order' })).toBeVisible();
 
     // 5. Master Menu -> Menu Card Master
     await page.locator('.win-menu-item', { hasText: 'Master' }).click();
@@ -762,10 +744,11 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const closeKotBtn = page.locator('button:has-text("Close (Esc/↵)")');
     if (await closeKotBtn.isVisible()) {
       await closeKotBtn.click();
-      await page.waitForTimeout(200);
+      await page.waitForTimeout(300);
     }
 
     // 2. Second parcel order: Type 0, press Enter
+    await tableInput.click();
     await tableInput.fill('0');
     await tableInput.press('Enter');
 
