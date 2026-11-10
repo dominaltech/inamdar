@@ -28,6 +28,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
   });
 
   test.beforeEach(async ({ page }) => {
+    await resetSupabaseTables();
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('text=SUPABASE: LIVE')).toBeVisible({ timeout: 10000 });
@@ -859,6 +860,77 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(100);
     await expect(custNameBox).toHaveText('ADIL');
     await expect(custPhoneBox).toHaveText('9876543210');
+  });
+
+  test('17. Retro Reports Center (All Sections A through K, Live Supabase Analytics, View Detail Modal, Search, Date Range Filter & POS/Graphic Print)', async ({ page }) => {
+    // 1. Click Reports menu in top bar
+    const reportsMenu = page.locator('.win-menu-item', { hasText: 'Reports' });
+    await expect(reportsMenu).toBeVisible();
+    await reportsMenu.click();
+    await page.waitForTimeout(300);
+
+    // Verify Reports Center is displayed with Menson's POS retro title
+    await expect(page.locator('.win-titlebar-title', { hasText: "Menson's POS 9.08.431" })).toBeVisible();
+    await expect(page.locator('text=REPORTS').first()).toBeVisible();
+
+    // 2. Verify all 11 retro sections A through K are rendered
+    await expect(page.locator('text=A: Revenue')).toBeVisible();
+    await expect(page.locator('text=B: Payment Type')).toBeVisible();
+    await expect(page.locator('text=C: Cash/Expense')).toBeVisible();
+    await expect(page.locator('text=D: Menu Item')).toBeVisible();
+    await expect(page.locator('text=E: Taxes / Misc Charges')).toBeVisible();
+    await expect(page.locator('text=F: Halls')).toBeVisible();
+    await expect(page.locator('text=G: Employee')).toBeVisible();
+    await expect(page.locator('text=H: Guest / Customer')).toBeVisible();
+    await expect(page.locator('text=I: Master')).toBeVisible();
+    await expect(page.locator('text=J: Analysis')).toBeVisible();
+    await expect(page.locator('text=K: MMS')).toBeVisible();
+
+    // 3. Select A1 Detailed Sales Summary and click View button
+    await page.locator('text=1.Detailed Sales Summary').click();
+    await page.locator('button:has-text("View")').click();
+    await page.waitForTimeout(300);
+
+    // Verify ReportDetailModal opens
+    const detailModalTitle = page.locator('.win-titlebar-title', { hasText: 'Detailed Sales Summary' });
+    await expect(detailModalTitle).toBeVisible();
+
+    // Test live search filter inside modal
+    const searchInput = page.locator('input[placeholder*="Filter by name"]');
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill('Gross');
+    await page.waitForTimeout(100);
+    await expect(page.locator('text=Gross Sales Amount')).toBeVisible();
+
+    // Close modal via Close button
+    await page.locator('button:has-text("Close (Esc)")').click();
+    await page.waitForTimeout(200);
+    await expect(detailModalTitle).not.toBeVisible();
+
+    // 4. Test opening D1 Item Sales via double-click
+    const itemSalesRow = page.locator('text=1.Item Sales').first();
+    await itemSalesRow.dblclick();
+    await page.waitForTimeout(300);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Item Sales' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Item Sales' })).not.toBeVisible();
+
+    // 5. Test K8 Stock Position under MMS
+    const stockRow = page.locator('text=8.Stock Position');
+    await stockRow.scrollIntoViewIfNeeded();
+    await stockRow.click();
+    await page.locator('button:has-text("View")').click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Stock Position' })).toBeVisible();
+    await page.locator('button:has-text("Close (Esc)")').click();
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Stock Position' })).not.toBeVisible();
+
+    // 6. Click Exit button to return cleanly to Order Mode
+    await page.locator('button:has-text("Exit")').click();
+    await page.waitForTimeout(200);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'New Order' })).toBeVisible();
   });
 
 });

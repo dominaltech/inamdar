@@ -730,3 +730,69 @@ export async function logAuditActionInSupabase({ actionType, details, tableId, b
   }
 }
 
+// 16. Comprehensive Live Reports Data Bundle
+export async function fetchLiveReportsBundle() {
+  if (!isSupabaseConfigured()) return null;
+
+  try {
+    const [billsRes, txRes, itemsRes, kotsRes, creditsRes, menuRes] = await Promise.all([
+      supabase.from('bills').select('*').order('created_at', { ascending: false }).limit(500),
+      supabase.from('daily_transactions').select('*').order('created_at', { ascending: false }).limit(500),
+      supabase.from('order_items').select('*').order('created_at', { ascending: false }).limit(1000),
+      supabase.from('kots').select('*').order('created_at', { ascending: false }).limit(500),
+      supabase.from('credit_accounts').select('*').order('customer_name', { ascending: true }),
+      supabase.from('menu_items').select('*').order('item_code', { ascending: true }),
+    ]);
+
+    const formattedBills = (billsRes.data || []).map(b => ({
+      billNo: String(b.bill_no),
+      table: b.table_id,
+      tableNo: b.table_id,
+      waiter: b.employee_no || '1 COUNTER',
+      section: b.section === 'AC' ? 'GENERAL' : b.section,
+      hall: b.section === 'AC' ? 'GENERAL' : b.section,
+      amount: Number(b.total_amount),
+      totalAmount: Number(b.total_amount),
+      disc: Number(b.discount || 0),
+      tax: Number(b.tax || 0),
+      isSettled: b.status === 'SETTLED',
+      paymentMode: b.payment_mode,
+      date: b.bill_date,
+      time: b.bill_time,
+      customerName: b.customer_name || '',
+      customerPhone: b.customer_phone || '',
+      created_at: b.created_at,
+      items: (b.items_json || []).map(it => ({
+        code: it.code,
+        name: it.name,
+        qty: Number(it.qty),
+        rate: Number(it.rate),
+        amount: Number(it.amount ?? (it.qty * it.rate)),
+      })),
+    }));
+
+    return {
+      bills: formattedBills,
+      dailyTransactions: txRes.data || [],
+      orderItems: itemsRes.data || [],
+      kots: kotsRes.data || [],
+      creditAccounts: creditsRes.data || [],
+      menuItems: (menuRes.data || []).map(m => ({
+        code: m.item_code,
+        name: m.item_name,
+        category: m.category,
+        rate: Number(m.rate || 0),
+        rates: {
+          AC: Number(m.ac_rate || m.rate || 0),
+          'FAMILY AC': Number(m.family_ac_rate || m.rate || 0),
+          PARCEL: Number(m.parcel_rate || m.rate || 0),
+        }
+      }))
+    };
+  } catch (err) {
+    console.warn('fetchLiveReportsBundle exception:', err);
+    return null;
+  }
+}
+
+

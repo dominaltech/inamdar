@@ -27,6 +27,9 @@ export default function HeaderMenuBar() {
   }, []);
 
   const handleMenuClick = (menuName) => {
+    if (menuName === 'Reports') {
+      setScreenMode('REPORTS');
+    }
     setActiveMenu(activeMenu === menuName ? null : menuName);
   };
 
@@ -246,7 +249,7 @@ export default function HeaderMenuBar() {
           {activeMenu === 'Reports' && (
             <div className="win-dropdown">
               <div className="win-dropdown-row" onClick={() => handleAction('REPORTS_DAY_SUMMARY')}>
-                <span>Day Summary / Dayclose Report</span>
+                <span style={{ fontWeight: 'bold' }}>Reports Center (All Sections A-K)</span>
               </div>
               <div className="win-dropdown-row" onClick={() => handleAction('ITEM_SALES')}>
                 <span>Item Sales Report</span>
