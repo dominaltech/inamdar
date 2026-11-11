@@ -299,6 +299,39 @@ export async function fireKotInSupabase({ tableId, section, waiterName, customer
   try {
     const sec = section === 'AC' ? 'GENERAL' : section;
 
+    // Fast-path: Try Atomic RPC Function (1 single ACID transaction, zero roundtrips)
+    try {
+      const rpcItems = (items || []).map(it => ({
+        code: String(it.code),
+        name: it.name,
+        qty: Number(it.qty),
+        rate: Number(it.rate),
+        amount: Number(it.amount ?? (it.qty * it.rate)),
+        category: it.category || 'UNCATEGORIZED',
+        department: isKitchenItem(it) ? 'KITCHEN' : 'PANTRY',
+      }));
+
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('fire_kot', {
+        p_table_id: String(tableId),
+        p_section: sec,
+        p_waiter_name: waiterName || '1 COUNTER',
+        p_customer_name: customerName,
+        p_customer_phone: customerPhone,
+        p_items: rpcItems,
+      });
+
+      if (!rpcErr && rpcRes && rpcRes.success) {
+        return {
+          id: rpcRes.kot_id,
+          kot_number: rpcRes.kot_number,
+          table_id: rpcRes.table_id,
+        };
+      }
+    } catch (rpcEx) {
+      console.warn('fire_kot RPC fallback to multi-query:', rpcEx);
+    }
+
+    // Fallback: Safe multi-request transactional writes
     // Ensure table record exists in 'tables' table (prevents FK violation on dynamic subtables / home delivery)
     await supabase
       .from('tables')
@@ -474,6 +507,23 @@ export async function settleBillInSupabase({ tableId, billNo, amount, paymentMod
   if (!isSupabaseConfigured()) return null;
 
   try {
+    // Fast-path: Atomic settle RPC
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('settle_bill_and_free_table', {
+        p_bill_no: String(billNo || ''),
+        p_table_id: String(tableId || ''),
+        p_payment_mode: paymentMode,
+        p_amount: Number(amount),
+        p_operator: cashierName,
+      });
+
+      if (!rpcErr && rpcRes && rpcRes.success) {
+        return true;
+      }
+    } catch (rpcEx) {
+      console.warn('settle_bill_and_free_table RPC fallback:', rpcEx);
+    }
+
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
@@ -566,6 +616,20 @@ export async function transferTableInSupabase(fromTableId, toTableId) {
   if (!isSupabaseConfigured()) return null;
 
   try {
+    // Fast-path: Atomic transfer RPC
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('transfer_table', {
+        p_from_table: String(fromTableId),
+        p_to_table: String(toTableId),
+      });
+
+      if (!rpcErr && rpcRes && rpcRes.success) {
+        return true;
+      }
+    } catch (rpcEx) {
+      console.warn('transfer_table RPC fallback:', rpcEx);
+    }
+
     // Move all items from source table to target table
     await supabase
       .from('order_items')

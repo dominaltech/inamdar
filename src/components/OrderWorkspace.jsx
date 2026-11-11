@@ -583,8 +583,11 @@ export default function OrderWorkspace() {
         const tbl = tables[resolvedTableId];
         const hasItems = tbl && tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
 
-        // If this table is ALREADY loaded in preview, pressing Enter now proceeds to PAX prompt!
-        if (memoTableLoaded && memoTableLoaded === resolvedTableId && hasItems) {
+        // If this table is ALREADY active or previewed, pressing Enter proceeds to PAX prompt!
+        const isAlreadyPreviewed = (memoTableLoaded && String(memoTableLoaded).trim().toUpperCase() === String(resolvedTableId).trim().toUpperCase()) ||
+                                   (activeTableId && String(activeTableId).trim().toUpperCase() === String(resolvedTableId).trim().toUpperCase());
+
+        if (isAlreadyPreviewed && hasItems) {
           setPaxPrompt({
             show: true,
             tableId: resolvedTableId,
@@ -755,6 +758,7 @@ export default function OrderWorkspace() {
       }
     } else if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
 
       // Double Enter on empty field fires KOT or Cash Memo!
       if (!codeQuery.trim()) {
@@ -1062,9 +1066,12 @@ export default function OrderWorkspace() {
                     type="text"
                     value={tableInput}
                     onChange={(e) => {
-                      setTableInput(e.target.value);
+                      const val = e.target.value;
+                      setTableInput(val);
                       setShowSubTableMenu(false);
-                      setMemoTableLoaded(null);
+                      if (val !== memoTableLoaded) {
+                        setMemoTableLoaded(null);
+                      }
                     }}
                     onKeyDown={handleTableKeyDown}
                     className="win-input"
@@ -1492,6 +1499,35 @@ export default function OrderWorkspace() {
                               }
                             }
                           }}
+                          onDoubleClick={() => {
+                            const strId = String(num);
+                            if (screenMode === 'CASH_MEMO') {
+                              const tbl = tables[strId];
+                              if (tbl?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
+                                setPaxPrompt({
+                                  show: true,
+                                  tableId: strId,
+                                  onConfirm: (pax) => {
+                                    printCashMemo(strId, pax);
+                                    setTableInput('');
+                                    switchTable('');
+                                    setMemoTableLoaded(null);
+                                    focusTableInput();
+                                  }
+                                });
+                              }
+                            } else {
+                              const tbl = tables[strId];
+                              const staged = tbl?.items?.filter(it => it.isStaged && it.qty > 0) || [];
+                              if (staged.length > 0) {
+                                handleFireKOT(strId);
+                              } else {
+                                switchTable(strId);
+                                setTableInput(strId);
+                                focusCodeInput();
+                              }
+                            }
+                          }}
                           title={`Click to view dishes for Table ${num}`}
                           style={{
                             cursor: 'pointer',
@@ -1561,6 +1597,35 @@ export default function OrderWorkspace() {
                               }
                             }
                           }}
+                          onDoubleClick={() => {
+                            const strId = String(num);
+                            if (screenMode === 'CASH_MEMO') {
+                              const tbl = tables[strId];
+                              if (tbl?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
+                                setPaxPrompt({
+                                  show: true,
+                                  tableId: strId,
+                                  onConfirm: (pax) => {
+                                    printCashMemo(strId, pax);
+                                    setTableInput('');
+                                    switchTable('');
+                                    setMemoTableLoaded(null);
+                                    focusTableInput();
+                                  }
+                                });
+                              }
+                            } else {
+                              const tbl = tables[strId];
+                              const staged = tbl?.items?.filter(it => it.isStaged && it.qty > 0) || [];
+                              if (staged.length > 0) {
+                                handleFireKOT(strId);
+                              } else {
+                                switchTable(strId);
+                                setTableInput(strId);
+                                focusCodeInput();
+                              }
+                            }
+                          }}
                           title={`Click to view dishes for Family Table ${num}`}
                           style={{
                             cursor: 'pointer',
@@ -1609,6 +1674,34 @@ export default function OrderWorkspace() {
                             setCustomerPhone(tbl?.customerPhone || '');
                           }
                         }}
+                        onDoubleClick={() => {
+                          if (screenMode === 'CASH_MEMO') {
+                            const tbl = tables[name];
+                            if (tbl?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
+                              setPaxPrompt({
+                                show: true,
+                                tableId: name,
+                                onConfirm: (pax) => {
+                                  printCashMemo(name, pax);
+                                  setTableInput('');
+                                  switchTable('');
+                                  setMemoTableLoaded(null);
+                                  focusTableInput();
+                                }
+                              });
+                            }
+                          } else {
+                            const tbl = tables[name];
+                            const staged = tbl?.items?.filter(it => it.isStaged && it.qty > 0) || [];
+                            if (staged.length > 0) {
+                              handleFireKOT(name);
+                            } else {
+                              switchTable(name);
+                              setTableInput(name);
+                              focusCodeInput();
+                            }
+                          }
+                        }}
                         title={`Click to view dishes for ${name}`}
                         style={{
                           cursor: 'pointer',
@@ -1653,6 +1746,35 @@ export default function OrderWorkspace() {
                             const tbl = tables[num];
                             setCustomerName(tbl?.customerName || '');
                             setCustomerPhone(tbl?.customerPhone || '');
+                          }
+                        }}
+                        onDoubleClick={() => {
+                          const strId = String(num);
+                          if (screenMode === 'CASH_MEMO') {
+                            const tbl = tables[strId];
+                            if (tbl?.items?.some(it => it.qty > 0 && !it.isCancelled)) {
+                              setPaxPrompt({
+                                show: true,
+                                tableId: strId,
+                                onConfirm: (pax) => {
+                                  printCashMemo(strId, pax);
+                                  setTableInput('');
+                                  switchTable('');
+                                  setMemoTableLoaded(null);
+                                  focusTableInput();
+                                }
+                              });
+                            }
+                          } else {
+                            const tbl = tables[strId];
+                            const staged = tbl?.items?.filter(it => it.isStaged && it.qty > 0) || [];
+                            if (staged.length > 0) {
+                              handleFireKOT(strId);
+                            } else {
+                              switchTable(strId);
+                              setTableInput(strId);
+                              focusCodeInput();
+                            }
                           }
                         }}
                         title={`Click to view dishes for Parcel ${num}`}

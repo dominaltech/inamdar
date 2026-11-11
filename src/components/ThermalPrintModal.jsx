@@ -10,8 +10,11 @@ export default function ThermalPrintModal() {
   };
 
   useEffect(() => {
+    const mountedAt = Date.now();
     function handleKeyDown(e) {
       if (!printData) return;
+      // Prevent the triggering Enter key from immediately dismissing the receipt
+      if (Date.now() - mountedAt < 200) return;
       if (e.key === 'Escape' || e.key === 'Enter') {
         e.preventDefault();
         e.stopPropagation();

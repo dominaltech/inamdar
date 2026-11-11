@@ -916,4 +916,120 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('.win-titlebar-title', { hasText: 'New Order' })).toBeVisible();
   });
 
+  test('18. Double-Click & Double-Enter Direct KOT and Bill Print Workflows', async ({ page }) => {
+    // 1. Open Table 14 and add dish 1
+    const tableInput = page.locator('#pos-table-input');
+    await tableInput.click();
+    await tableInput.fill('14');
+    await page.keyboard.press('Enter');
+
+    // Customer modal opens -> skip via Escape
+    await page.locator('#cust-name-input').waitFor({ state: 'visible', timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+
+    // Dish Code input focused -> enter dish 1
+    const codeInput = page.locator('input[placeholder="Code/CTM"]');
+    await expect(codeInput).toBeVisible();
+    await codeInput.fill('1');
+    await page.waitForTimeout(200);
+    await codeInput.press('Enter');
+
+    // Qty input -> press Enter to stage dish
+    const qtyInput = page.locator('input[placeholder="Qty"]');
+    await expect(qtyInput).toBeVisible();
+    await qtyInput.fill('1');
+    await qtyInput.press('Enter');
+    await page.waitForTimeout(200);
+    await expect(page.locator('text=[NEW]').first()).toBeVisible();
+
+    // 2. Test Double-Enter on empty Code input to fire KOT directly
+    await expect(codeInput).toBeFocused();
+    // First enter triggers KOT badge
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    // Second enter fires KOT and opens Thermal Print Modal directly
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(400);
+
+    // Verify Thermal Print Modal opened with KOT slip
+    const kotTitle = page.locator('.win-titlebar-title', { hasText: 'Kitchen Order Token' });
+    await expect(kotTitle).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('KITCHEN', { exact: true })).toBeVisible();
+    await expect(page.locator('text=T No. 14')).toBeVisible();
+
+    // Close thermal modal via Close button
+    const closeKotBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    await expect(closeKotBtn).toBeVisible();
+    await closeKotBtn.click();
+    await page.waitForTimeout(200);
+    await expect(kotTitle).not.toBeVisible();
+
+    // 3. Stage another dish on Table 14
+    await tableInput.click();
+    await tableInput.fill('14');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+
+    // If subtable menu opened, select A
+    const subMenu = page.locator('.win-bevel-outset:has-text("14A")');
+    if (await subMenu.isVisible()) {
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(200);
+      if (await page.locator('#cust-name-input').isVisible()) {
+        await page.keyboard.press('Escape');
+      }
+    }
+
+    // Add dish 2
+    await codeInput.fill('2');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+
+    // 4. Test Double-Clicking on running table pill in ORDER mode to fire KOT directly
+    const tablePill = page.locator('span[title*="Table 14"]').first();
+    if (await tablePill.isVisible()) {
+      await tablePill.dblclick();
+      await page.waitForTimeout(400);
+      if (await page.locator('.win-titlebar-title', { hasText: 'Kitchen Order Token' }).isVisible()) {
+        const closeBtn = page.locator('button:has-text("Close (Esc/↵)")');
+        if (await closeBtn.isVisible()) await closeBtn.click();
+        await page.waitForTimeout(200);
+      }
+    }
+
+    // 5. Switch to Cash Memo Mode (F5)
+    await page.keyboard.press('F5');
+    await page.waitForTimeout(300);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
+
+    // In Cash Memo Mode: Test double-clicking running table pill to trigger Bill Print & PAX prompt directly
+    const runningPill = page.locator('span[title*="Table 14"]').first();
+    await expect(runningPill).toBeVisible();
+    await runningPill.dblclick();
+    await page.waitForTimeout(400);
+
+    // Verify PAX prompt modal is open
+    const paxModal = page.locator('.win-titlebar-title', { hasText: 'Number of Persons' });
+    await expect(paxModal).toBeVisible({ timeout: 5000 });
+
+    // Press Enter on PAX prompt -> directly prints Cash Memo and opens Thermal Print Modal!
+    const paxInput = page.locator('#pos-pax-input');
+    await paxInput.press('Enter');
+    await page.waitForTimeout(400);
+    const billTitle = page.locator('div.win-titlebar-title', { hasText: 'Thermal Printer Output — Cash Memo' });
+    await expect(billTitle).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=----- Cash Memo -----')).toBeVisible();
+
+    // Close bill print modal
+    const closeBillBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    if (await closeBillBtn.isVisible()) await closeBillBtn.click();
+    await page.waitForTimeout(200);
+    await expect(billTitle).not.toBeVisible();
+
+    // Verify bill appears in Unsettled Bills
+    await expect(page.locator('text=14(').first()).toBeVisible();
+  });
+
 });

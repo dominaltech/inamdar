@@ -28,3 +28,8 @@ dist-ssr
 *.img
 test-results/
 playwright-report/
+
+# Companion repositories
+Inamdar Captain App/
+Inamdar KDS System/
+githubrepo.txt
