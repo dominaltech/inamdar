@@ -802,7 +802,8 @@ export default function OrderWorkspace() {
       }
 
       setDoubleEnterBadge(null);
-      const chosen = searchResults[highlightedIndex] || MENU_BY_CODE.get(codeQuery.trim());
+      const exactMatch = MENU_BY_CODE.get(codeQuery.trim());
+      const chosen = exactMatch || searchResults[highlightedIndex];
       if (chosen) {
         selectItem(chosen);
       }

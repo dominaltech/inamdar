@@ -5,6 +5,7 @@ import HeaderMenuBar from './components/HeaderMenuBar';
 import StatusBar from './components/StatusBar';
 import OrderWorkspace from './components/OrderWorkspace';
 import ReportsView from './components/ReportsView';
+import MenuManagementView from './components/MenuManagementView';
 import LoginModal from './components/LoginModal';
 import TableShiftModal from './components/TableShiftModal';
 import CancelAuthModal from './components/CancelAuthModal';
@@ -50,7 +51,13 @@ function PosAppContent() {
 
       {/* Main Screen Content */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        {screenMode === 'REPORTS' ? <ReportsView /> : <OrderWorkspace />}
+        {screenMode === 'REPORTS' ? (
+          <ReportsView />
+        ) : screenMode === 'MENU' ? (
+          <MenuManagementView />
+        ) : (
+          <OrderWorkspace />
+        )}
       </div>
 
       {/* Bottom Status Bar */}

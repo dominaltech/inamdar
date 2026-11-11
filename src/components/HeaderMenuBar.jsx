@@ -33,6 +33,11 @@ export default function HeaderMenuBar() {
       setScreenMode('REPORTS');
       return;
     }
+    if (menuName === 'Menu') {
+      setActiveMenu(null);
+      setScreenMode('MENU');
+      return;
+    }
     setActiveMenu(activeMenu === menuName ? null : menuName);
   };
 
@@ -273,6 +278,14 @@ export default function HeaderMenuBar() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* 7. Menu (Menu & Category Studio) */}
+        <div 
+          className={`win-menu-item ${screenMode === 'MENU' ? 'active' : ''}`} 
+          onClick={() => handleMenuClick('Menu')}
+        >
+          <u>M</u>enu
         </div>
       </div>
     </div>

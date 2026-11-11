@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { DEFAULT_USERS, EMPLOYEES, INITIAL_TABLES, INITIAL_UNSETTLED_BILLS, INITIAL_ALL_BILLS } from '../data/initialData';
-import { MENU_BY_CODE, sortItemsByCourse, isKitchenItem, loadDynamicMenuItems } from '../data/menuService';
+import { 
+  MENU_BY_CODE, 
+  MENU_ITEMS,
+  LIVE_CATEGORIES,
+  DYNAMIC_CATEGORY_ORDER,
+  updateDynamicCategories,
+  sortItemsByCourse, 
+  isKitchenItem, 
+  loadDynamicMenuItems 
+} from '../data/menuService';
 import { isSupabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY, saveSupabaseCredentials } from '../supabaseClient';
 import {
   fetchLiveTables,
@@ -8,6 +17,13 @@ import {
   fetchLiveDailyTransactions,
   fetchLiveCounters,
   fetchLiveMenuItems,
+  fetchLiveCategories,
+  saveCategoryInSupabase,
+  updateCategoriesOrderInSupabase,
+  renameCategoryInSupabase,
+  deleteCategoryInSupabase,
+  saveMenuItemInSupabase,
+  deleteMenuItemInSupabase,
   fetchLiveAllBills,
   fetchOrderItemsForTable,
   fetchOrderItemsForKot,
@@ -89,6 +105,10 @@ export function PosProvider({ children }) {
   const [printData, setPrintData] = useState(null);
   const [infoDialog, setInfoDialog] = useState(null);
 
+  // Menu and Categories Live State (Supabase direct sync)
+  const [categories, setCategories] = useState(LIVE_CATEGORIES);
+  const [menuItems, setMenuItems] = useState(MENU_ITEMS);
+
   const openCancelModal = (tableId) => {
     setCancelModalTableId(tableId || activeTableId);
     setShowCancelModal(true);
@@ -111,6 +131,134 @@ export function PosProvider({ children }) {
     triggerTableFocus();
   };
 
+  // Refresh menu & categories from Supabase
+  const refreshMenuAndCategories = useCallback(async () => {
+    try {
+      const [liveCats, liveMenu] = await Promise.all([
+        fetchLiveCategories(),
+        fetchLiveMenuItems(),
+      ]);
+      if (liveCats && Array.isArray(liveCats) && liveCats.length > 0) {
+        setCategories(liveCats);
+        updateDynamicCategories(liveCats);
+      }
+      if (liveMenu && Array.isArray(liveMenu) && liveMenu.length > 0) {
+        loadDynamicMenuItems(liveMenu);
+        setMenuItems(liveMenu);
+      }
+      return { categories: liveCats, menuItems: liveMenu };
+    } catch (e) {
+      console.warn('refreshMenuAndCategories error:', e);
+      return null;
+    }
+  }, []);
+
+  // Category CRUD Operations
+  const addOrUpdateCategory = useCallback(async (catData) => {
+    const cleanName = (catData.name || '').toUpperCase().trim();
+    if (!cleanName) return null;
+    const catOrder = Number(catData.categoryOrder) || 99;
+    const dept = catData.department || 'KITCHEN';
+
+    setCategories(prev => {
+      const existingIdx = prev.findIndex(c => c.name === cleanName);
+      let next;
+      if (existingIdx >= 0) {
+        next = prev.map((c, i) => i === existingIdx ? { ...c, ...catData, name: cleanName, categoryOrder: catOrder, department: dept } : c);
+      } else {
+        const nextOrder = catOrder !== 99 ? catOrder : (prev.length > 0 ? Math.max(...prev.map(c => c.categoryOrder || 0)) + 1 : 1);
+        next = [...prev, { name: cleanName, categoryOrder: nextOrder, department: dept, isActive: true }];
+      }
+      next.sort((a, b) => a.categoryOrder - b.categoryOrder);
+      updateDynamicCategories(next);
+      return next;
+    });
+
+    return await saveCategoryInSupabase({ name: cleanName, categoryOrder: catOrder, department: dept });
+  }, []);
+
+  const reorderCategories = useCallback(async (newCategoriesList) => {
+    // 0ms Optimistic UI update
+    const updated = newCategoriesList.map((cat, idx) => ({
+      ...cat,
+      categoryOrder: idx + 1,
+    }));
+    setCategories(updated);
+    updateDynamicCategories(updated);
+    setMenuItems([...MENU_ITEMS]);
+
+    // Persist batch reorder to Supabase
+    await updateCategoriesOrderInSupabase(updated);
+  }, []);
+
+  const renameCategory = useCallback(async (oldName, newName) => {
+    const cleanOld = oldName.toUpperCase().trim();
+    const cleanNew = newName.toUpperCase().trim();
+    if (!cleanOld || !cleanNew) return;
+
+    setCategories(prev => {
+      const next = prev.map(c => c.name === cleanOld ? { ...c, name: cleanNew } : c);
+      updateDynamicCategories(next);
+      return next;
+    });
+
+    setMenuItems(prev => {
+      const next = prev.map(it => it.category === cleanOld ? { ...it, category: cleanNew } : it);
+      loadDynamicMenuItems(next);
+      return next;
+    });
+
+    await renameCategoryInSupabase(cleanOld, cleanNew);
+  }, []);
+
+  const deleteCategory = useCallback(async (categoryName) => {
+    const cleanName = categoryName.toUpperCase().trim();
+    setCategories(prev => {
+      const next = prev.filter(c => c.name !== cleanName);
+      updateDynamicCategories(next);
+      return next;
+    });
+    await deleteCategoryInSupabase(cleanName);
+  }, []);
+
+  // Menu Item CRUD Operations
+  const addOrUpdateMenuItem = useCallback(async (itemData) => {
+    const cleanCode = String(itemData.code).trim();
+    const cleanCat = (itemData.category || 'UNCATEGORIZED').toUpperCase().trim();
+    const catOrder = Number(itemData.categoryOrder) || (DYNAMIC_CATEGORY_ORDER[cleanCat] || 99);
+
+    const fullItem = {
+      ...itemData,
+      code: cleanCode,
+      name: (itemData.name || '').toUpperCase().trim(),
+      category: cleanCat,
+      categoryOrder: catOrder,
+      acRate: Number(itemData.acRate) || 0,
+      hallRate: Number(itemData.hallRate) || Number(itemData.acRate) || 0,
+      isKitchen: itemData.isKitchen !== false,
+      isAvailable: itemData.isAvailable !== false,
+    };
+
+    setMenuItems(prev => {
+      const existing = prev.some(it => String(it.code) === cleanCode);
+      const next = existing ? prev.map(it => String(it.code) === cleanCode ? fullItem : it) : [...prev, fullItem];
+      loadDynamicMenuItems(next);
+      return next;
+    });
+
+    return await saveMenuItemInSupabase(fullItem);
+  }, []);
+
+  const deleteMenuItem = useCallback(async (code) => {
+    const cleanCode = String(code).trim();
+    setMenuItems(prev => {
+      const next = prev.filter(it => String(it.code) !== cleanCode);
+      loadDynamicMenuItems(next);
+      return next;
+    });
+    return await deleteMenuItemInSupabase(cleanCode);
+  }, []);
+
   // 1. Initial Cloud Sync from Supabase & Realtime Subscription
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
@@ -118,19 +266,25 @@ export function PosProvider({ children }) {
     let isMounted = true;
     async function loadCloudData() {
       try {
-        const [cloudTables, cloudBills, cloudTx, cloudCounters, cloudMenu, cloudAllBills] = await Promise.all([
+        const [cloudTables, cloudBills, cloudTx, cloudCounters, cloudMenu, cloudCats, cloudAllBills] = await Promise.all([
           fetchLiveTables(),
           fetchLiveUnsettledBills(),
           fetchLiveDailyTransactions(),
           fetchLiveCounters(),
           fetchLiveMenuItems(),
+          fetchLiveCategories(),
           fetchLiveAllBills(),
         ]);
 
         if (!isMounted) return;
 
+        if (cloudCats && Array.isArray(cloudCats) && cloudCats.length > 0) {
+          setCategories(cloudCats);
+          updateDynamicCategories(cloudCats);
+        }
         if (cloudMenu && Array.isArray(cloudMenu) && cloudMenu.length > 0) {
           loadDynamicMenuItems(cloudMenu);
+          setMenuItems(cloudMenu);
         }
         if (cloudTables && Object.keys(cloudTables).length > 0) {
           setTables(cloudTables);
@@ -174,6 +328,19 @@ export function PosProvider({ children }) {
         const liveMenu = await fetchLiveMenuItems();
         if (liveMenu && isMounted) {
           loadDynamicMenuItems(liveMenu);
+          setMenuItems(liveMenu);
+        }
+      },
+      onCategoryUpdate: async () => {
+        const liveCats = await fetchLiveCategories();
+        if (liveCats && isMounted) {
+          setCategories(liveCats);
+          updateDynamicCategories(liveCats);
+        }
+        const liveMenu = await fetchLiveMenuItems();
+        if (liveMenu && isMounted) {
+          loadDynamicMenuItems(liveMenu);
+          setMenuItems(liveMenu);
         }
       },
       onTableUpdate: async (payload) => {
@@ -692,9 +859,13 @@ export function PosProvider({ children }) {
     table.items.forEach(it => {
       const code = it.code;
       if (!aggregated[code]) {
+        const cat = it.category || 'UNCATEGORIZED';
+        const catOrder = it.categoryOrder ?? (DYNAMIC_CATEGORY_ORDER[cat] || 99);
         aggregated[code] = {
           code: it.code,
           name: it.name,
+          category: cat,
+          categoryOrder: catOrder,
           qty: 0,
           rate: it.rate,
           amount: 0,
@@ -704,7 +875,9 @@ export function PosProvider({ children }) {
       aggregated[code].amount += it.amount;
     });
 
-    const billItems = Object.values(aggregated).filter(it => it.qty > 0);
+    const rawBillItems = Object.values(aggregated).filter(it => it.qty > 0);
+    // Strict culinary course ordering: Soup -> Starters -> Main Course -> Biryani -> Drinks
+    const billItems = sortItemsByCourse(rawBillItems);
     const totalAmount = billItems.reduce((sum, it) => sum + it.amount, 0);
     const totalQty = billItems.reduce((sum, it) => sum + it.qty, 0);
 
@@ -1108,6 +1281,18 @@ export function PosProvider({ children }) {
       setActiveModal,
       openModal,
       closeModal,
+      // Menu & Categories Live Management
+      categories,
+      setCategories,
+      menuItems,
+      setMenuItems,
+      refreshMenuAndCategories,
+      addOrUpdateCategory,
+      reorderCategories,
+      renameCategory,
+      deleteCategory,
+      addOrUpdateMenuItem,
+      deleteMenuItem,
     }}>
       {children}
     </PosContext.Provider>

@@ -17,6 +17,36 @@ export const CATEGORY_ORDER = {
   'SOFT DRINKS': 13,
 };
 
+// Dynamic in-memory category order and categories list
+export let DYNAMIC_CATEGORY_ORDER = { ...CATEGORY_ORDER };
+export let LIVE_CATEGORIES = Object.keys(CATEGORY_ORDER).map((name, idx) => ({
+  name,
+  categoryOrder: idx + 1,
+  department: (name.includes('DESSERT') || name.includes('MOCKTAL') || name.includes('SOFT DRINK')) ? 'PANTRY' : 'KITCHEN',
+  isActive: true,
+}));
+
+export function updateDynamicCategories(categories) {
+  if (!categories || !Array.isArray(categories)) return;
+  LIVE_CATEGORIES = categories;
+  const newMap = {};
+  categories.forEach((cat, idx) => {
+    const name = (cat.name || '').toUpperCase().trim();
+    const order = Number(cat.categoryOrder) || (idx + 1);
+    if (name) newMap[name] = order;
+  });
+  DYNAMIC_CATEGORY_ORDER = { ...CATEGORY_ORDER, ...newMap };
+
+  // Also update categoryOrder on existing in-memory items
+  if (Array.isArray(MENU_ITEMS)) {
+    MENU_ITEMS.forEach(it => {
+      if (it.category && DYNAMIC_CATEGORY_ORDER[it.category] !== undefined) {
+        it.categoryOrder = DYNAMIC_CATEGORY_ORDER[it.category];
+      }
+    });
+  }
+}
+
 // Generate common acronyms for dishes
 export function generateAcronyms(name) {
   if (!name) return [];
@@ -63,11 +93,13 @@ export function generateAcronyms(name) {
 // Initial item parsing helper
 function parseItem(item) {
   const acronyms = generateAcronyms(item.name || '');
+  const cat = item.category || 'UNCATEGORIZED';
+  const catOrder = item.categoryOrder ?? item.category_order ?? (DYNAMIC_CATEGORY_ORDER[cat] || 99);
   return {
     code: String(item.code),
     name: (item.name || '').toUpperCase(),
-    category: item.category || 'UNCATEGORIZED',
-    categoryOrder: item.categoryOrder ?? (CATEGORY_ORDER[item.category] || 99),
+    category: cat,
+    categoryOrder: Number(catOrder) || 99,
     acRate: Number(item.acRate ?? item.ac_rate) || 0,
     hallRate: Number(item.hallRate ?? item.hall_rate ?? item.acRate ?? item.ac_rate) || 0,
     isKitchen: item.isKitchen ?? item.is_kitchen ?? isKitchenItem(item),
@@ -123,19 +155,27 @@ export function searchMenuItems(query) {
   if (!query || !query.trim()) return [];
   const q = query.trim().toUpperCase();
 
-  return MENU_ITEMS.filter(item => {
+  const matches = MENU_ITEMS.filter(item => {
     if (!item.isAvailable) return false;
     if (item.code === q || item.code.startsWith(q)) return true;
     if (item.acronyms.some(acr => acr === q || acr.startsWith(q))) return true;
     if (item.name.includes(q)) return true;
     return false;
+  });
+
+  return matches.sort((a, b) => {
+    if (a.code === q) return -1;
+    if (b.code === q) return 1;
+    if (a.code.startsWith(q) && !b.code.startsWith(q)) return -1;
+    if (!a.code.startsWith(q) && b.code.startsWith(q)) return 1;
+    return (Number(a.code) || 0) - (Number(b.code) || 0);
   }).slice(0, 30);
 }
 
 export function sortItemsByCourse(items) {
   return [...items].sort((a, b) => {
-    const orderA = a.categoryOrder ?? 99;
-    const orderB = b.categoryOrder ?? 99;
+    const orderA = a.categoryOrder ?? (DYNAMIC_CATEGORY_ORDER[a.category] || 99);
+    const orderB = b.categoryOrder ?? (DYNAMIC_CATEGORY_ORDER[b.category] || 99);
     if (orderA !== orderB) return orderA - orderB;
     return (Number(a.code) || 0) - (Number(b.code) || 0);
   });

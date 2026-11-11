@@ -507,27 +507,10 @@ export async function settleBillInSupabase({ tableId, billNo, amount, paymentMod
   if (!isSupabaseConfigured()) return null;
 
   try {
-    // Fast-path: Atomic settle RPC
-    try {
-      const { data: rpcRes, error: rpcErr } = await supabase.rpc('settle_bill_and_free_table', {
-        p_bill_no: String(billNo || ''),
-        p_table_id: String(tableId || ''),
-        p_payment_mode: paymentMode,
-        p_amount: Number(amount),
-        p_operator: cashierName,
-      });
-
-      if (!rpcErr && rpcRes && rpcRes.success) {
-        return true;
-      }
-    } catch (rpcEx) {
-      console.warn('settle_bill_and_free_table RPC fallback:', rpcEx);
-    }
-
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-    // A. Update Bill status to SETTLED
+    // A. Update ONLY this specific Bill status to SETTLED (Supports multiple independent bills per table)
     if (billNo) {
       await supabase
         .from('bills')
@@ -538,6 +521,17 @@ export async function settleBillInSupabase({ tableId, billNo, amount, paymentMod
           settled_at: now.toISOString()
         })
         .eq('bill_no', Number(billNo));
+    } else if (tableId) {
+      await supabase
+        .from('bills')
+        .update({
+          status: 'SETTLED',
+          payment_mode: paymentMode,
+          cashier_name: cashierName,
+          settled_at: now.toISOString()
+        })
+        .eq('table_id', String(tableId))
+        .eq('status', 'UNSETTLED');
     }
 
     // B. Insert into Daily Transactions journal
@@ -545,12 +539,14 @@ export async function settleBillInSupabase({ tableId, billNo, amount, paymentMod
       .from('daily_transactions')
       .insert([{
         bill_no: String(billNo || '0'),
-        table_id: tableId,
+        table_id: String(tableId || ''),
         amount: Number(amount),
         payment_mode: paymentMode,
         cashier_name: cashierName,
         settled_time: timeStr
       }]);
+
+    return true;
 
     // Note: Decoupled from physical table. Table was already freed at billing time,
     // so new guests may already be dining on this table with an independent bill.
@@ -672,8 +668,8 @@ export async function closeDayInSupabase() {
   }
 }
 
-// 11. Realtime Sync Listener (Subscribes to Captain orders, Table updates, and KDS changes)
-export function subscribeToSupabaseRealtime({ onTableUpdate, onIncomingKot, onBillUpdate, onMenuUpdate }) {
+// 11. Realtime Sync Listener (Subscribes to Captain orders, Table updates, KDS changes, Menu & Categories)
+export function subscribeToSupabaseRealtime({ onTableUpdate, onIncomingKot, onBillUpdate, onMenuUpdate, onCategoryUpdate }) {
   if (!isSupabaseConfigured()) return () => {};
 
   const channel = supabase
@@ -691,6 +687,10 @@ export function subscribeToSupabaseRealtime({ onTableUpdate, onIncomingKot, onBi
       console.log('Realtime Menu update:', payload);
       if (onMenuUpdate) onMenuUpdate(payload);
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_categories' }, payload => {
+      console.log('Realtime Category update:', payload);
+      if (onCategoryUpdate) onCategoryUpdate(payload);
+    })
     .subscribe();
 
   return () => {
@@ -706,7 +706,8 @@ export async function fetchLiveMenuItems() {
     const { data, error } = await supabase
       .from('menu_items')
       .select('*')
-      .order('category_order', { ascending: true });
+      .order('category_order', { ascending: true })
+      .order('code', { ascending: true });
 
     if (error) {
       console.warn('fetchLiveMenuItems error:', error);
@@ -731,21 +732,23 @@ export async function fetchLiveMenuItems() {
 
 // 13. Save / Upsert Menu Item in Supabase
 export async function saveMenuItemInSupabase(item) {
-  if (!isSupabaseConfigured()) return null;
+  if (!isSupabaseConfigured() || !item?.code) return null;
 
   try {
+    const payload = {
+      code: String(item.code).trim(),
+      name: (item.name || '').toUpperCase().trim(),
+      category: (item.category || 'UNCATEGORIZED').toUpperCase().trim(),
+      category_order: Number(item.categoryOrder) || 99,
+      ac_rate: Number(item.acRate) || 0,
+      hall_rate: Number(item.hallRate) || Number(item.acRate) || 0,
+      is_kitchen: item.isKitchen !== false,
+      is_available: item.isAvailable !== false,
+    };
+
     const { data, error } = await supabase
       .from('menu_items')
-      .upsert({
-        code: String(item.code),
-        name: (item.name || '').toUpperCase(),
-        category: item.category || 'UNCATEGORIZED',
-        category_order: Number(item.categoryOrder) || 99,
-        ac_rate: Number(item.acRate) || 0,
-        hall_rate: Number(item.hallRate) || Number(item.acRate) || 0,
-        is_kitchen: item.isKitchen ?? true,
-        is_available: item.isAvailable ?? true,
-      }, { onConflict: 'code' })
+      .upsert(payload, { onConflict: 'code' })
       .select();
 
     if (error) throw error;
@@ -753,6 +756,189 @@ export async function saveMenuItemInSupabase(item) {
   } catch (err) {
     console.error('saveMenuItemInSupabase error:', err);
     return null;
+  }
+}
+
+// 13B. Delete Menu Item from Supabase
+export async function deleteMenuItemInSupabase(code) {
+  if (!isSupabaseConfigured() || !code) return false;
+
+  try {
+    const { error } = await supabase
+      .from('menu_items')
+      .delete()
+      .eq('code', String(code).trim());
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('deleteMenuItemInSupabase error:', err);
+    return false;
+  }
+}
+
+// 13C. Fetch Live Menu Categories from Supabase
+export async function fetchLiveCategories() {
+  if (!isSupabaseConfigured()) return null;
+
+  try {
+    // 1. Try dedicated menu_categories table first
+    const { data: catData, error: catErr } = await supabase
+      .from('menu_categories')
+      .select('*')
+      .order('category_order', { ascending: true });
+
+    if (!catErr && Array.isArray(catData) && catData.length > 0) {
+      return catData.map(c => ({
+        id: c.id,
+        name: (c.name || '').toUpperCase().trim(),
+        categoryOrder: Number(c.category_order) || 99,
+        department: c.department || 'KITCHEN',
+        isActive: c.is_active ?? true,
+      }));
+    }
+
+    // 2. Fallback: derive distinct categories directly from menu_items
+    const { data: itemsData, error: itemsErr } = await supabase
+      .from('menu_items')
+      .select('category, category_order, is_kitchen')
+      .order('category_order', { ascending: true });
+
+    if (itemsErr) {
+      console.warn('fetchLiveCategories fallback error:', itemsErr);
+      return null;
+    }
+
+    const seen = new Map();
+    (itemsData || []).forEach(row => {
+      const cat = (row.category || '').toUpperCase().trim();
+      if (cat && !seen.has(cat)) {
+        seen.set(cat, {
+          name: cat,
+          categoryOrder: Number(row.category_order) || 99,
+          department: row.is_kitchen === false ? 'PANTRY' : 'KITCHEN',
+          isActive: true,
+        });
+      }
+    });
+
+    return Array.from(seen.values()).sort((a, b) => a.categoryOrder - b.categoryOrder);
+  } catch (err) {
+    console.warn('fetchLiveCategories exception:', err);
+    return null;
+  }
+}
+
+// 13D. Save / Upsert Category in Supabase
+export async function saveCategoryInSupabase(category) {
+  if (!isSupabaseConfigured() || !category?.name) return null;
+
+  const catName = category.name.toUpperCase().trim();
+  const catOrder = Number(category.categoryOrder) || 99;
+  const dept = category.department || 'KITCHEN';
+
+  try {
+    // 1. Upsert into menu_categories (if table exists)
+    try {
+      await supabase
+        .from('menu_categories')
+        .upsert({
+          name: catName,
+          category_order: catOrder,
+          department: dept,
+          is_active: category.isActive !== false,
+        }, { onConflict: 'name' });
+    } catch (_) {
+      // Table may not yet be migrated; fallback gracefully
+    }
+
+    // 2. Cascade category_order to member items in menu_items
+    await supabase
+      .from('menu_items')
+      .update({ category_order: catOrder })
+      .eq('category', catName);
+
+    return { name: catName, categoryOrder: catOrder, department: dept, isActive: true };
+  } catch (err) {
+    console.error('saveCategoryInSupabase error:', err);
+    return null;
+  }
+}
+
+// 13E. Update Category Orders in Supabase (Batch Reordering)
+export async function updateCategoriesOrderInSupabase(categoriesList) {
+  if (!isSupabaseConfigured() || !Array.isArray(categoriesList)) return false;
+
+  try {
+    for (let i = 0; i < categoriesList.length; i++) {
+      const cat = categoriesList[i];
+      const newOrder = i + 1;
+      const catName = (cat.name || '').toUpperCase().trim();
+
+      // Update menu_categories
+      try {
+        await supabase
+          .from('menu_categories')
+          .update({ category_order: newOrder })
+          .eq('name', catName);
+      } catch (_) {}
+
+      // Cascade new order to all dishes belonging to this category
+      await supabase
+        .from('menu_items')
+        .update({ category_order: newOrder })
+        .eq('category', catName);
+    }
+    return true;
+  } catch (err) {
+    console.error('updateCategoriesOrderInSupabase error:', err);
+    return false;
+  }
+}
+
+// 13F. Rename Category in Supabase & Cascade to Items
+export async function renameCategoryInSupabase(oldName, newName) {
+  if (!isSupabaseConfigured() || !oldName || !newName) return false;
+
+  const cleanOld = oldName.toUpperCase().trim();
+  const cleanNew = newName.toUpperCase().trim();
+
+  try {
+    // 1. Update menu_categories
+    try {
+      await supabase
+        .from('menu_categories')
+        .update({ name: cleanNew })
+        .eq('name', cleanOld);
+    } catch (_) {}
+
+    // 2. Cascade rename to all menu_items
+    await supabase
+      .from('menu_items')
+      .update({ category: cleanNew })
+      .eq('category', cleanOld);
+
+    return true;
+  } catch (err) {
+    console.error('renameCategoryInSupabase error:', err);
+    return false;
+  }
+}
+
+// 13G. Delete Category in Supabase
+export async function deleteCategoryInSupabase(categoryName) {
+  if (!isSupabaseConfigured() || !categoryName) return false;
+  const cleanName = categoryName.toUpperCase().trim();
+
+  try {
+    await supabase
+      .from('menu_categories')
+      .delete()
+      .eq('name', cleanName);
+    return true;
+  } catch (err) {
+    console.error('deleteCategoryInSupabase error:', err);
+    return false;
   }
 }
 

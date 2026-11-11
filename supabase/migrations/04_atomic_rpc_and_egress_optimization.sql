@@ -115,10 +115,11 @@ AS $$
 DECLARE
   v_clean_table text := trim(upper(p_table_id));
 BEGIN
-  -- Mark bill SETTLED
+  -- Mark bill SETTLED (targets specific bill_no when provided to protect independent bills per table)
   UPDATE bills
   SET status = 'SETTLED', payment_mode = p_payment_mode, settled_at = now()
-  WHERE bill_no::text = p_bill_no OR table_id = v_clean_table;
+  WHERE (p_bill_no IS NOT NULL AND p_bill_no <> '' AND bill_no::text = p_bill_no)
+     OR (p_bill_no IS NULL AND table_id = v_clean_table AND status = 'UNSETTLED');
 
   -- Record daily transaction
   INSERT INTO daily_transactions (

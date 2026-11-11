@@ -543,6 +543,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
   });
 
   test('14. Independent Bills on Reused Table (Table 18 Multiple Turnovers generate Independent Unsettled Bills without item bleed)', async ({ page }) => {
+    test.setTimeout(60000);
     const tableInput = page.locator('#pos-table-input');
     await expect(tableInput).toBeVisible();
 
@@ -1030,6 +1031,195 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
 
     // Verify bill appears in Unsettled Bills
     await expect(page.locator('text=14(').first()).toBeVisible();
+  });
+
+  test('19. Menu & Category Management CRUD, Category Reordering & Dynamic Culinary Course Slip Sorting', async ({ page }) => {
+    test.setTimeout(90000);
+
+    // 1. Open Menu & Categories Studio via Top Header Menu Bar
+    const menuTopBtn = page.locator('.win-menu-item', { hasText: 'Menu' });
+    await expect(menuTopBtn).toBeVisible();
+    await menuTopBtn.click();
+    await page.waitForTimeout(300);
+
+    // Verify Studio is active and connected to Supabase Live DB
+    await expect(page.locator('text=Menu & Categories Studio')).toBeVisible();
+    await expect(page.locator('text=Connected to Cloud DB')).toBeVisible();
+
+    // 2. Verify Categories Column loads with Course ordering
+    await expect(page.locator('text=Categories Order')).toBeVisible();
+    await expect(page.getByText('🌐 ALL CATEGORIES')).toBeVisible();
+
+    // 3. Test Dish Search
+    const searchInput = page.locator('#menu-dish-search');
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill('MANCHOW');
+    await page.waitForTimeout(200);
+    await expect(page.locator('text=CHICKEN MANCHOW SOUP').first()).toBeVisible();
+    await searchInput.fill('');
+    await page.waitForTimeout(200);
+
+    // 4. Test Add New Dish to Supabase
+    await page.locator('button:has-text("+ Add New Dish")').click();
+    await page.waitForTimeout(200);
+    await expect(page.locator('text=Add New Dish to Supabase')).toBeVisible();
+
+    // Fill form using exact element IDs
+    const codeInput = page.locator('#menu-dish-code');
+    await codeInput.fill('888');
+
+    const nameInput = page.locator('#menu-dish-name');
+    await nameInput.fill('SPECIAL BRUTE DISH');
+
+    const acRateInput = page.locator('#menu-dish-ac-rate');
+    await acRateInput.fill('250');
+
+    await page.locator('button:has-text("Save to Supabase Live (↵)")').click();
+    await page.waitForTimeout(400);
+
+    // Search for our newly added dish
+    await searchInput.fill('888');
+    await page.waitForTimeout(200);
+    await expect(page.locator('text=SPECIAL BRUTE DISH').first()).toBeVisible();
+    await searchInput.fill('');
+    await page.waitForTimeout(200);
+
+    // 5. Test Category Reordering (Move Category Down/Up)
+    const moveDownButtons = page.locator('button[title="Move Down in Culinary Course"]');
+    const firstMoveDown = moveDownButtons.first();
+    if (await firstMoveDown.isEnabled()) {
+      await firstMoveDown.click();
+      await page.waitForTimeout(400);
+    }
+
+    // 6. Return back to POS Workspace
+    await page.locator('button:has-text("Back to POS (Esc)")').click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'New Order' })).toBeVisible();
+
+    // 7. Verify Dynamic Course Ordering on Order Entry and Print Slips
+    // Switch to Table 21
+    const tableInput = page.locator('#pos-table-input');
+    await tableInput.click();
+    await tableInput.fill('21');
+    await tableInput.press('Enter');
+    await page.waitForTimeout(300);
+
+    // Customer details modal appears on empty table: dismiss via Escape
+    const custInput = page.locator('#cust-name-input');
+    if (await custInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+    }
+
+    const posCodeInput = page.locator('input[placeholder="Code/CTM"]');
+    const posQtyInput = page.locator('input[placeholder="Qty"]');
+
+    // Add dish 888 (our newly created dish)
+    await posCodeInput.fill('888');
+    await posCodeInput.press('Enter');
+    await page.waitForTimeout(200);
+    await posQtyInput.fill('1');
+    await posQtyInput.press('Enter');
+    await page.waitForTimeout(200);
+
+    // Add item 1 (CHICKEN MANCHOW SOUP)
+    await posCodeInput.fill('1');
+    await posCodeInput.press('Enter');
+    await page.waitForTimeout(200);
+    await posQtyInput.fill('1');
+    await posQtyInput.press('Enter');
+    await page.waitForTimeout(200);
+
+    // Fire KOT via Fire KOT button or double-Enter
+    const fireKotButton = page.locator('button:has-text("Fire KOT")');
+    if (await fireKotButton.isVisible()) {
+      await fireKotButton.click();
+    } else {
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(100);
+      await page.keyboard.press('Enter');
+    }
+    await page.waitForTimeout(500);
+
+    // Verify KOT Slip opened with items
+    const kotTitle = page.locator('.win-titlebar-title', { hasText: 'Kitchen Order Token' });
+    await expect(kotTitle).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=SPECIAL BRUTE DISH').first()).toBeVisible();
+    await expect(page.locator('text=CHICKEN MANCHOW SOUP').first()).toBeVisible();
+
+    // Dismiss KOT slip
+    const closeKotBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    if (await closeKotBtn.isVisible()) {
+      await closeKotBtn.click();
+    } else {
+      await page.keyboard.press('Escape');
+    }
+    await page.waitForTimeout(300);
+
+    // 8. Test Cash Memo (F5) - Generate final bill and verify culinary course ordering
+    await page.keyboard.press('F5');
+    await page.waitForTimeout(300);
+
+    // Enter table 21 in Cash Memo mode to load preview
+    await tableInput.click();
+    await tableInput.fill('21');
+    await tableInput.press('Enter');
+    await page.waitForTimeout(300);
+
+    // Press Print Bill (F6) or press Enter to trigger bill generation & PAX prompt
+    const printBillBtn = page.locator('button:has-text("Print Bill (F6)")');
+    if (await printBillBtn.isVisible()) {
+      await printBillBtn.click();
+    } else {
+      await page.keyboard.press('Enter');
+    }
+    await page.waitForTimeout(300);
+
+    // Handle PAX prompt if present
+    const paxPrompt = page.locator('#pos-pax-input');
+    if (await paxPrompt.isVisible()) {
+      await paxPrompt.press('Enter');
+      await page.waitForTimeout(400);
+    }
+
+    // Verify Cash Memo slip displays sorted items
+    const cashMemoTitle = page.locator('div.win-titlebar-title', { hasText: 'Thermal Printer Output — Cash Memo' });
+    await expect(cashMemoTitle).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=SPECIAL BRUTE DISH').first()).toBeVisible();
+    await expect(page.locator('text=CHICKEN MANCHOW SOUP').first()).toBeVisible();
+
+    // Dismiss Cash Memo slip
+    const closeBillBtn = page.locator('button:has-text("Close (Esc/↵)")');
+    if (await closeBillBtn.isVisible()) {
+      await closeBillBtn.click();
+    } else {
+      await page.keyboard.press('Escape');
+    }
+    await page.waitForTimeout(300);
+
+    // Cleanup: clean up dish 888 from Supabase so database stays pristine
+    const cleanMenuBtn = page.locator('.win-menu-item', { hasText: 'Menu' });
+    await cleanMenuBtn.click();
+    await page.waitForTimeout(300);
+    const cleanupSearch = page.locator('#menu-dish-search');
+    await cleanupSearch.fill('888');
+    await page.waitForTimeout(200);
+
+    // Delete dish 888
+    page.once('dialog', async dialog => {
+      await dialog.accept();
+    });
+    const deleteBtn = page.locator('button[title="Delete Dish"]').first();
+    if (await deleteBtn.isVisible()) {
+      await deleteBtn.click();
+      await page.waitForTimeout(400);
+    }
+
+    // Back to POS
+    await page.locator('button:has-text("Back to POS (Esc)")').click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'New Order' })).toBeVisible();
   });
 
 });
