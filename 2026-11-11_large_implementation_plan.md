@@ -127,3 +127,4 @@ flowchart TD
 | **Concurrent WebSocket Channels** | 7 channels per client set | **3 consolidated channels total** |
 | **Monthly Egress Usage** | High (frequent full-table syncs) | **< 15 MB/month (< 0.3% of Free Tier)** |
 | **Supabase Function Costs** | Potential limit hit on edge functions | **$0 (Unlimited RPC calls)** |
+

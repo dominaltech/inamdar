@@ -31,7 +31,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await resetSupabaseTables();
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await expect(page.locator('text=SUPABASE: LIVE')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Live Database')).toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Ensure screen is in ORDER (New Order) mode
@@ -547,7 +547,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(tableInput).toBeVisible();
 
     // Wait for Supabase live sync and unsettled bills initial load to complete
-    await expect(page.locator('text=SUPABASE: LIVE')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Live Database')).toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(2000);
 
     // Record baseline unsettled bills count for Table 18
@@ -713,7 +713,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(tableInput).toBeVisible();
 
     // Wait for Supabase live sync and tables load to complete
-    await expect(page.locator('text=SUPABASE: LIVE')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Live Database')).toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(1500);
 
     // 1. First parcel order: Type 0, press Enter
