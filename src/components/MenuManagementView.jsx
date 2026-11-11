@@ -308,14 +308,14 @@ export default function MenuManagementView() {
     showToast(`Dish #${cleanCode} "${cleanName}" saved live to Database!`, 'success');
   };
 
-  // Toggle Dish Availability (Instant 1-click 86 stock toggle)
+  // Toggle Dish Availability (Instant 1-click stock toggle)
   const handleToggleAvailability = async (item) => {
     const updated = {
       ...item,
       isAvailable: !item.isAvailable,
     };
     await addOrUpdateMenuItem(updated);
-    showToast(`Dish #${item.code} marked ${updated.isAvailable ? 'AVAILABLE (In Stock)' : 'UNAVAILABLE (86 Out of Stock)'}`, 'info');
+    showToast(`Dish #${item.code} marked ${updated.isAvailable ? 'In Stock' : 'Out of Stock'}`, 'info');
   };
 
   // Delete Dish
@@ -743,7 +743,7 @@ export default function MenuManagementView() {
             </div>
 
             <div style={{ fontSize: '11px', color: '#333' }}>
-              💡 Click status pill to instantly toggle 86 Out of Stock
+              💡 Click status pill to toggle In Stock / Out of Stock
             </div>
           </div>
 
@@ -765,7 +765,7 @@ export default function MenuManagementView() {
                   <th style={{ padding: '6px 8px', width: '85px', borderRight: '1px solid #d4d0c8', textAlign: 'right' }}>AC Rate</th>
                   <th style={{ padding: '6px 8px', width: '85px', borderRight: '1px solid #d4d0c8', textAlign: 'right' }}>Hall Rate</th>
                   <th style={{ padding: '6px 8px', width: '100px', borderRight: '1px solid #d4d0c8', textAlign: 'center' }}>Routing</th>
-                  <th style={{ padding: '6px 8px', width: '110px', borderRight: '1px solid #d4d0c8', textAlign: 'center' }}>Status</th>
+                  <th style={{ padding: '6px 8px', width: '115px', borderRight: '1px solid #d4d0c8', textAlign: 'center' }}>Status</th>
                   <th style={{ padding: '6px 8px', width: '90px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
@@ -834,7 +834,7 @@ export default function MenuManagementView() {
                               borderColor: isAvailable ? '#a5d6a7' : '#ef9a9a'
                             }}
                           >
-                            {isAvailable ? '✓ In Stock' : '✗ 86 Out'}
+                            {isAvailable ? '✓ In Stock' : '✗ Out of Stock'}
                           </button>
                         </td>
                         <td style={{ padding: '5px 8px', textAlign: 'center' }}>
