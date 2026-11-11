@@ -170,7 +170,7 @@ export default function ReportsView() {
             REPORTS
           </div>
           <div style={{ fontSize: '10px', color: '#006600', fontWeight: 'bold' }}>
-            {isLoading ? '⏳ Syncing Cloud Analytics...' : `☁️ SUPABASE LIVE: ${liveBundle.bills.length} Bills | ${liveBundle.orderItems.length} Items`}
+            {isLoading ? '⏳ Syncing Cloud Analytics...' : `☁️ LIVE DATABASE: ${liveBundle.bills.length} Bills | ${liveBundle.orderItems.length} Items`}
           </div>
         </div>
 

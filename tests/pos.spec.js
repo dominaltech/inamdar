@@ -1042,13 +1042,14 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await menuTopBtn.click();
     await page.waitForTimeout(300);
 
-    // Verify Studio is active and connected to Supabase Live DB
+    // Verify Studio is active and connected to Live DB
     await expect(page.locator('text=Menu & Categories Studio')).toBeVisible();
-    await expect(page.locator('text=Connected to Cloud DB')).toBeVisible();
+    await expect(page.locator('text=Connected to Live Database')).toBeVisible();
 
-    // 2. Verify Categories Column loads with Course ordering
+    // 2. Verify Categories Column loads with Course ordering and Drag Handles
     await expect(page.locator('text=Categories Order')).toBeVisible();
     await expect(page.getByText('🌐 ALL CATEGORIES')).toBeVisible();
+    await expect(page.locator('div[title="Drag to reorder category"]').first()).toBeVisible();
 
     // 3. Test Dish Search
     const searchInput = page.locator('#menu-dish-search');
@@ -1059,10 +1060,10 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await searchInput.fill('');
     await page.waitForTimeout(200);
 
-    // 4. Test Add New Dish to Supabase
+    // 4. Test Add New Dish to Database
     await page.locator('button:has-text("+ Add New Dish")').click();
     await page.waitForTimeout(200);
-    await expect(page.locator('text=Add New Dish to Supabase')).toBeVisible();
+    await expect(page.locator('text=Add New Dish to Database')).toBeVisible();
 
     // Fill form using exact element IDs
     const codeInput = page.locator('#menu-dish-code');
@@ -1074,7 +1075,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const acRateInput = page.locator('#menu-dish-ac-rate');
     await acRateInput.fill('250');
 
-    await page.locator('button:has-text("Save to Supabase Live (↵)")').click();
+    await page.locator('button:has-text("Save to Live Database (↵)")').click();
     await page.waitForTimeout(400);
 
     // Search for our newly added dish

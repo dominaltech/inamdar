@@ -20,6 +20,10 @@ export default function MenuManagementView() {
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState({ text: '', type: 'info' });
 
+  // Drag and Drop state for Categories reordering
+  const [draggedCatIndex, setDraggedCatIndex] = useState(null);
+  const [dragOverCatIndex, setDragOverCatIndex] = useState(null);
+
   // Dialog Modals State
   const [showItemModal, setShowItemModal] = useState(false);
   const [itemFormData, setItemFormData] = useState({
@@ -73,10 +77,10 @@ export default function MenuManagementView() {
 
   const handleRefresh = async () => {
     setIsLoading(true);
-    showToast('Syncing with Supabase Live Database...', 'info');
+    showToast('Syncing with Live Database...', 'info');
     await refreshMenuAndCategories();
     setIsLoading(false);
-    showToast('Menu & Categories updated live from Supabase!', 'success');
+    showToast('Menu & Categories updated from Live Database!', 'success');
   };
 
   // Sorted Categories list
@@ -133,7 +137,48 @@ export default function MenuManagementView() {
     showToast(`Reordered "${moved.name}" to position #${targetIdx + 1}...`, 'info');
     await reorderCategories(newList);
     setIsLoading(false);
-    showToast(`Updated category order saved to Supabase!`, 'success');
+    showToast(`Updated category order saved to Database!`, 'success');
+  };
+
+  // Drag and Drop Handlers for Categories
+  const handleDragStart = (e, index) => {
+    setDraggedCatIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverCatIndex !== index) {
+      setDragOverCatIndex(index);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedCatIndex(null);
+    setDragOverCatIndex(null);
+  };
+
+  const handleDrop = async (e, targetIndex) => {
+    e.preventDefault();
+    const sourceIndex = draggedCatIndex !== null ? draggedCatIndex : Number(e.dataTransfer.getData('text/plain'));
+    setDraggedCatIndex(null);
+    setDragOverCatIndex(null);
+
+    if (sourceIndex === null || isNaN(sourceIndex) || sourceIndex === targetIndex || targetIndex < 0 || targetIndex >= sortedCategories.length) {
+      return;
+    }
+
+    const newList = [...sortedCategories];
+    const [movedItem] = newList.splice(sourceIndex, 1);
+    newList.splice(targetIndex, 0, movedItem);
+
+    setIsLoading(true);
+    showToast(`Moved "${movedItem.name}" to position #${targetIndex + 1}...`, 'info');
+    await reorderCategories(newList);
+    setIsLoading(false);
+    showToast('Updated category order saved to Database!', 'success');
   };
 
   // Open Add Category Modal
@@ -163,22 +208,22 @@ export default function MenuManagementView() {
 
     if (isEditingCat) {
       if (cleanName !== editingCatOldName) {
-        showToast(`Renaming "${editingCatOldName}" to "${cleanName}" in Supabase...`, 'info');
+        showToast(`Renaming "${editingCatOldName}" to "${cleanName}" in Database...`, 'info');
         await renameCategory(editingCatOldName, cleanName);
       }
       await addOrUpdateCategory({
         name: cleanName,
         department: catFormData.department,
       });
-      showToast(`Category "${cleanName}" updated in Supabase!`, 'success');
+      showToast(`Category "${cleanName}" updated in Database!`, 'success');
     } else {
-      showToast(`Adding category "${cleanName}" to Supabase...`, 'info');
+      showToast(`Adding category "${cleanName}" to Database...`, 'info');
       await addOrUpdateCategory({
         name: cleanName,
         department: catFormData.department,
         categoryOrder: sortedCategories.length + 1,
       });
-      showToast(`Category "${cleanName}" created in Supabase!`, 'success');
+      showToast(`Category "${cleanName}" created in Database!`, 'success');
     }
     setIsLoading(false);
   };
@@ -187,16 +232,16 @@ export default function MenuManagementView() {
   const handleDeleteCategory = async (catName) => {
     const count = dishCountsByCat[catName] || 0;
     const msg = count > 0
-      ? `Category "${catName}" has ${count} dishes! Are you sure you want to delete this category from Supabase?`
-      : `Delete category "${catName}" from Supabase?`;
+      ? `Category "${catName}" has ${count} dishes! Are you sure you want to delete this category from Database?`
+      : `Delete category "${catName}" from Database?`;
     if (!window.confirm(msg)) return;
 
     setIsLoading(true);
-    showToast(`Deleting category "${catName}" from Supabase...`, 'info');
+    showToast(`Deleting category "${catName}" from Database...`, 'info');
     await deleteCategory(catName);
     if (selectedCategory === catName) setSelectedCategory('ALL');
     setIsLoading(false);
-    showToast(`Category "${catName}" removed from Supabase!`, 'success');
+    showToast(`Category "${catName}" removed from Database!`, 'success');
   };
 
   // Open Add Dish Modal
@@ -244,7 +289,7 @@ export default function MenuManagementView() {
 
     setShowItemModal(false);
     setIsLoading(true);
-    showToast(`Saving dish #${cleanCode} "${cleanName}" to Supabase...`, 'info');
+    showToast(`Saving dish #${cleanCode} "${cleanName}" to Database...`, 'info');
 
     const acRate = Number(itemFormData.acRate) || 0;
     const hallRate = itemFormData.hallRate ? Number(itemFormData.hallRate) : acRate;
@@ -260,7 +305,7 @@ export default function MenuManagementView() {
     });
 
     setIsLoading(false);
-    showToast(`Dish #${cleanCode} "${cleanName}" saved live to Supabase!`, 'success');
+    showToast(`Dish #${cleanCode} "${cleanName}" saved live to Database!`, 'success');
   };
 
   // Toggle Dish Availability (Instant 1-click 86 stock toggle)
@@ -275,13 +320,13 @@ export default function MenuManagementView() {
 
   // Delete Dish
   const handleDeleteDish = async (item) => {
-    if (!window.confirm(`Are you sure you want to delete #${item.code} "${item.name}" from Supabase?`)) return;
+    if (!window.confirm(`Are you sure you want to delete #${item.code} "${item.name}" from Database?`)) return;
 
     setIsLoading(true);
-    showToast(`Deleting dish #${item.code} from Supabase...`, 'info');
+    showToast(`Deleting dish #${item.code} from Database...`, 'info');
     await deleteMenuItem(item.code);
     setIsLoading(false);
-    showToast(`Dish #${item.code} permanently deleted from Supabase!`, 'success');
+    showToast(`Dish #${item.code} permanently deleted from Database!`, 'success');
   };
 
   return (
@@ -309,7 +354,7 @@ export default function MenuManagementView() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span>📖</span>
-          <span>Dominal's POS — Menu &amp; Categories Studio (Live Supabase Management)</span>
+          <span>Dominal's POS — Menu &amp; Categories Studio (Live Database Management)</span>
           <span style={{
             fontSize: '11px',
             backgroundColor: '#008000',
@@ -318,7 +363,7 @@ export default function MenuManagementView() {
             borderRadius: '3px',
             marginLeft: '8px'
           }}>
-            ☁️ Connected to Cloud DB
+            ☁️ Connected to Live Database
           </span>
         </div>
 
@@ -445,12 +490,13 @@ export default function MenuManagementView() {
       </div>
 
       {/* Main Split Body: Categories (Left) vs Menu Items (Right) */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
         {/* Left Panel: Categories Manager */}
         <div style={{
-          width: '360px',
+          width: '380px',
           display: 'flex',
           flexDirection: 'column',
+          minHeight: 0,
           borderRight: '2px solid #808080',
           backgroundColor: '#f5f4ef'
         }}>
@@ -465,7 +511,7 @@ export default function MenuManagementView() {
           }}>
             <div>
               <div style={{ fontWeight: 'bold', fontSize: '12px' }}>📁 Categories Order</div>
-              <div style={{ fontSize: '10px', color: '#555' }}>Dictates KOT &amp; Bill course sorting</div>
+              <div style={{ fontSize: '10px', color: '#555' }}>Dictates KOT &amp; Bill course sorting (Drag ⠿ to reorder)</div>
             </div>
             <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: '#e0e0e0', padding: '1px 6px', border: '1px solid #999' }}>
               {sortedCategories.length} Categories
@@ -498,27 +544,78 @@ export default function MenuManagementView() {
             </span>
           </div>
 
-          {/* Categories List with Move Up / Move Down */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          {/* Categories List with Drag & Drop and Move Up / Move Down */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: '80px' }}>
             {sortedCategories.map((cat, idx) => {
               const isSelected = selectedCategory.toUpperCase() === cat.name.toUpperCase();
+              const isDragging = draggedCatIndex === idx;
+              const isDragOver = dragOverCatIndex === idx && draggedCatIndex !== idx;
               const count = dishCountsByCat[cat.name] || 0;
 
               return (
                 <div
                   key={`cat-${cat.name}-${idx}`}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  onDrop={(e) => handleDrop(e, idx)}
                   onClick={() => setSelectedCategory(cat.name)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     padding: '6px 8px',
                     borderBottom: '1px solid #e0e0e0',
-                    backgroundColor: isSelected ? '#316ac5' : idx % 2 === 0 ? '#ffffff' : '#f9f9f9',
+                    backgroundColor: isSelected
+                      ? '#316ac5'
+                      : isDragOver
+                      ? '#d0e0ff'
+                      : idx % 2 === 0 ? '#ffffff' : '#f9f9f9',
                     color: isSelected ? '#ffffff' : '#000000',
                     cursor: 'pointer',
-                    userSelect: 'none'
+                    userSelect: 'none',
+                    opacity: isDragging ? 0.35 : 1,
+                    borderTop: (isDragOver && draggedCatIndex !== null && draggedCatIndex > idx)
+                      ? '3px solid #0055ea'
+                      : undefined,
+                    borderBottom: (isDragOver && draggedCatIndex !== null && draggedCatIndex < idx)
+                      ? '3px solid #0055ea'
+                      : '1px solid #e0e0e0',
+                    transition: 'background-color 0.15s ease'
                   }}
                 >
+                  {/* Drag Handle Button (before Number column) */}
+                  <div
+                    title="Drag to reorder category"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, idx)}
+                    style={{
+                      width: '20px',
+                      height: '22px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : '#ebe7dc',
+                      color: isSelected ? '#ffffff' : '#555555',
+                      border: '1px solid #999',
+                      borderRadius: '2px',
+                      cursor: 'grab',
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      marginRight: '6px',
+                      flexShrink: 0,
+                      userSelect: 'none'
+                    }}
+                    onMouseDown={(e) => {
+                      e.currentTarget.style.cursor = 'grabbing';
+                    }}
+                    onMouseUp={(e) => {
+                      e.currentTarget.style.cursor = 'grab';
+                    }}
+                  >
+                    ⠿
+                  </div>
+
                   {/* Order Badge */}
                   <span style={{
                     width: '26px',
@@ -628,7 +725,7 @@ export default function MenuManagementView() {
         </div>
 
         {/* Right Panel: Menu Items Ledger */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', overflow: 'hidden' }}>
           {/* Header Info */}
           <div style={{
             backgroundColor: '#d4d0c8',
@@ -651,7 +748,7 @@ export default function MenuManagementView() {
           </div>
 
           {/* Dishes Table */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: '80px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
               <thead>
                 <tr style={{
@@ -816,7 +913,7 @@ export default function MenuManagementView() {
               alignItems: 'center',
               fontSize: '12px'
             }}>
-              <span>{isEditingItem ? `Edit Dish (#${itemFormData.code})` : 'Add New Dish to Supabase'}</span>
+              <span>{isEditingItem ? `Edit Dish (#${itemFormData.code})` : 'Add New Dish to Database'}</span>
               <button
                 onClick={() => setShowItemModal(false)}
                 style={{
@@ -990,7 +1087,7 @@ export default function MenuManagementView() {
                     cursor: 'pointer'
                   }}
                 >
-                  Save to Supabase Live (↵)
+                  Save to Live Database (↵)
                 </button>
               </div>
             </form>
