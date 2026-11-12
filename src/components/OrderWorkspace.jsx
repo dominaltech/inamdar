@@ -140,11 +140,62 @@ export default function OrderWorkspace() {
     return () => window.removeEventListener('inamdar-focus-table', handleFocusTable);
   }, []);
 
+  // Double Backspace to Close Current Order Tab
+  const lastBackspaceRef = useRef(0);
+
+  const handleDoubleBackspaceCheck = (e) => {
+    if (e.key !== 'Backspace') {
+      lastBackspaceRef.current = 0;
+      return false;
+    }
+
+    // Only trigger if active element has no text to delete
+    const target = e.target;
+    const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+    const hasText = isInput && target.value && target.value.length > 0;
+
+    if (hasText) {
+      lastBackspaceRef.current = 0;
+      return false;
+    }
+
+    const now = Date.now();
+    const timeDiff = now - (lastBackspaceRef.current || 0);
+
+    if (timeDiff > 0 && timeDiff < 550) {
+      // Double Backspace confirmed! Close the current active draft tab!
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      lastBackspaceRef.current = 0;
+      handleCloseDraft(null, activeDraftIdx);
+      return true;
+    } else {
+      lastBackspaceRef.current = now;
+      return false;
+    }
+  };
+
+  // Helper to determine currently active input
+  const getCurrentFocusedField = () => {
+    const activeEl = document.activeElement;
+    if (!activeEl) return 'table';
+    if (activeEl.id === 'pos-qty-input') return 'qty';
+    if (activeEl.id === 'pos-rate-input') return 'rate';
+    if (activeEl.id === 'pos-code-input') return 'code';
+    if (activeEl.id === 'pos-table-input') return 'table';
+    return activeTableId ? 'code' : 'table';
+  };
+
   // Multi-Order Tab Switcher via F1 Hotkey
   const handleSwitchDraft = (targetIdx) => {
     if (targetIdx === activeDraftIdx || targetIdx < 0 || targetIdx >= orderDrafts.length) return;
 
     // Save current active draft data
+    const curTbl = tables[activeTableId];
+    const curStaged = (curTbl?.items || []).filter(it => it.isStaged && it.qty > 0 && !it.isCancelled);
+    const hasActiveStaged = curStaged.length > 0;
+
     setOrderDrafts(prev => {
       const updated = [...prev];
       updated[activeDraftIdx] = {
@@ -154,31 +205,74 @@ export default function OrderWorkspace() {
         customerName: customerName,
         customerPhone: customerPhone,
         employee: activeEmployee,
+        codeQuery: codeQuery,
+        qtyInput: qtyInput,
+        rateInput: rateInput,
+        customizationInput: customizationInput,
+        focusedField: getCurrentFocusedField(),
+        hasHalfOrder: hasActiveStaged,
       };
       return updated;
     });
 
     const targetDraft = orderDrafts[targetIdx];
     setActiveDraftIdx(targetIdx);
-    setCustomerName(targetDraft.customerName || '');
-    setCustomerPhone(targetDraft.customerPhone || '');
-    setTableInput(targetDraft.tableInput || '');
-    switchTable(targetDraft.tableId || '');
-    if (targetDraft.employee) setActiveEmployee(targetDraft.employee);
 
-    if (targetDraft.tableId) {
-      focusCodeInput();
+    const targetTbl = targetDraft.tableId ? tables[targetDraft.tableId] : null;
+    const targetStaged = (targetTbl?.items || []).filter(it => it.isStaged && it.qty > 0 && !it.isCancelled);
+    const hasTargetHalfOrder = targetStaged.length > 0;
+
+    // If the target draft's table has NO staged items and is already running or completed,
+    // do NOT load it into "add items" state. Start clean on this tab!
+    if (targetDraft.tableId && !hasTargetHalfOrder && targetTbl && targetTbl.status !== 'AVAILABLE') {
+      setTableInput('');
+      switchTable('');
+      setCustomerName('');
+      setCustomerPhone('');
+      setCodeQuery('');
+      setSelectedItem(null);
+      setQtyInput('1');
+      setRateInput('');
+      setCustomizationInput('');
+      if (targetDraft.employee) setActiveEmployee(targetDraft.employee);
+      setTimeout(() => focusTableInput(), 50);
     } else {
-      focusTableInput();
+      // Half order exists or clean new order: restore exact state & step
+      setCustomerName(targetDraft.customerName || '');
+      setCustomerPhone(targetDraft.customerPhone || '');
+      setTableInput(targetDraft.tableInput || '');
+      switchTable(targetDraft.tableId || '');
+      setCodeQuery(targetDraft.codeQuery || '');
+      setQtyInput(targetDraft.qtyInput || '1');
+      setRateInput(targetDraft.rateInput || '');
+      setCustomizationInput(targetDraft.customizationInput || '');
+      if (targetDraft.employee) setActiveEmployee(targetDraft.employee);
+
+      setTimeout(() => {
+        if (targetDraft.tableId) {
+          if (targetDraft.focusedField === 'qty') {
+            qtyInputRef.current?.focus();
+            qtyInputRef.current?.select();
+          } else if (targetDraft.focusedField === 'rate') {
+            rateInputRef.current?.focus();
+          } else {
+            focusCodeInput();
+          }
+        } else {
+          focusTableInput();
+        }
+      }, 50);
     }
   };
 
   const handleAddNewDraft = () => {
     if (orderDrafts.length >= 5) {
-      // Cycle to first
       handleSwitchDraft(0);
       return;
     }
+
+    const curTbl = tables[activeTableId];
+    const curStaged = (curTbl?.items || []).filter(it => it.isStaged && it.qty > 0 && !it.isCancelled);
 
     // Save current active draft data
     setOrderDrafts(prev => {
@@ -190,6 +284,12 @@ export default function OrderWorkspace() {
         customerName: customerName,
         customerPhone: customerPhone,
         employee: activeEmployee,
+        codeQuery: codeQuery,
+        qtyInput: qtyInput,
+        rateInput: rateInput,
+        customizationInput: customizationInput,
+        focusedField: getCurrentFocusedField(),
+        hasHalfOrder: curStaged.length > 0,
       };
       const newDraft = {
         id: Date.now(),
@@ -198,7 +298,12 @@ export default function OrderWorkspace() {
         customerName: '',
         customerPhone: '',
         employee: activeEmployee || '1 COUNTER',
-        stagedItems: [],
+        codeQuery: '',
+        qtyInput: '1',
+        rateInput: '',
+        customizationInput: '',
+        focusedField: 'table',
+        hasHalfOrder: false,
       };
       return [...updated, newDraft];
     });
@@ -213,20 +318,38 @@ export default function OrderWorkspace() {
     setSelectedItem(null);
     setQtyInput('1');
     setRateInput('');
-    focusTableInput();
+    setCustomizationInput('');
+    setTimeout(() => focusTableInput(), 50);
   };
 
   const handleCloseDraft = (e, idxToClose) => {
     e?.stopPropagation();
     if (orderDrafts.length <= 1) {
-      // Just clear
+      // Just clear current draft to clean slate
+      setOrderDrafts([{
+        id: Date.now(),
+        tableId: '',
+        tableInput: '',
+        customerName: '',
+        customerPhone: '',
+        employee: activeEmployee || '1 COUNTER',
+        codeQuery: '',
+        qtyInput: '1',
+        rateInput: '',
+        customizationInput: '',
+        focusedField: 'table',
+        hasHalfOrder: false,
+      }]);
       setTableInput('');
       switchTable('');
       setCustomerName('');
       setCustomerPhone('');
       setCodeQuery('');
       setSelectedItem(null);
-      focusTableInput();
+      setQtyInput('1');
+      setRateInput('');
+      setCustomizationInput('');
+      setTimeout(() => focusTableInput(), 50);
       return;
     }
 
@@ -236,11 +359,42 @@ export default function OrderWorkspace() {
     setActiveDraftIdx(nextIdx);
 
     const target = nextDrafts[nextIdx];
-    setCustomerName(target.customerName || '');
-    setCustomerPhone(target.customerPhone || '');
-    setTableInput(target.tableInput || '');
-    switchTable(target.tableId || '');
-    focusTableInput();
+    const targetTbl = target.tableId ? tables[target.tableId] : null;
+    const targetStaged = (targetTbl?.items || []).filter(it => it.isStaged && it.qty > 0 && !it.isCancelled);
+
+    if (target.tableId && targetStaged.length > 0) {
+      // Restore half order on target tab
+      setCustomerName(target.customerName || '');
+      setCustomerPhone(target.customerPhone || '');
+      setTableInput(target.tableInput || target.tableId);
+      switchTable(target.tableId);
+      setCodeQuery(target.codeQuery || '');
+      setQtyInput(target.qtyInput || '1');
+      setRateInput(target.rateInput || '');
+      setCustomizationInput(target.customizationInput || '');
+      setTimeout(() => {
+        if (target.focusedField === 'qty') {
+          qtyInputRef.current?.focus();
+          qtyInputRef.current?.select();
+        } else if (target.focusedField === 'rate') {
+          rateInputRef.current?.focus();
+        } else {
+          focusCodeInput();
+        }
+      }, 50);
+    } else {
+      // Clean tab: ready for new table
+      setCustomerName('');
+      setCustomerPhone('');
+      setTableInput(target.tableInput || '');
+      switchTable(target.tableId || '');
+      setCodeQuery('');
+      setSelectedItem(null);
+      setQtyInput('1');
+      setRateInput('');
+      setCustomizationInput('');
+      setTimeout(() => focusTableInput(), 50);
+    }
   };
 
   // Two-Stage Escape Handling & F1 Tab Capture
@@ -258,6 +412,9 @@ export default function OrderWorkspace() {
       ) {
         return;
       }
+
+      // Double Backspace on empty input closes active draft tab!
+      if (handleDoubleBackspaceCheck(e)) return;
 
       // Hotkey '-' triggers dedicated Cancel Order / Items Modal!
       if (e.key === '-' || e.key === 'Subtract') {
@@ -490,12 +647,27 @@ export default function OrderWorkspace() {
     setShowSubTableMenu(false);
     setDoubleEnterBadge(null);
 
-    // If more than 1 draft was open, close this draft
+    // If more than 1 draft was open, close this completed draft
     if (orderDrafts.length > 1) {
       handleCloseDraft(null, activeDraftIdx);
+    } else {
+      // If only 1 draft was open, reset it so it doesn't remember the completed table
+      setOrderDrafts([{
+        id: Date.now(),
+        tableId: '',
+        tableInput: '',
+        customerName: '',
+        customerPhone: '',
+        employee: activeEmployee || '1 COUNTER',
+        codeQuery: '',
+        qtyInput: '1',
+        rateInput: '',
+        customizationInput: '',
+        focusedField: 'table',
+        hasHalfOrder: false,
+      }]);
+      focusTableInput();
     }
-
-    focusTableInput();
   };
 
   // Handle table field enter -> Steps to Customer Details, or Cash Memo preview
@@ -957,7 +1129,7 @@ export default function OrderWorkspace() {
               {orderDrafts.map((draft, idx) => {
                 const isActive = idx === activeDraftIdx;
                 const draftLabel = draft.tableInput
-                  ? `T${draft.tableInput}${draft.customerName ? ` (${draft.customerName})` : ''}`
+                  ? `Order ${idx + 1} (T${draft.tableInput})`
                   : `Order ${idx + 1}`;
                 return (
                   <div
@@ -1261,6 +1433,7 @@ export default function OrderWorkspace() {
                       {/* Code Input & Autocomplete Dropdown */}
                       <td style={{ padding: '2px 3px', position: 'relative' }}>
                         <input
+                          id="pos-code-input"
                           ref={codeInputRef}
                           type="text"
                           value={codeQuery}

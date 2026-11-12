@@ -1402,4 +1402,116 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(300);
   });
 
+  test('22. Multi-Order Box Tabs, Double Backspace Tab Closure, In-Progress Half-Order Resumption & Completed Order Auto-Purge', async ({ page }) => {
+    test.setTimeout(60000);
+
+    // 1. Start fresh on New Order
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    const tableInput = page.locator('#pos-table-input');
+    await expect(tableInput).toBeVisible();
+    if (await tableInput.inputValue() !== '') {
+      await tableInput.fill('');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+    }
+    await tableInput.focus();
+    await page.waitForTimeout(200);
+
+    // 2. Open Order 2 and Order 3 using the [+ F1] button
+    const addTabBtn = page.locator('button[title="Open New Order Tab (F1)"]');
+    await addTabBtn.click();
+    await page.waitForTimeout(200);
+    await addTabBtn.click();
+    await page.waitForTimeout(200);
+
+    // Verify 3 tabs exist: Order 1, Order 2, Order 3
+    await expect(page.locator('text=Order 1').first()).toBeVisible();
+    await expect(page.locator('text=Order 2').first()).toBeVisible();
+    await expect(page.locator('text=Order 3').first()).toBeVisible();
+
+    // 3. Test Double Backspace to Close Order 3
+    // Currently on Order 3, table input is focused and empty
+    await page.locator('#pos-table-input').focus();
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(100);
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(400);
+
+    // Verify Order 3 was closed, Order 2 is now active
+    await expect(page.locator('text=Order 3')).toHaveCount(0);
+    await expect(page.locator('text=Order 2').first()).toBeVisible();
+
+    // 4. In Order 2, enter Table 10 and add a dish (code 153)
+    await page.locator('#pos-table-input').fill('10');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+
+    const skipBtn = page.locator('button:has-text("Skip")');
+    if (await skipBtn.isVisible()) {
+      await skipBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    await page.locator('#pos-code-input').fill('153');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+
+    // 5. Switch back to Order 1 using F1 key
+    await page.keyboard.press('F1');
+    await page.waitForTimeout(400);
+
+    // In Order 1, enter Table 6 and add a half-placed dish (code 49)
+    await page.locator('#pos-table-input').fill('6');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+
+    if (await skipBtn.isVisible()) {
+      await skipBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    await page.locator('#pos-code-input').fill('49');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+
+    // Verify Table 6 has BABY CORN CHILLY staged
+    await expect(page.locator('td', { hasText: 'BABY CORN CHILLY' })).toBeVisible();
+
+    // 6. Switch to Order 2 using F1: verify Order 2 restores Table 10 and ROASTED PAPAD
+    await page.keyboard.press('F1');
+    await page.waitForTimeout(400);
+    await expect(page.locator('td', { hasText: 'ROASTED PAPAD' })).toBeVisible();
+
+    // 7. Switch back to Order 1 using F1: verify exact resumption of Table 6 and BABY CORN CHILLY
+    await page.keyboard.press('F1');
+    await page.waitForTimeout(400);
+    await expect(page.locator('td', { hasText: 'BABY CORN CHILLY' })).toBeVisible();
+
+    // 8. Fire KOT for Order 1: Table 6 order is completed
+    await page.locator('button:has-text("Fire KOT")').click();
+    await page.waitForTimeout(400);
+
+    // Dismiss KOT thermal print slip
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+
+    // 9. Since Order 1 was completed and Order 2 was still open, Order 1 closes and brings operator back to Order 2!
+    await expect(page.locator('td', { hasText: 'ROASTED PAPAD' })).toBeVisible();
+
+    // Clean up Order 2 by firing KOT
+    await page.locator('button:has-text("Fire KOT")').click();
+    await page.waitForTimeout(400);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+
+    // Now all orders are complete: Order 1 is clean and waiting at Table input
+    await expect(page.locator('#pos-table-input')).toBeVisible();
+    await expect(page.locator('#pos-table-input')).toHaveValue('');
+  });
+
 });
