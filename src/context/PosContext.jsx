@@ -1054,19 +1054,26 @@ export function PosProvider({ children }) {
     // Vacate table so new guests can sit immediately and take new orders
     setTables(prev => {
       const updated = { ...prev };
-      const variants = [cleanTbl, baseTbl, `${baseTbl}A`].filter(Boolean);
-      variants.forEach(k => {
-        if (updated[k]) {
-          updated[k] = {
-            ...updated[k],
-            status: 'AVAILABLE',
-            customerName: '',
-            customerPhone: '',
-            items: [],
-            kotNos: [],
-          };
-        }
-      });
+      const isDynamic = String(cleanTbl).startsWith('0') || /^[0-9]+[A-Z]$/i.test(String(cleanTbl));
+      if (isDynamic) {
+        delete updated[cleanTbl];
+        if (baseTbl && baseTbl !== cleanTbl) delete updated[baseTbl];
+        if (baseTbl) delete updated[`${baseTbl}A`];
+      } else {
+        const variants = [cleanTbl, baseTbl, `${baseTbl}A`].filter(Boolean);
+        variants.forEach(k => {
+          if (updated[k]) {
+            updated[k] = {
+              ...updated[k],
+              status: 'AVAILABLE',
+              customerName: '',
+              customerPhone: '',
+              items: [],
+              kotNos: [],
+            };
+          }
+        });
+      }
       return updated;
     });
 
@@ -1182,6 +1189,17 @@ export function PosProvider({ children }) {
     setUnsettledBills(prev => prev.filter(b => String(b.billNo) !== String(billNum)));
     setShowSettleModal(false);
     setSettleBillData(null);
+
+    // If dynamic order slot (takeaway / delivery), purge from local tables state
+    setTables(prev => {
+      const isDynamic = String(cleanTbl).startsWith('0') || /^[0-9]+[A-Z]$/i.test(String(cleanTbl));
+      if (isDynamic && prev[cleanTbl]) {
+        const next = { ...prev };
+        delete next[cleanTbl];
+        return next;
+      }
+      return prev;
+    });
 
     // Cloud sync settlement
     settleBillInSupabase({

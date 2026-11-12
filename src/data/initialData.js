@@ -54,30 +54,6 @@ function generateCleanTables() {
     };
   }
 
-  // Parcel / Takeaway Section: 0, 0A, 0B, 0C, 0D, 0E
-  ['0', '0A', '0B', '0C', '0D', '0E'].forEach(id => {
-    tbls[id] = {
-      id,
-      section: 'PARCEL',
-      waiter: '1 COUNTER',
-      status: 'AVAILABLE',
-      pax: 1,
-      kotNos: [],
-      items: [],
-    };
-  });
-
-  // Home Delivery: 00 - GUEST
-  tbls['00 - GUEST'] = {
-    id: '00 - GUEST',
-    section: 'HOME DELIVERY',
-    waiter: '1 COUNTER',
-    status: 'AVAILABLE',
-    pax: 1,
-    kotNos: [],
-    items: [],
-  };
-
   return tbls;
 }
 

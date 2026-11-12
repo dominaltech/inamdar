@@ -3,11 +3,19 @@ import { usePos } from '../context/PosContext';
 
 const SECTIONS = [
   { id: 'ALL', name: '🌐 ALL SECTIONS' },
-  { id: 'AC', name: '❄️ AC (Normal Dine-in)' },
+  { id: 'AC', name: '❄️ AC (Normal Dine-In)' },
   { id: 'FAMILY AC', name: '👨‍👩‍👧‍👦 FAMILY AC' },
-  { id: 'PARCEL', name: '📦 PARCEL (Takeaway)' },
-  { id: 'HOME DELIVERY', name: '🛵 HOME DELIVERY' },
 ];
+
+// Helper: Filter out temporary delivery, parcel orders, and dynamic sub-tables
+const isPhysicalDineInTable = (t) => {
+  if (!t || !t.id) return false;
+  const idStr = String(t.id).trim();
+  if (idStr.startsWith('0')) return false;
+  if (t.section === 'PARCEL' || t.section === 'HOME DELIVERY') return false;
+  if (/^[0-9]+[A-Z]$/i.test(idStr)) return false;
+  return true;
+};
 
 export default function TableManagementView() {
   const {
@@ -80,9 +88,9 @@ export default function TableManagementView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showTableModal, showRangeModal, showMoveModal, setScreenMode]);
 
-  // Table list array sorted naturally
+  // Physical Dine-In Table list array sorted naturally
   const sortedTableList = useMemo(() => {
-    const list = Object.values(tables || {});
+    const list = Object.values(tables || {}).filter(isPhysicalDineInTable);
     return list.sort((a, b) => {
       const numA = parseInt(a.id, 10);
       const numB = parseInt(b.id, 10);
@@ -91,10 +99,12 @@ export default function TableManagementView() {
     });
   }, [tables]);
 
-  // Filtered tables
+  // Filtered tables (Matches AC / GENERAL seamlessly)
   const filteredTables = useMemo(() => {
     let list = sortedTableList;
-    if (selectedSection !== 'ALL') {
+    if (selectedSection === 'AC') {
+      list = list.filter(t => t.section === 'AC' || t.section === 'GENERAL');
+    } else if (selectedSection !== 'ALL') {
       list = list.filter(t => t.section === selectedSection);
     }
     if (searchQuery.trim()) {
@@ -104,11 +114,13 @@ export default function TableManagementView() {
     return list;
   }, [sortedTableList, selectedSection, searchQuery]);
 
-  // Section Counts
+  // Section Counts (Properly counts AC + GENERAL into AC Normal Dine-In)
   const sectionCounts = useMemo(() => {
-    const counts = { ALL: sortedTableList.length, AC: 0, 'FAMILY AC': 0, PARCEL: 0, 'HOME DELIVERY': 0 };
+    const counts = { ALL: sortedTableList.length, AC: 0, 'FAMILY AC': 0 };
     sortedTableList.forEach(t => {
-      if (counts[t.section] !== undefined) {
+      if (t.section === 'AC' || t.section === 'GENERAL') {
+        counts.AC++;
+      } else if (counts[t.section] !== undefined) {
         counts[t.section]++;
       }
     });
@@ -442,9 +454,7 @@ export default function TableManagementView() {
           <div style={{ padding: '8px', backgroundColor: '#e8e4d9', borderTop: '1px solid #999', fontSize: '10.5px', color: '#555', lineHeight: '1.4' }}>
             💡 <b>Section Order:</b><br />
             1-20: AC Normal<br />
-            21-42: FAMILY AC<br />
-            0, 0A-0E: Parcel<br />
-            00, 00A: Delivery
+            21-42: FAMILY AC
           </div>
         </div>
 
@@ -523,7 +533,7 @@ export default function TableManagementView() {
                             color: tbl.section === 'FAMILY AC' ? '#7b1fa2' : '#0d47a1',
                             border: '1px solid #b0bec5'
                           }}>
-                            {tbl.section}
+                            {(tbl.section === 'AC' || tbl.section === 'GENERAL') ? 'AC' : tbl.section}
                           </span>
                         </div>
 
@@ -661,10 +671,8 @@ export default function TableManagementView() {
                   }}
                   style={{ width: '100%', padding: '4px 6px', border: '2px inset #808080', backgroundColor: '#ffffff', fontWeight: 'bold' }}
                 >
-                  <option value="AC">❄️ AC (Normal Dine-in)</option>
+                  <option value="AC">❄️ AC (Normal Dine-In)</option>
                   <option value="FAMILY AC">👨‍👩‍👧‍👦 FAMILY AC</option>
-                  <option value="PARCEL">📦 PARCEL (Takeaway)</option>
-                  <option value="HOME DELIVERY">🛵 HOME DELIVERY</option>
                 </select>
               </div>
 
@@ -795,10 +803,8 @@ export default function TableManagementView() {
                   onChange={(e) => setRangeFormData({ ...rangeFormData, targetSection: e.target.value })}
                   style={{ width: '100%', padding: '4px 6px', border: '2px inset #808080', backgroundColor: '#ffffff', fontWeight: 'bold' }}
                 >
-                  <option value="AC">❄️ AC (Normal Dine-in)</option>
+                  <option value="AC">❄️ AC (Normal Dine-In)</option>
                   <option value="FAMILY AC">👨‍👩‍👧‍👦 FAMILY AC</option>
-                  <option value="PARCEL">📦 PARCEL (Takeaway)</option>
-                  <option value="HOME DELIVERY">🛵 HOME DELIVERY</option>
                 </select>
               </div>
 
@@ -897,10 +903,8 @@ export default function TableManagementView() {
                   onChange={(e) => setMoveFormData({ ...moveFormData, targetSection: e.target.value })}
                   style={{ width: '100%', padding: '4px 6px', border: '2px inset #808080', backgroundColor: '#ffffff', fontWeight: 'bold' }}
                 >
-                  <option value="AC">❄️ AC (Normal Dine-in)</option>
+                  <option value="AC">❄️ AC (Normal Dine-In)</option>
                   <option value="FAMILY AC">👨‍👩‍👧‍👦 FAMILY AC</option>
-                  <option value="PARCEL">📦 PARCEL (Takeaway)</option>
-                  <option value="HOME DELIVERY">🛵 HOME DELIVERY</option>
                 </select>
               </div>
 

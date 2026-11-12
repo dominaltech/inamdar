@@ -55,12 +55,19 @@ export async function fetchLiveTables() {
       const activeItems = (tbl.status === 'AVAILABLE' || activeKotNos.length === 0)
         ? []
         : (itemsByTable[tbl.id] || []).filter(it => activeKotNos.includes(Number(it.kotNo)));
+
+      const isDynamic = String(tbl.id).startsWith('0') || /^[0-9]+[A-Z]$/i.test(String(tbl.id));
+      // Dynamic delivery/parcel/sub-table orders: once completed (AVAILABLE or no active items), do not retain in memory
+      if (isDynamic && (tbl.status === 'AVAILABLE' || activeItems.length === 0)) {
+        return;
+      }
+
       tablesMap[tbl.id] = {
         id: tbl.id,
-        section: tbl.section === 'AC' ? 'GENERAL' : tbl.section,
+        section: (tbl.section === 'GENERAL' || tbl.section === 'AC') ? 'AC' : tbl.section,
         waiter: tbl.active_waiter || '1 COUNTER',
-        status: tbl.status || 'AVAILABLE',
-        pax: tbl.pax || 2,
+        status: activeItems.length > 0 ? 'OCCUPIED' : (tbl.status || 'AVAILABLE'),
+        pax: tbl.pax || (tbl.section === 'FAMILY AC' ? 4 : 2),
         customerName: tbl.customer_name || '',
         customerPhone: tbl.customer_phone || '',
         kotNos: tbl.kot_nos || [],
@@ -481,6 +488,12 @@ export async function saveBillInSupabase(billData) {
         updated_at: new Date().toISOString()
       })
       .in('id', variants);
+
+    // If dynamic order slot (takeaway / delivery / dynamic sub-table), purge from tables table
+    const isDynamicTbl = String(cleanTbl).startsWith('0') || /^[0-9]+[A-Z]$/i.test(String(cleanTbl));
+    if (isDynamicTbl) {
+      supabase.from('tables').delete().in('id', variants).then();
+    }
 
     // 4. Clear active order items for this table in Supabase (snapshot safely stored in bills.items_json)
     await supabase

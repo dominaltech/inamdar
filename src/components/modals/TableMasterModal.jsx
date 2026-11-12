@@ -11,7 +11,7 @@ export default function TableMasterModal({ isOpen, onClose }) {
   };
 
   const tableList = Object.values(tables || {});
-  const acTables = tableList.filter(t => t.section === 'AC');
+  const acTables = tableList.filter(t => (t.section === 'AC' || t.section === 'GENERAL') && !String(t.id).startsWith('0'));
   const familyTables = tableList.filter(t => t.section === 'FAMILY AC');
   const parcelTables = tableList.filter(t => t.section === 'PARCEL');
   const deliveryTables = tableList.filter(t => t.section === 'HOME DELIVERY');
