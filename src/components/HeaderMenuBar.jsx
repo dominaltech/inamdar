@@ -3,6 +3,8 @@ import { usePos } from '../context/PosContext';
 
 export default function HeaderMenuBar() {
   const { 
+    currentUser,
+    setCurrentUser,
     screenMode,
     setShowLoginModal, 
     setScreenMode, 
@@ -14,6 +16,9 @@ export default function HeaderMenuBar() {
   } = usePos();
 
   const [activeMenu, setActiveMenu] = useState(null);
+  const [showAdminPinModal, setShowAdminPinModal] = useState(false);
+  const [adminPin, setAdminPin] = useState('');
+  const [adminPinError, setAdminPinError] = useState('');
   const menuRef = useRef(null);
 
   // Close menus on outside click
@@ -38,7 +43,33 @@ export default function HeaderMenuBar() {
       setScreenMode('MENU');
       return;
     }
+    if (menuName === 'Tables') {
+      setActiveMenu(null);
+      if (currentUser?.role === 'ADMIN' || currentUser?.role === 'OWNER' || currentUser?.role === 'MANAGER') {
+        setScreenMode('TABLES');
+      } else {
+        setAdminPin('');
+        setAdminPinError('');
+        setShowAdminPinModal(true);
+      }
+      return;
+    }
     setActiveMenu(activeMenu === menuName ? null : menuName);
+  };
+
+  const handleAdminPinSubmit = (e) => {
+    e.preventDefault();
+    const clean = adminPin.trim();
+    if (clean === '1234' || clean === '9999') {
+      setShowAdminPinModal(false);
+      setAdminPinError('');
+      if (setCurrentUser) {
+        setCurrentUser({ id: '2', name: 'Manager', role: 'MANAGER', pin: '1234' });
+      }
+      setScreenMode('TABLES');
+    } else {
+      setAdminPinError('Invalid Admin PIN! (Hint: 1234 or 9999)');
+    }
   };
 
   const handleAction = (action) => {
@@ -287,7 +318,67 @@ export default function HeaderMenuBar() {
         >
           <u>M</u>enu
         </div>
+
+        {/* 8. Tables (Restaurant Tables Studio) */}
+        <div 
+          className={`win-menu-item ${screenMode === 'TABLES' ? 'active' : ''}`} 
+          onClick={() => handleMenuClick('Tables')}
+        >
+          <u>T</u>ables
+        </div>
       </div>
+
+      {/* Admin Security PIN Modal for Tables Studio */}
+      {showAdminPinModal && (
+        <div className="win-modal-backdrop" style={{ zIndex: 9999 }}>
+          <div className="win-window" style={{ width: '320px', background: '#ece9d8' }}>
+            <div className="win-titlebar" style={{ background: '#0a246a' }}>
+              <div className="win-titlebar-title">
+                <span>🔒 Admin Authentication Required</span>
+              </div>
+              <button className="win-close-btn" onClick={() => setShowAdminPinModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleAdminPinSubmit} style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ fontSize: '11px', color: '#333' }}>
+                Restaurant Tables Studio is restricted to Admin &amp; Management. Enter Admin PIN to proceed:
+              </div>
+              <input
+                id="admin-tables-pin-input"
+                type="password"
+                autoFocus
+                value={adminPin}
+                onChange={(e) => {
+                  setAdminPin(e.target.value);
+                  setAdminPinError('');
+                }}
+                placeholder="Enter PIN (e.g. 1234)"
+                style={{ padding: '5px 8px', border: '2px inset #808080', fontSize: '14px', fontWeight: 'bold', textAlign: 'center', letterSpacing: '3px' }}
+              />
+              {adminPinError && (
+                <div style={{ color: '#c00000', fontSize: '11px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {adminPinError}
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  className="win-btn"
+                  onClick={() => setShowAdminPinModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="win-btn"
+                  style={{ fontWeight: 'bold', background: '#0a246a', color: '#fff' }}
+                >
+                  Unlock Tables Studio (↵)
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

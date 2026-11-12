@@ -40,8 +40,8 @@ function generateCleanTables() {
     };
   }
 
-  // Family AC Section: Tables 21 to 40
-  for (let i = 21; i <= 40; i++) {
+  // Family AC Section: Tables 21 to 42
+  for (let i = 21; i <= 42; i++) {
     const id = String(i);
     tbls[id] = {
       id,

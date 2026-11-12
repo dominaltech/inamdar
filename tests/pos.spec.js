@@ -1223,4 +1223,183 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('.win-titlebar-title', { hasText: 'New Order' })).toBeVisible();
   });
 
+  test('20. Restaurant Tables Studio, Family Tables 41 & 42, Admin PIN Auth, Add Table & Range Reassignment', async ({ page }) => {
+    test.setTimeout(60000);
+
+    // 1. Click Tables in Top Header Bar
+    const tablesMenuBtn = page.locator('.win-menu-item', { hasText: 'Tables' });
+    await expect(tablesMenuBtn).toBeVisible();
+    await tablesMenuBtn.click();
+    await page.waitForTimeout(300);
+
+    // If Admin PIN prompt appears:
+    const adminPinInput = page.locator('#admin-tables-pin-input');
+    if (await adminPinInput.isVisible()) {
+      await adminPinInput.fill('1234');
+      await page.locator('button:has-text("Unlock Tables Studio (↵)")').click();
+      await page.waitForTimeout(300);
+    }
+
+    // 2. Verify Restaurant Tables Studio is active
+    await expect(page.locator('text=Restaurant Tables Studio')).toBeVisible();
+    await expect(page.locator('text=Connected to Live Database')).toBeVisible();
+
+    // 3. Verify Family Tables 41 and 42 are present in Family AC
+    const searchInput = page.locator('#table-search-input');
+    await searchInput.fill('41');
+    await page.waitForTimeout(200);
+    await expect(page.locator('span:has-text("#41")').first()).toBeVisible();
+    await searchInput.fill('42');
+    await page.waitForTimeout(200);
+    await expect(page.locator('span:has-text("#42")').first()).toBeVisible();
+    await searchInput.fill('');
+    await page.waitForTimeout(200);
+
+    // 4. Test Add New Table Modal
+    await page.locator('button:has-text("+ Add New Table")').click();
+    await page.waitForTimeout(200);
+    await expect(page.locator('text=Add New Table to Database')).toBeVisible();
+    await page.locator('input[placeholder="e.g. 41 or 0A"]').fill('99');
+    await page.locator('button:has-text("Save Table (↵)")').click();
+    await page.waitForTimeout(400);
+
+    // Verify Table 99 was added
+    await searchInput.fill('99');
+    await page.waitForTimeout(200);
+    await expect(page.locator('span:has-text("#99")').first()).toBeVisible();
+    await searchInput.fill('');
+    await page.waitForTimeout(200);
+
+    // Clean up Table 99
+    const deleteBtn = page.locator('button[title="Delete Table"]').last();
+    page.once('dialog', async dialog => {
+      await dialog.accept();
+    });
+    if (await deleteBtn.isVisible()) {
+      await deleteBtn.click();
+      await page.waitForTimeout(300);
+    }
+
+    // 6. Return back to POS
+    await page.locator('button:has-text("Back to POS (Esc)")').click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'New Order' })).toBeVisible();
+  });
+
+  test('21. Multi-Station KOT Split Printing (Kitchen, Dessert, Beverage Simultaneous 3-Slip Generation) & 58mm Thermal Receipt Formatting', async ({ page }) => {
+    test.setTimeout(60000);
+
+    // Switch to Family Table 41
+    const tableInput = page.locator('#pos-table-input');
+    await tableInput.click();
+    await tableInput.fill('41');
+    await tableInput.press('Enter');
+    await page.waitForTimeout(300);
+
+    // Dismiss Customer Name modal if visible
+    const custInput = page.locator('#cust-name-input');
+    if (await custInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+    }
+
+    const codeInput = page.locator('input[placeholder="Code/CTM"]');
+    const qtyInput = page.locator('input[placeholder="Qty"]');
+
+    // 1. Add Kitchen dish: #1 CHICKEN MANCHOW SOUP
+    await codeInput.fill('1');
+    await codeInput.press('Enter');
+    await page.waitForTimeout(200);
+    await qtyInput.fill('1');
+    await qtyInput.press('Enter');
+    await page.waitForTimeout(200);
+
+    // 2. Add Dessert dish: #103 GAJAR KA HALWA
+    await codeInput.fill('103');
+    await codeInput.press('Enter');
+    await page.waitForTimeout(200);
+    await qtyInput.fill('2');
+    await qtyInput.press('Enter');
+    await page.waitForTimeout(200);
+
+    // 3. Add Beverage dish: #114 FRESH LIME SODA
+    await codeInput.fill('114');
+    await codeInput.press('Enter');
+    await page.waitForTimeout(200);
+    await qtyInput.fill('1');
+    await qtyInput.press('Enter');
+    await page.waitForTimeout(200);
+
+    // 4. Fire KOT
+    const fireKotButton = page.locator('button:has-text("Fire KOT")');
+    if (await fireKotButton.isVisible()) {
+      await fireKotButton.click();
+    } else {
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(100);
+      await page.keyboard.press('Enter');
+    }
+    await page.waitForTimeout(500);
+
+    // 5. Verify KOT Modal opened with simultaneous split slips for all 3 stations
+    const kotTitle = page.locator('.win-titlebar-title', { hasText: 'Kitchen Order Token' });
+    await expect(kotTitle).toBeVisible({ timeout: 5000 });
+
+    // Verify Kitchen Slip
+    await expect(page.locator('text=KITCHEN').first()).toBeVisible();
+    await expect(page.locator('text=CHICKEN MANCHOW SOUP').first()).toBeVisible();
+
+    // Verify Dessert Slip
+    await expect(page.locator('text=DESSERT').first()).toBeVisible();
+    await expect(page.locator('text=GAJAR KA HALWA').first()).toBeVisible();
+
+    // Verify Beverage Slip
+    await expect(page.locator('text=BEVERAGE').first()).toBeVisible();
+    await expect(page.locator('text=FRESH LIME SODA').first()).toBeVisible();
+
+    // Verify Multi-slip indicator badge
+    await expect(page.locator('text=Prints 3 split slips simultaneously')).toBeVisible();
+
+    // Dismiss KOT
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+
+    // 6. Test Cash Memo formatting (F5) - Compact 58mm alignment with Rate and Amount
+    await page.keyboard.press('F5');
+    await page.waitForTimeout(300);
+
+    await tableInput.click();
+    await tableInput.fill('41');
+    await tableInput.press('Enter');
+    await page.waitForTimeout(300);
+
+    const printBillBtn = page.locator('button:has-text("Print Bill (F6)")');
+    if (await printBillBtn.isVisible()) {
+      await printBillBtn.click();
+    } else {
+      await page.keyboard.press('Enter');
+    }
+    await page.waitForTimeout(300);
+
+    const paxPrompt = page.locator('#pos-pax-input');
+    if (await paxPrompt.isVisible()) {
+      await paxPrompt.press('Enter');
+      await page.waitForTimeout(400);
+    }
+
+    // Verify Cash Memo title and exact column alignment
+    const cashMemoTitle = page.locator('div.win-titlebar-title', { hasText: 'Thermal Printer Output — Cash Memo' });
+    await expect(cashMemoTitle).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.thermal-receipt', { hasText: 'INAMDAR' }).first()).toBeVisible();
+    await expect(page.locator('.thermal-receipt th', { hasText: 'Particulars' })).toBeVisible();
+    await expect(page.locator('.thermal-receipt th', { hasText: 'Qty' })).toBeVisible();
+    await expect(page.locator('.thermal-receipt th', { hasText: 'Rate' })).toBeVisible();
+    await expect(page.locator('.thermal-receipt th', { hasText: 'Amount' })).toBeVisible();
+    await expect(page.locator('.thermal-receipt', { hasText: 'TRY OUR JUICES' }).first()).toBeVisible();
+
+    // Dismiss Bill
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+  });
+
 });

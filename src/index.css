@@ -309,30 +309,65 @@ body {
 
 /* Thermal Receipt Styling */
 .thermal-receipt {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.35;
+  font-family: 'Courier New', Courier, 'Lucida Console', Monaco, monospace;
+  font-size: 11.5px;
+  line-height: 1.25;
   background: #ffffff;
   color: #000000;
-  padding: 16px;
-  width: 310px;
+  padding: 10px 12px;
+  width: 270px;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
   margin: 0 auto;
+  box-sizing: border-box;
+}
+
+@page {
+  size: auto;
+  margin: 0mm !important;
 }
 
 @media print {
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
   body * {
     visibility: hidden;
   }
-  .thermal-receipt-printable, .thermal-receipt-printable * {
+  .thermal-receipt-container,
+  .thermal-receipt-container *,
+  .thermal-receipt-printable, 
+  .thermal-receipt-printable * {
     visibility: visible;
   }
-  .thermal-receipt-printable {
+  .thermal-receipt-container {
     position: absolute;
     left: 0;
     top: 0;
-    width: 80mm;
-    box-shadow: none;
+    width: 56mm;
+    margin: 0;
     padding: 0;
+  }
+  .thermal-receipt-printable {
+    position: relative;
+    left: 0;
+    top: 0;
+    width: 54mm;
+    max-width: 54mm;
+    box-shadow: none !important;
+    padding: 1mm 2mm !important;
+    margin: 0 0 4mm 0 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+    box-sizing: border-box !important;
+  }
+  .thermal-slip-break {
+    page-break-after: always !important;
+    break-after: page !important;
+    display: block !important;
+    height: 0 !important;
   }
 }

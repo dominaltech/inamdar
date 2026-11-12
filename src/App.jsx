@@ -6,6 +6,7 @@ import StatusBar from './components/StatusBar';
 import OrderWorkspace from './components/OrderWorkspace';
 import ReportsView from './components/ReportsView';
 import MenuManagementView from './components/MenuManagementView';
+import TableManagementView from './components/TableManagementView';
 import LoginModal from './components/LoginModal';
 import TableShiftModal from './components/TableShiftModal';
 import CancelAuthModal from './components/CancelAuthModal';
@@ -55,6 +56,8 @@ function PosAppContent() {
           <ReportsView />
         ) : screenMode === 'MENU' ? (
           <MenuManagementView />
+        ) : screenMode === 'TABLES' ? (
+          <TableManagementView />
         ) : (
           <OrderWorkspace />
         )}

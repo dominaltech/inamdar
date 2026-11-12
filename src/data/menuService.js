@@ -181,21 +181,69 @@ export function sortItemsByCourse(items) {
   });
 }
 
+// Determines which preparation station an item routes to for dedicated KOT printing:
+// 1. KITCHEN (Cook food)
+// 2. DESSERT (Sweets, Halwa, Ice Cream)
+// 3. BEVERAGE (Cold drinks, Juices, Mocktails, Water, Soda)
+export function getItemStation(item) {
+  if (!item) return 'KITCHEN';
+  const cat = (item.category || '').toUpperCase().trim();
+  const name = (item.name || '').toUpperCase().trim();
+
+  // 1. DESSERTS / SWEETS (Checked first so dessert food items in DESSERTS /MOCKTAL are separated from drinks)
+  if (
+    name.includes('HALWA') ||
+    name.includes('GULAB JAMUN') ||
+    name.includes('ICE CREAM') ||
+    name.includes('KULFI') ||
+    name.includes('BROWNIE') ||
+    name.includes('RASGULLA') ||
+    name.includes('KHEER') ||
+    name.includes('PUDDING') ||
+    name.includes('FALOODA') ||
+    cat === 'DESSERT' ||
+    cat === 'DESSERTS' ||
+    cat.includes('SWEET') ||
+    (cat.includes('DESSERT') && !name.includes('MOJITO') && !name.includes('SODA') && !name.includes('JUICE') && !name.includes('WATER') && !name.includes('LAGOON') && !name.includes('SHAKE') && !name.includes('MILK'))
+  ) {
+    return 'DESSERT';
+  }
+
+  // 2. BEVERAGES / DRINKS / PANTRY
+  if (
+    cat.includes('SOFT DRINK') ||
+    cat.includes('BEVERAGE') ||
+    cat.includes('JUICE') ||
+    cat.includes('MOCKTAL') ||
+    cat.includes('SHAKE') ||
+    name.includes('WATER') ||
+    name.includes('COLD DRINK') ||
+    name.includes('SODA') ||
+    name.includes('JUICE') ||
+    name.includes('MOCKTAIL') ||
+    name.includes('MOJITO') ||
+    name.includes('LAGOON') ||
+    name.includes('PEPSI') ||
+    name.includes('COKE') ||
+    name.includes('SPRITE') ||
+    name.includes('THUMS UP') ||
+    name.includes('LIMCA') ||
+    name.includes('BEER') ||
+    name.includes('BUTTER MILK')
+  ) {
+    return 'BEVERAGE';
+  }
+
+  // If item is explicitly marked pantry / not kitchen
+  if (item.isKitchen === false) {
+    return 'BEVERAGE';
+  }
+
+  // 3. KITCHEN (Default for hot food / cook ticket)
+  return 'KITCHEN';
+}
+
 // Determines if an item goes to the Cook/Kitchen KDS or to the Pantry/Counter/Bar
 export function isKitchenItem(item) {
-  if (!item) return true;
-  const cat = (item.category || '').toUpperCase();
-  const name = (item.name || '').toUpperCase();
-
-  if (
-    cat.includes('DESSERT') ||
-    cat.includes('MOCKTAL') ||
-    cat.includes('SOFT DRINK') ||
-    name.includes('MINERAL WATER') ||
-    name.includes('COLD DRINK') ||
-    name.includes('SODA')
-  ) {
-    return false;
-  }
-  return true;
+  return getItemStation(item) === 'KITCHEN';
 }

@@ -7,6 +7,7 @@ import {
   DYNAMIC_CATEGORY_ORDER,
   updateDynamicCategories,
   sortItemsByCourse, 
+  getItemStation,
   isKitchenItem, 
   loadDynamicMenuItems 
 } from '../data/menuService';
@@ -34,6 +35,9 @@ import {
   transferTableInSupabase,
   closeDayInSupabase,
   subscribeToSupabaseRealtime,
+  upsertTableInSupabase,
+  deleteTableInSupabase,
+  batchReassignTableSectionInSupabase,
 } from '../services/supabaseService';
 import {
   getCachedTables,
@@ -258,6 +262,124 @@ export function PosProvider({ children }) {
     });
     return await deleteMenuItemInSupabase(cleanCode);
   }, []);
+
+  // Table Management CRUD (Admin / Manager Studio)
+  const addOrUpdateTable = useCallback(async (tableData) => {
+    if (!tableData || !tableData.id) return false;
+    const cleanId = String(tableData.id).trim().toUpperCase();
+    const section = tableData.section || 'AC';
+    const pax = Number(tableData.pax) || (section.includes('FAMILY') ? 4 : 2);
+    const waiter = tableData.waiter || '1 COUNTER';
+
+    setTables(prev => {
+      const existing = prev[cleanId] || {};
+      return {
+        ...prev,
+        [cleanId]: {
+          ...existing,
+          id: cleanId,
+          section,
+          pax,
+          waiter,
+          status: existing.status || 'AVAILABLE',
+          kotNos: existing.kotNos || [],
+          items: existing.items || [],
+        }
+      };
+    });
+
+    // Cloud sync
+    await upsertTableInSupabase({ id: cleanId, section, pax, waiter });
+    return true;
+  }, []);
+
+  const deleteTable = useCallback(async (tableId) => {
+    if (!tableId) return false;
+    const cleanId = String(tableId).trim().toUpperCase();
+    const existing = tables[cleanId];
+    if (existing && existing.items && existing.items.some(i => i.qty > 0)) {
+      alert(`Cannot delete Table ${cleanId}: Table is currently OCCUPIED with active orders!`);
+      return false;
+    }
+
+    setTables(prev => {
+      const next = { ...prev };
+      delete next[cleanId];
+      return next;
+    });
+
+    await deleteTableInSupabase(cleanId);
+    return true;
+  }, [tables]);
+
+  const reassignTableRange = useCallback(async (startNum, endNum, targetSection) => {
+    const s = Number(startNum);
+    const e = Number(endNum);
+    if (isNaN(s) || isNaN(e) || !targetSection) return false;
+
+    const min = Math.min(s, e);
+    const max = Math.max(s, e);
+    const affectedIds = [];
+
+    setTables(prev => {
+      const next = { ...prev };
+      for (let i = min; i <= max; i++) {
+        const id = String(i);
+        if (next[id]) {
+          next[id] = { ...next[id], section: targetSection };
+          affectedIds.push(id);
+        } else {
+          next[id] = {
+            id,
+            section: targetSection,
+            waiter: '1 COUNTER',
+            status: 'AVAILABLE',
+            pax: targetSection.includes('FAMILY') ? 4 : 2,
+            kotNos: [],
+            items: [],
+          };
+          affectedIds.push(id);
+        }
+      }
+      return next;
+    });
+
+    if (affectedIds.length > 0) {
+      await batchReassignTableSectionInSupabase(affectedIds, targetSection);
+    }
+    return true;
+  }, []);
+
+  const moveTableNumber = useCallback(async (oldId, newId, targetSection) => {
+    const cleanOld = String(oldId).trim().toUpperCase();
+    const cleanNew = String(newId).trim().toUpperCase();
+    if (!cleanOld || !cleanNew || cleanOld === cleanNew) return false;
+
+    const source = tables[cleanOld];
+    if (!source) return false;
+    const dest = tables[cleanNew];
+    if (dest && dest.items && dest.items.some(i => i.qty > 0)) {
+      alert(`Destination Table ${cleanNew} is currently occupied! Settle or clear it first.`);
+      return false;
+    }
+
+    const sec = targetSection || source.section;
+
+    setTables(prev => {
+      const next = { ...prev };
+      delete next[cleanOld];
+      next[cleanNew] = {
+        ...source,
+        id: cleanNew,
+        section: sec,
+      };
+      return next;
+    });
+
+    await deleteTableInSupabase(cleanOld);
+    await upsertTableInSupabase({ ...source, id: cleanNew, section: sec });
+    return true;
+  }, [tables]);
 
   // 1. Initial Cloud Sync from Supabase & Realtime Subscription
   useEffect(() => {
@@ -827,20 +949,23 @@ export function PosProvider({ children }) {
       currentKotNo = table.kotNos?.[table.kotNos.length - 1] || kotCounter;
     }
 
-    // Separate Kitchen vs Bar/Pantry items (Rule 18)
-    const kitchenItems = itemsToPrint.filter(isKitchenItem);
-    const pantryItems = itemsToPrint.filter(it => !isKitchenItem(it));
+    // Separate Kitchen, Dessert, and Beverage items for multi-station split KOT printing
+    const kitchenItems = itemsToPrint.filter(it => getItemStation(it) === 'KITCHEN');
+    const dessertItems = itemsToPrint.filter(it => getItemStation(it) === 'DESSERT');
+    const beverageItems = itemsToPrint.filter(it => getItemStation(it) === 'BEVERAGE');
 
     const kotSlip = {
       ordNo: currentKotNo,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(),
       tableNo: tableId,
-      section: table.section,
-      employee: table.waiter || activeEmployee,
+      section: table.section || 'AC',
+      employee: table.waiter || activeEmployee || 'COUNTER',
       items: itemsToPrint,
       kitchenItems,
-      pantryItems,
+      dessertItems,
+      beverageItems,
+      pantryItems: [...dessertItems, ...beverageItems],
       totalItems: itemsToPrint.reduce((acc, it) => acc + (it.qty || 1), 0),
     };
 
@@ -1293,6 +1418,11 @@ export function PosProvider({ children }) {
       deleteCategory,
       addOrUpdateMenuItem,
       deleteMenuItem,
+      // Table Studio Management
+      addOrUpdateTable,
+      deleteTable,
+      reassignTableRange,
+      moveTableNumber,
     }}>
       {children}
     </PosContext.Provider>

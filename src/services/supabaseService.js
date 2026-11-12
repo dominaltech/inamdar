@@ -1045,4 +1045,62 @@ export async function fetchLiveReportsBundle() {
   }
 }
 
+// 14A. Upsert Table in Supabase
+export async function upsertTableInSupabase(tbl) {
+  if (!isSupabaseConfigured() || !tbl || !tbl.id) return false;
+  try {
+    const { error } = await supabase
+      .from('tables')
+      .upsert({
+        id: String(tbl.id).trim().toUpperCase(),
+        section: tbl.section || 'AC',
+        active_waiter: tbl.waiter || '1 COUNTER',
+        status: tbl.status || 'AVAILABLE',
+        pax: Number(tbl.pax) || 2,
+        kot_nos: tbl.kotNos || [],
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('upsertTableInSupabase error:', err);
+    return false;
+  }
+}
+
+// 14B. Delete Table in Supabase
+export async function deleteTableInSupabase(tableId) {
+  if (!isSupabaseConfigured() || !tableId) return false;
+  try {
+    const cleanId = String(tableId).trim().toUpperCase();
+    const { error } = await supabase
+      .from('tables')
+      .delete()
+      .eq('id', cleanId);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('deleteTableInSupabase error:', err);
+    return false;
+  }
+}
+
+// 14C. Batch Reassign Table Range in Supabase
+export async function batchReassignTableSectionInSupabase(tableIds, newSection) {
+  if (!isSupabaseConfigured() || !Array.isArray(tableIds) || tableIds.length === 0) return false;
+  try {
+    const cleanIds = tableIds.map(id => String(id).trim().toUpperCase());
+    const { error } = await supabase
+      .from('tables')
+      .update({ section: newSection, updated_at: new Date().toISOString() })
+      .in('id', cleanIds);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('batchReassignTableSectionInSupabase error:', err);
+    return false;
+  }
+}
+
+
 
