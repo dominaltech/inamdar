@@ -586,40 +586,95 @@ export default function OrderWorkspace() {
     }
   }, [codeQuery, isCancelMode, currentTableData.items]);
 
-  // Helper for subtable options (A, B, C, +)
+  // Helper for dynamic subtable options (A, B, + or C, D, + etc.)
   const getSubTableOptions = (tableId) => {
-    const base = String(tableId || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase() || '1';
-    return ['A', 'B', 'C', '+'];
+    const base = String(tableId || pendingCustomerTable || tableInput || activeTableId || '1')
+      .replace(/[A-Z]/g, '')
+      .trim()
+      .toUpperCase() || '1';
+
+    const alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'];
+
+    // Check which sub-tables for this base table are already occupied or have active items
+    const isOccupied = (letter) => {
+      const fullId = `${base}${letter}`;
+      const tbl = tables[fullId];
+      if (!tbl) return false;
+      const hasItems = tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled);
+      return tbl.status === 'OCCUPIED' || Boolean(hasItems);
+    };
+
+    const available = alphabet.filter(l => !isOccupied(l));
+    const nextTwo = available.slice(0, 2);
+
+    return [...nextTwo, '+'];
   };
 
   const handleSelectSubTable = (st) => {
-    const base = String(pendingCustomerTable || tableInput || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase() || '1';
+    const base = String(pendingCustomerTable || tableInput || activeTableId || '1')
+      .replace(/[A-Z]/g, '')
+      .trim()
+      .toUpperCase() || '1';
     setShowSubTableMenu(false);
 
-    let chosenSub = st;
     if (st === '+') {
-      const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-      chosenSub = 'A';
-      for (const l of letters) {
-        if (!tables[`${base}${l}`] || !tables[`${base}${l}`].items?.some(it => it.qty > 0 && !it.isCancelled)) {
-          chosenSub = l;
-          break;
+      // Direct addition of new items to the existing running base table!
+      setActiveSubTable('');
+      switchTable(base);
+      setTableInput(base);
+      setPendingCustomerTable(base);
+
+      const baseCustName = tables[base]?.customerName || '';
+      const baseCustPhone = tables[base]?.customerPhone || '';
+      setCustomerName(baseCustName);
+      setCustomerPhone(baseCustPhone);
+      setShowCustomerModal(false);
+
+      // Update current active draft with running table info
+      setOrderDrafts(prev => {
+        const updated = [...prev];
+        if (updated[activeDraftIdx]) {
+          updated[activeDraftIdx] = {
+            ...updated[activeDraftIdx],
+            tableId: base,
+            tableInput: base,
+            customerName: baseCustName,
+            customerPhone: baseCustPhone,
+            focusedField: 'code',
+          };
         }
-      }
+        return updated;
+      });
+
+      // Jump cursor directly to Dish Code input box!
+      setTimeout(() => {
+        focusCodeInput();
+      }, 50);
+      return;
     }
 
+    // Selecting a sub-table letter (e.g. 'A', 'B', 'C', 'D'...)
+    const chosenSub = String(st).toUpperCase();
     setActiveSubTable(chosenSub);
     const full = `${base}${chosenSub}`;
     switchTable(full);
     setTableInput(full);
+    setPendingCustomerTable(full);
 
     if (screenMode === 'ORDER') {
-      const tableCustName = tables[full]?.customerName || '';
-      const tableCustPhone = tables[full]?.customerPhone || '';
-      setCustomerName(tableCustName);
-      setCustomerPhone(tableCustPhone);
-      setPendingCustomerTable(full);
-      setShowCustomerModal(true);
+      const isAlreadyOccupied = tables[full]?.status === 'OCCUPIED' &&
+        tables[full]?.items?.some(it => it.qty > 0 && !it.isCancelled);
+
+      if (isAlreadyOccupied) {
+        setCustomerName(tables[full]?.customerName || '');
+        setCustomerPhone(tables[full]?.customerPhone || '');
+        setShowCustomerModal(false);
+        setTimeout(() => focusCodeInput(), 50);
+      } else {
+        setCustomerName('');
+        setCustomerPhone('');
+        setShowCustomerModal(true);
+      }
     } else {
       setMemoTableLoaded(full);
       focusTableInput();
@@ -674,6 +729,12 @@ export default function OrderWorkspace() {
   const handleTableKeyDown = (e) => {
     if (showSubTableMenu) {
       const opts = getSubTableOptions(tableInput || activeTableId);
+      const pressedKey = e.key.toUpperCase();
+      if (opts.includes(pressedKey)) {
+        e.preventDefault();
+        handleSelectSubTable(pressedKey);
+        return;
+      }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSubTableIndex(prev => (prev + 1) % opts.length);
@@ -691,13 +752,29 @@ export default function OrderWorkspace() {
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        const chosen = opts[subTableIndex] || 'A';
+        const chosen = opts[subTableIndex] || opts[0];
         handleSelectSubTable(chosen);
         return;
       }
       if (e.key === 'Escape' || e.key === 'ArrowLeft') {
         e.preventDefault();
         setShowSubTableMenu(false);
+        return;
+      }
+    }
+
+    // Direct '+' press in table input when on a running table adds items!
+    if (e.key === '+' || e.key === 'Add') {
+      const rawVal = e.target?.value !== undefined ? e.target.value : tableInput;
+      const base = String(rawVal || activeTableId || '1').replace(/[A-Z]/g, '').trim().toUpperCase();
+      const tbl = tables[base];
+      const isRunning = tbl && (
+        (tbl.status === 'OCCUPIED' && tbl.items?.some(it => it.qty > 0 && !it.isCancelled)) ||
+        (tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled))
+      );
+      if (isRunning) {
+        e.preventDefault();
+        handleSelectSubTable('+');
         return;
       }
     }
@@ -757,7 +834,7 @@ export default function OrderWorkspace() {
 
         // If this table is ALREADY active or previewed, pressing Enter proceeds to PAX prompt!
         const isAlreadyPreviewed = (memoTableLoaded && String(memoTableLoaded).trim().toUpperCase() === String(resolvedTableId).trim().toUpperCase()) ||
-                                   (activeTableId && String(activeTableId).trim().toUpperCase() === String(resolvedTableId).trim().toUpperCase());
+          (activeTableId && String(activeTableId).trim().toUpperCase() === String(resolvedTableId).trim().toUpperCase());
 
         if (isAlreadyPreviewed && hasItems) {
           setPaxPrompt({
@@ -794,14 +871,16 @@ export default function OrderWorkspace() {
 
       // Check if table is ALREADY RUNNING with active items
       const isAlreadyRunning = !hasExplicitSub && Boolean(
-        tables[targetTable]?.status === 'OCCUPIED' && tables[targetTable]?.items?.some(it => it.qty > 0 && !it.isCancelled)
+        (tables[targetTable]?.status === 'OCCUPIED' || tables[targetTable]?.items?.some(it => it.qty > 0 && !it.isCancelled)) &&
+        tables[targetTable]?.items?.some(it => it.qty > 0 && !it.isCancelled)
       );
 
       // If typing the same table number that is ALREADY RUNNING, open the subtable selection menu!
       if (isAlreadyRunning) {
         setTableInput(targetTable);
         setPendingCustomerTable(targetTable);
-        setActiveSubTable('A');
+        const opts = getSubTableOptions(targetTable);
+        setActiveSubTable(opts[0] || 'A');
         setSubTableIndex(0);
         setShowSubTableMenu(true);
         return;
@@ -814,15 +893,25 @@ export default function OrderWorkspace() {
       setTableInput(targetTableId);
       setShowSubTableMenu(false);
 
+      const isSubRunning = Boolean(
+        tables[targetTableId]?.items?.some(it => it.qty > 0 && !it.isCancelled)
+      );
+
       // Reset customer prefill so previous customer details never leak into a new bill/table
       const tableCustName = tables[targetTableId]?.customerName || '';
       const tableCustPhone = tables[targetTableId]?.customerPhone || '';
       setCustomerName(tableCustName);
       setCustomerPhone(tableCustPhone);
-
-      // Prompt Customer Details modal before dish entry
       setPendingCustomerTable(targetTableId);
-      setShowCustomerModal(true);
+
+      if (isSubRunning) {
+        // If explicitly typed subtable is already running, jump directly to code input!
+        setShowCustomerModal(false);
+        setTimeout(() => focusCodeInput(), 50);
+      } else {
+        // Prompt Customer Details modal before dish entry
+        setShowCustomerModal(true);
+      }
     }
   };
 
@@ -1075,8 +1164,8 @@ export default function OrderWorkspace() {
     .filter(t => t.section === 'HOME DELIVERY' && isRunningTable(t))
     .map(t => t.id);
 
-  const windowTitle = isCancelMode 
-    ? 'Cancel Order' 
+  const windowTitle = isCancelMode
+    ? 'Cancel Order'
     : (screenMode === 'ORDER' ? 'New Order' : 'Cash Memo');
 
   return (
@@ -1109,8 +1198,8 @@ export default function OrderWorkspace() {
         <div
           className="win-titlebar"
           style={{
-            background: isCancelMode 
-              ? 'linear-gradient(90deg, #aa0000 0%, #dd4444 100%)' 
+            background: isCancelMode
+              ? 'linear-gradient(90deg, #aa0000 0%, #dd4444 100%)'
               : 'linear-gradient(90deg, #1b62b7 0%, #4a90e2 100%)',
             height: '24px',
             padding: '2px 6px',
@@ -1224,7 +1313,7 @@ export default function OrderWorkspace() {
 
         {/* Window Content */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '4px 6px', background: '#ece9d8', overflow: 'hidden', minHeight: 0 }}>
-          
+
           {/* Top Controls: Table, Customer, Employee */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1241,9 +1330,23 @@ export default function OrderWorkspace() {
                     onChange={(e) => {
                       const val = e.target.value;
                       setTableInput(val);
-                      setShowSubTableMenu(false);
                       if (val !== memoTableLoaded) {
                         setMemoTableLoaded(null);
+                      }
+                      const cleanVal = val.trim().toUpperCase();
+                      const tbl = tables[cleanVal];
+                      const isRunning = tbl && (
+                        (tbl.status === 'OCCUPIED' && tbl.items?.some(it => it.qty > 0 && !it.isCancelled)) ||
+                        (tbl.items && tbl.items.some(it => it.qty > 0 && !it.isCancelled))
+                      );
+                      if (isRunning && screenMode === 'ORDER' && !cleanVal.match(/[A-Z]/)) {
+                        setPendingCustomerTable(cleanVal);
+                        const opts = getSubTableOptions(cleanVal);
+                        setActiveSubTable(opts[0] || 'A');
+                        setSubTableIndex(0);
+                        setShowSubTableMenu(true);
+                      } else {
+                        setShowSubTableMenu(false);
                       }
                     }}
                     onKeyDown={handleTableKeyDown}
@@ -1251,6 +1354,7 @@ export default function OrderWorkspace() {
                     style={{ width: '70px', height: '22px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}
                   />
                   <div
+                    id="subtable-badge-toggle"
                     onClick={() => {
                       setShowSubTableMenu(prev => !prev);
                       setSubTableIndex(0);
@@ -1277,6 +1381,7 @@ export default function OrderWorkspace() {
                   {/* Subtable Dropdown Menu */}
                   {showSubTableMenu && (
                     <div
+                      id="subtable-dropdown-menu"
                       className="win-bevel-outset"
                       style={{
                         position: 'absolute',
@@ -1296,6 +1401,8 @@ export default function OrderWorkspace() {
                         return (
                           <div
                             key={st}
+                            id={`subtable-option-${st === '+' ? 'plus' : st}`}
+                            data-testid={`subtable-option-${st}`}
                             onClick={() => handleSelectSubTable(st)}
                             style={{
                               padding: '3px 4px',
@@ -1307,7 +1414,7 @@ export default function OrderWorkspace() {
                               textAlign: 'center',
                               borderTop: isPlus ? '1px solid #aaa' : 'none',
                             }}
-                            title={isPlus ? 'Create new subtable (+)' : `Select Subtable ${base}${st}`}
+                            title={isPlus ? `Add items to running Table ${base} (+)` : `Select Subtable ${base}${st}`}
                           >
                             {st}
                           </div>
@@ -1412,7 +1519,7 @@ export default function OrderWorkspace() {
 
           {/* Main Body Split: Left Unified Grid + Right Live Tables Board */}
           <div style={{ flex: 1, minHeight: 0, display: 'flex', border: '1px solid #7f9db9', background: '#fff', overflow: 'hidden' }}>
-            
+
             {/* Left: Unified Table Columns & Ordered Items Grid */}
             <div style={{ flex: 1, overflowY: 'auto', borderRight: '1px solid #7f9db9' }}>
               <table className="order-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1433,8 +1540,8 @@ export default function OrderWorkspace() {
                       {/* Code Input & Autocomplete Dropdown */}
                       <td style={{ padding: '2px 3px', position: 'relative' }}>
                         <input
-                          id="pos-code-input"
                           ref={codeInputRef}
+                          id="pos-code-input"
                           type="text"
                           value={codeQuery}
                           onChange={(e) => setCodeQuery(e.target.value)}
@@ -1625,7 +1732,7 @@ export default function OrderWorkspace() {
 
             {/* Right: Real-time Live Section Panels & Unsettled Bills */}
             <div style={{ width: '220px', background: '#f5f5f5', display: 'flex', flexDirection: 'column', fontSize: '11px', borderLeft: '2px inset #ffffff' }}>
-              
+
               {/* GENERAL Section (Tables 1 to 20) */}
               <div style={{ borderBottom: '1px solid #ccc', padding: '4px 6px' }}>
                 <div style={{ textAlign: 'center', fontWeight: 'bold', color: '#333', marginBottom: '3px' }}>
@@ -1651,11 +1758,13 @@ export default function OrderWorkspace() {
                             } else {
                               // ORDER Mode:
                               const isRunning = tables[num]?.status === 'OCCUPIED' &&
-                                                tables[num]?.items?.some(it => it.qty > 0 && !it.isCancelled);
+                                tables[num]?.items?.some(it => it.qty > 0 && !it.isCancelled);
 
                               if (isRunning) {
                                 setTableInput(String(num));
-                                setActiveSubTable('A');
+                                setPendingCustomerTable(String(num));
+                                const opts = getSubTableOptions(num);
+                                setActiveSubTable(opts[0] || 'A');
                                 setSubTableIndex(0);
                                 setShowSubTableMenu(true);
                                 focusTableInput();
@@ -1749,11 +1858,13 @@ export default function OrderWorkspace() {
                             } else {
                               // ORDER Mode:
                               const isRunning = tables[num]?.status === 'OCCUPIED' &&
-                                                tables[num]?.items?.some(it => it.qty > 0 && !it.isCancelled);
+                                tables[num]?.items?.some(it => it.qty > 0 && !it.isCancelled);
 
                               if (isRunning) {
                                 setTableInput(String(num));
-                                setActiveSubTable('A');
+                                setPendingCustomerTable(String(num));
+                                const opts = getSubTableOptions(num);
+                                setActiveSubTable(opts[0] || 'A');
                                 setSubTableIndex(0);
                                 setShowSubTableMenu(true);
                                 focusTableInput();

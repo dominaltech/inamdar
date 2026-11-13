@@ -1289,10 +1289,10 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
   test('21. Multi-Station KOT Split Printing (Kitchen, Dessert, Beverage Simultaneous 3-Slip Generation) & 58mm Thermal Receipt Formatting', async ({ page }) => {
     test.setTimeout(60000);
 
-    // Switch to Family Table 41
+    // Switch to Family Table 35
     const tableInput = page.locator('#pos-table-input');
     await tableInput.click();
-    await tableInput.fill('41');
+    await tableInput.fill('35');
     await tableInput.press('Enter');
     await page.waitForTimeout(300);
 
@@ -1306,8 +1306,8 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const codeInput = page.locator('input[placeholder="Code/CTM"]');
     const qtyInput = page.locator('input[placeholder="Qty"]');
 
-    // 1. Add Kitchen dish: #1 CHICKEN MANCHOW SOUP
-    await codeInput.fill('1');
+    // 1. Add Kitchen dish: #49 BABY CORN CHILLY
+    await codeInput.fill('49');
     await codeInput.press('Enter');
     await page.waitForTimeout(200);
     await qtyInput.fill('1');
@@ -1347,7 +1347,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
 
     // Verify Kitchen Slip
     await expect(page.locator('text=KITCHEN').first()).toBeVisible();
-    await expect(page.locator('text=CHICKEN MANCHOW SOUP').first()).toBeVisible();
+    await expect(page.locator('text=BABY CORN CHILLY').first()).toBeVisible();
 
     // Verify Dessert Slip
     await expect(page.locator('text=DESSERT').first()).toBeVisible();
@@ -1369,7 +1369,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(300);
 
     await tableInput.click();
-    await tableInput.fill('41');
+    await tableInput.fill('35');
     await tableInput.press('Enter');
     await page.waitForTimeout(300);
 
@@ -1512,6 +1512,171 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Now all orders are complete: Order 1 is clean and waiting at Table input
     await expect(page.locator('#pos-table-input')).toBeVisible();
     await expect(page.locator('#pos-table-input')).toHaveValue('');
+  });
+
+  test('23. Running Table Item Addition via (+) & Automatic Dynamic Sub-Table Progression (A, B, + -> C, D, +)', async ({ page }) => {
+    test.setTimeout(60000);
+
+    const tableInput = page.locator('#pos-table-input');
+    const codeInput = page.locator('#pos-code-input');
+    const qtyInput = page.locator('input[placeholder="Qty"]');
+
+    // 1. Start fresh on Table 1
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    await tableInput.click();
+    await tableInput.fill('1');
+    await tableInput.press('Enter');
+    await page.waitForTimeout(300);
+
+    // Skip customer details modal if visible
+    const skipBtn = page.locator('button:has-text("Skip")');
+    if (await skipBtn.isVisible()) {
+      await skipBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // Add initial item (dish 49: BABY CORN CHILLY) to Table 1
+    await codeInput.fill('49');
+    await codeInput.press('Enter');
+    await page.waitForTimeout(200);
+    await qtyInput.press('Enter'); // commit qty 1
+    await page.waitForTimeout(200);
+
+    // Fire KOT for Table 1 -> Table 1 is now OCCUPIED and RUNNING!
+    await page.locator('button:has-text("Fire KOT")').click();
+    await page.waitForTimeout(400);
+    await page.keyboard.press('Escape'); // dismiss KOT slip
+    await page.waitForTimeout(300);
+
+    // 2. Now Table 1 is running. Type "1" in New Order Table field.
+    await tableInput.click();
+    await tableInput.fill('1');
+    await page.waitForTimeout(300);
+
+    // Sub-table menu opens with options ['A', 'B', '+']
+    const subMenu = page.locator('#subtable-dropdown-menu');
+    await expect(subMenu).toBeVisible();
+    await expect(page.locator('#subtable-option-A')).toBeVisible();
+    await expect(page.locator('#subtable-option-B')).toBeVisible();
+    await expect(page.locator('#subtable-option-plus')).toBeVisible();
+
+    // 3. Test (+) functionality: Click "+" to add items to the running Table 1
+    await page.locator('#subtable-option-plus').click();
+    await page.waitForTimeout(300);
+
+    // Verify sub-table menu closed, Table input is '1', and cursor is directly focused on #pos-code-input
+    await expect(subMenu).toHaveCount(0);
+    await expect(tableInput).toHaveValue('1');
+    await expect(codeInput).toBeFocused();
+
+    // Verify existing BABY CORN CHILLY is on Table 1, and add a second item (dish 153: ROASTED PAPAD)
+    await expect(page.locator('td', { hasText: 'BABY CORN CHILLY' }).first()).toBeVisible();
+    await codeInput.fill('153');
+    await codeInput.press('Enter');
+    await page.waitForTimeout(200);
+    await qtyInput.press('Enter'); // commit qty 1
+    await page.waitForTimeout(200);
+
+    // Both items are present on Table 1
+    await expect(page.locator('td', { hasText: 'ROASTED PAPAD' }).first()).toBeVisible();
+
+    // Fire KOT for the new item on Table 1
+    await page.locator('button:has-text("Fire KOT")').click();
+    await page.waitForTimeout(400);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+
+    // 4. Create sub-table 1A: Type '1' in Table input
+    await tableInput.click();
+    await tableInput.fill('1');
+    await page.waitForTimeout(300);
+
+    // Sub-table menu is open with A, B, +
+    await expect(page.locator('#subtable-option-A')).toBeVisible();
+    await page.locator('#subtable-option-A').click();
+    await page.waitForTimeout(300);
+
+    // Customer details modal prompts for 1A
+    if (await skipBtn.isVisible()) {
+      await skipBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // Add item to 1A (dish 1: CHICKEN MANCHOW SOUP)
+    await codeInput.fill('1');
+    await codeInput.press('Enter');
+    await page.waitForTimeout(200);
+    await qtyInput.press('Enter');
+    await page.waitForTimeout(200);
+
+    // Fire KOT for 1A -> Now Table 1 AND Table 1A are running!
+    await page.locator('button:has-text("Fire KOT")').click();
+    await page.waitForTimeout(400);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+
+    // 5. Create sub-table 1B: Type '1' in Table input
+    await tableInput.click();
+    await tableInput.fill('1');
+    await page.waitForTimeout(300);
+
+    // Since 1A is now occupied, available letters start from B: shows B, C, +
+    await expect(page.locator('#subtable-option-B')).toBeVisible();
+    await expect(page.locator('#subtable-option-C')).toBeVisible();
+    await expect(page.locator('#subtable-option-plus')).toBeVisible();
+
+    // Click 'B' to create 1B
+    await page.locator('#subtable-option-B').click();
+    await page.waitForTimeout(300);
+
+    if (await skipBtn.isVisible()) {
+      await skipBtn.click();
+      await page.waitForTimeout(200);
+    }
+
+    // Add item to 1B (dish 103: GAJAR KA HALWA)
+    await codeInput.fill('103');
+    await codeInput.press('Enter');
+    await page.waitForTimeout(200);
+    await qtyInput.press('Enter');
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+
+    // Fire KOT for 1B -> Now Table 1, 1A, and 1B are all running!
+    await page.locator('button:has-text("Fire KOT")').click();
+    await page.waitForTimeout(400);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+
+    // 6. Test Automatic Dynamic Progression:
+    // With 1A and 1B occupied, typing Table 1 should automatically advance to C, D, + !
+    await tableInput.click();
+    await tableInput.fill('1');
+    await page.waitForTimeout(300);
+
+    // Verify dynamic options are now C, D, and + !
+    await expect(page.locator('#subtable-option-C')).toBeVisible();
+    await expect(page.locator('#subtable-option-D')).toBeVisible();
+    await expect(page.locator('#subtable-option-plus')).toBeVisible();
+    // A and B should NOT be shown in the next-available slots
+    await expect(page.locator('#subtable-option-A')).toHaveCount(0);
+    await expect(page.locator('#subtable-option-B')).toHaveCount(0);
+
+    // 7. Test pressing '+' key on keyboard directly while in table input
+    await page.keyboard.press('+');
+    await page.waitForTimeout(300);
+
+    // Verify it instantly selected running base Table 1 and focused Dish Code input!
+    await expect(tableInput).toHaveValue('1');
+    await expect(codeInput).toBeFocused();
+    await expect(page.locator('td', { hasText: 'BABY CORN CHILLY' }).first()).toBeVisible();
+    await expect(page.locator('td', { hasText: 'ROASTED PAPAD' }).first()).toBeVisible();
+
+    // Dismiss workspace cleanly
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
   });
 
 });
