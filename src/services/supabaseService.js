@@ -515,55 +515,26 @@ export async function saveBillInSupabase(billData) {
   }
 }
 
-// 7. Settle Bill in Supabase (Direct Amount Settlement)
-export async function settleBillInSupabase({ tableId, billNo, amount, paymentMode, cashierName = '1. Operator' }) {
+// 7. Settle Bill in Supabase (Removes unsettled bill from cloud; revenue stored strictly locally in C: and D: files)
+export async function settleBillInSupabase({ tableId, billNo }) {
   if (!isSupabaseConfigured()) return null;
 
   try {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-    // A. Update ONLY this specific Bill status to SETTLED (Supports multiple independent bills per table)
+    // A. Remove the unsettled bill from cloud so settled revenue records remain local and private
     if (billNo) {
       await supabase
         .from('bills')
-        .update({
-          status: 'SETTLED',
-          payment_mode: paymentMode,
-          cashier_name: cashierName,
-          settled_at: now.toISOString()
-        })
+        .delete()
         .eq('bill_no', Number(billNo));
     } else if (tableId) {
       await supabase
         .from('bills')
-        .update({
-          status: 'SETTLED',
-          payment_mode: paymentMode,
-          cashier_name: cashierName,
-          settled_at: now.toISOString()
-        })
+        .delete()
         .eq('table_id', String(tableId))
         .eq('status', 'UNSETTLED');
     }
 
-    // B. Insert into Daily Transactions journal
-    await supabase
-      .from('daily_transactions')
-      .insert([{
-        bill_no: String(billNo || '0'),
-        table_id: String(tableId || ''),
-        amount: Number(amount),
-        payment_mode: paymentMode,
-        cashier_name: cashierName,
-        settled_time: timeStr
-      }]);
-
-    return true;
-
-    // Note: Decoupled from physical table. Table was already freed at billing time,
-    // so new guests may already be dining on this table with an independent bill.
-
+    // Decoupled from cloud revenue: Revenue is stored strictly in local disk files (C: and D: drives)
     return true;
   } catch (err) {
     console.error('settleBillInSupabase error:', err);
@@ -681,8 +652,8 @@ export async function closeDayInSupabase() {
   }
 }
 
-// 11. Realtime Sync Listener (Subscribes to Captain orders, Table updates, KDS changes, Menu & Categories)
-export function subscribeToSupabaseRealtime({ onTableUpdate, onIncomingKot, onBillUpdate, onMenuUpdate, onCategoryUpdate }) {
+// 11. Realtime Sync Listener (Subscribes to Captain orders, Table updates, KDS changes, Menu & Categories, Customers)
+export function subscribeToSupabaseRealtime({ onTableUpdate, onIncomingKot, onBillUpdate, onMenuUpdate, onCategoryUpdate, onCustomerUpdate }) {
   if (!isSupabaseConfigured()) return () => {};
 
   const channel = supabase
@@ -703,6 +674,10 @@ export function subscribeToSupabaseRealtime({ onTableUpdate, onIncomingKot, onBi
     .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_categories' }, payload => {
       console.log('Realtime Category update:', payload);
       if (onCategoryUpdate) onCategoryUpdate(payload);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, payload => {
+      console.log('Realtime Customer update:', payload);
+      if (onCustomerUpdate) onCustomerUpdate(payload);
     })
     .subscribe();
 
@@ -1114,6 +1089,128 @@ export async function batchReassignTableSectionInSupabase(tableIds, newSection) 
     return false;
   }
 }
+
+// 15. Fetch Live Customers from Supabase
+export async function fetchLiveCustomers() {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .order('last_visit', { ascending: false });
+
+    if (error) {
+      console.warn('fetchLiveCustomers error:', error);
+      return null;
+    }
+
+    return (data || []).map(row => ({
+      phone: String(row.phone || '').trim(),
+      name: (row.name || '').trim(),
+      visitCount: Number(row.visit_count) || 1,
+      totalSpent: Number(row.total_spent) || 0,
+      lastVisit: row.last_visit || row.created_at,
+      history: Array.isArray(row.history) ? row.history : (typeof row.history === 'string' ? JSON.parse(row.history || '[]') : []),
+    }));
+  } catch (err) {
+    console.warn('fetchLiveCustomers exception:', err);
+    return null;
+  }
+}
+
+// 16. Upsert / Save Customer in Supabase
+export async function saveCustomerInSupabase(cust) {
+  if (!isSupabaseConfigured() || !cust || !cust.phone) return false;
+  try {
+    const cleanPhone = String(cust.phone).trim();
+    const cleanName = String(cust.name || 'Guest').trim();
+    const { error } = await supabase
+      .from('customers')
+      .upsert({
+        phone: cleanPhone,
+        name: cleanName,
+        visit_count: Number(cust.visitCount) || 1,
+        total_spent: Number(cust.totalSpent) || 0,
+        last_visit: cust.lastVisit || new Date().toISOString(),
+        history: cust.history || [],
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'phone' });
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('saveCustomerInSupabase error:', err);
+    return false;
+  }
+}
+
+// 17. Record Customer Visit & Order in Supabase
+export async function recordCustomerVisitInSupabase({ phone, name, billNo, table, amount, items = [] }) {
+  if (!isSupabaseConfigured() || !phone) return false;
+  try {
+    const cleanPhone = String(phone).trim();
+    const cleanName = String(name || 'Guest').trim();
+    const now = new Date();
+
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('phone', cleanPhone)
+      .maybeSingle();
+
+    const visitEntry = {
+      billNo: billNo || 0,
+      table: table || '',
+      date: now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }),
+      time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      amount: Number(amount) || 0,
+      items: (items || []).map(it => ({
+        code: it.code,
+        name: it.name,
+        qty: it.qty,
+        rate: it.rate,
+        amount: (it.qty || 1) * (it.rate || 0),
+      })),
+    };
+
+    if (existing) {
+      const currentHistory = Array.isArray(existing.history) ? existing.history : [];
+      const updatedHistory = [visitEntry, ...currentHistory];
+      const updatedVisits = (Number(existing.visit_count) || 0) + 1;
+      const updatedSpent = (Number(existing.total_spent) || 0) + (Number(amount) || 0);
+
+      await supabase
+        .from('customers')
+        .update({
+          name: cleanName !== 'Guest' ? cleanName : existing.name,
+          visit_count: updatedVisits,
+          total_spent: updatedSpent,
+          last_visit: now.toISOString(),
+          history: updatedHistory,
+          updated_at: now.toISOString(),
+        })
+        .eq('phone', cleanPhone);
+    } else {
+      await supabase
+        .from('customers')
+        .insert([{
+          phone: cleanPhone,
+          name: cleanName,
+          visit_count: 1,
+          total_spent: Number(amount) || 0,
+          last_visit: now.toISOString(),
+          history: [visitEntry],
+          created_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        }]);
+    }
+    return true;
+  } catch (err) {
+    console.error('recordCustomerVisitInSupabase error:', err);
+    return false;
+  }
+}
+
 
 
 

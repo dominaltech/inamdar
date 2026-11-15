@@ -54,6 +54,16 @@ export default function HeaderMenuBar() {
       }
       return;
     }
+    if (menuName === 'Customers') {
+      setActiveMenu(null);
+      setScreenMode('CUSTOMERS');
+      return;
+    }
+    if (menuName === 'Settings') {
+      setActiveMenu(null);
+      setScreenMode('SETTINGS');
+      return;
+    }
     setActiveMenu(activeMenu === menuName ? null : menuName);
   };
 
@@ -325,6 +335,22 @@ export default function HeaderMenuBar() {
           onClick={() => handleMenuClick('Tables')}
         >
           <u>T</u>ables
+        </div>
+
+        {/* 9. Customers (Repeat Customers & Purchase History) */}
+        <div 
+          className={`win-menu-item ${screenMode === 'CUSTOMERS' ? 'active' : ''}`} 
+          onClick={() => handleMenuClick('Customers')}
+        >
+          <u>C</u>ustomers
+        </div>
+
+        {/* 10. Settings (Admin Dual-Disk C/D Backup & Revenue Data) */}
+        <div 
+          className={`win-menu-item ${screenMode === 'SETTINGS' ? 'active' : ''}`} 
+          onClick={() => handleMenuClick('Settings')}
+        >
+          ⚙ <u>S</u>ettings
         </div>
       </div>
 

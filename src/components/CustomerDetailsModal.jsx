@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { usePos } from '../context/PosContext';
 
 export default function CustomerDetailsModal({
   show,
@@ -8,8 +9,10 @@ export default function CustomerDetailsModal({
   onConfirm,
   onCancel,
 }) {
+  const { customers = [] } = usePos?.() || {};
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [matchedCustomer, setMatchedCustomer] = useState(null);
   const nameInputRef = useRef(null);
   const phoneInputRef = useRef(null);
 
@@ -22,6 +25,7 @@ export default function CustomerDetailsModal({
       if (!wasShown.current) {
         setName(initialName || '');
         setPhone(initialPhone || '');
+        setMatchedCustomer(null);
         setTimeout(() => {
           nameInputRef.current?.focus();
           nameInputRef.current?.select();
@@ -41,6 +45,25 @@ export default function CustomerDetailsModal({
     }
     wasShown.current = show;
   }, [show, initialName, initialPhone]);
+
+  // Check for repeat customer when phone changes
+  const handlePhoneChange = (e) => {
+    const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+    setPhone(raw);
+    if (raw.length >= 7) {
+      const match = customers.find(c => c.phone === raw);
+      if (match) {
+        setMatchedCustomer(match);
+        if (!name || name === 'Guest') {
+          setName(match.name || '');
+        }
+      } else {
+        setMatchedCustomer(null);
+      }
+    } else {
+      setMatchedCustomer(null);
+    }
+  };
 
   if (!show) return null;
 
@@ -144,11 +167,17 @@ export default function CustomerDetailsModal({
               inputMode="numeric"
               placeholder="e.g. 9876543210 (Optional)"
               value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
+              onChange={handlePhoneChange}
               onKeyDown={handlePhoneKeyDown}
               className="win-input"
               style={{ width: '100%', height: '24px', fontSize: '12px', padding: '2px 6px' }}
             />
+            {matchedCustomer && (
+              <div style={{ marginTop: '5px', padding: '4px 6px', background: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '3px', color: '#155724', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>★ <strong>Repeat Guest:</strong> {matchedCustomer.visit_count} visits</span>
+                <span>Spent: ₹{Number(matchedCustomer.total_spent || 0).toFixed(0)}</span>
+              </div>
+            )}
           </div>
 
           {/* Buttons */}

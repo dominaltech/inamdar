@@ -19,6 +19,9 @@ import {
   fetchLiveCounters,
   fetchLiveMenuItems,
   fetchLiveCategories,
+  fetchLiveCustomers,
+  saveCustomerInSupabase,
+  recordCustomerVisitInSupabase,
   saveCategoryInSupabase,
   updateCategoriesOrderInSupabase,
   renameCategoryInSupabase,
@@ -52,11 +55,14 @@ import {
   saveCachedPastBills,
   getCachedCounters,
   saveCachedCounters,
+  getCachedCustomers,
+  saveCachedCustomers,
   applySingleTableDelta,
   applyIncomingKotDelta,
   applySingleBillDelta,
   appendLocalAuditLog,
 } from '../services/cacheService';
+import { saveLocalBackupAndRevenue } from '../services/localBackupService';
 
 const PosContext = createContext(null);
 
@@ -112,6 +118,126 @@ export function PosProvider({ children }) {
   // Menu and Categories Live State (Supabase direct sync)
   const [categories, setCategories] = useState(LIVE_CATEGORIES);
   const [menuItems, setMenuItems] = useState(MENU_ITEMS);
+
+  // Repeat Customers Live State (Supabase direct sync & offline cached)
+  const [customers, setCustomers] = useState(getCachedCustomers);
+
+  // Customer Management & Repeat Visit Tracking
+  const saveCustomer = useCallback(async (custData) => {
+    if (!custData || !custData.phone) return null;
+    const cleanPhone = String(custData.phone).trim();
+    const updatedCustomer = {
+      phone: cleanPhone,
+      name: custData.name ? String(custData.name).trim() : 'Guest',
+      visit_count: Number(custData.visit_count) || 1,
+      total_spent: Number(custData.total_spent) || 0,
+      last_visit: custData.last_visit || new Date().toISOString(),
+      history: Array.isArray(custData.history) ? custData.history : [],
+    };
+
+    setCustomers(prev => {
+      const existing = prev.filter(c => c.phone !== cleanPhone);
+      const next = [updatedCustomer, ...existing];
+      saveCachedCustomers(next);
+      return next;
+    });
+
+    if (isSupabaseConfigured()) {
+      await saveCustomerInSupabase(updatedCustomer).catch(err => {
+        console.warn('saveCustomerInSupabase error:', err);
+      });
+    }
+    return updatedCustomer;
+  }, []);
+
+  const refreshCustomers = useCallback(async () => {
+    try {
+      const live = await fetchLiveCustomers();
+      if (live && Array.isArray(live)) {
+        setCustomers(live);
+        saveCachedCustomers(live);
+        return live;
+      }
+    } catch (e) {
+      console.warn('refreshCustomers error:', e);
+    }
+    return null;
+  }, []);
+
+  const trackCustomerVisit = useCallback(async ({ phone, name, billNo, table, amount, items }) => {
+    if (!phone || String(phone).trim() === '' || String(phone).trim() === '-') return null;
+    const cleanPhone = String(phone).trim();
+    const cleanName = name ? String(name).trim() : 'Guest';
+    const numAmount = Number(amount) || 0;
+    const dateStr = new Date().toISOString();
+
+    const visitRecord = {
+      billNo: billNo || '',
+      table: table || '',
+      amount: numAmount,
+      date: dateStr,
+      items: (items || []).map(i => ({
+        code: i.code || '',
+        name: i.name || '',
+        qty: i.qty || 1,
+        rate: i.rate || 0,
+        amount: i.amount || (Number(i.qty || 1) * Number(i.rate || 0))
+      }))
+    };
+
+    let updatedCust = null;
+    setCustomers(prev => {
+      const existing = prev.find(c => c.phone === cleanPhone);
+      if (existing) {
+        const nextHistory = [visitRecord, ...(Array.isArray(existing.history) ? existing.history : [])];
+        const currentCount = Number(existing.visit_count ?? existing.visitCount) || 1;
+        const currentSpent = Number(existing.total_spent ?? existing.totalSpent) || 0;
+        updatedCust = {
+          ...existing,
+          phone: cleanPhone,
+          name: cleanName !== 'Guest' ? cleanName : existing.name,
+          visit_count: currentCount + 1,
+          visitCount: currentCount + 1,
+          total_spent: currentSpent + numAmount,
+          totalSpent: currentSpent + numAmount,
+          last_visit: dateStr,
+          lastVisit: dateStr,
+          history: nextHistory,
+        };
+        const rest = prev.filter(c => c.phone !== cleanPhone);
+        const next = [updatedCust, ...rest];
+        saveCachedCustomers(next);
+        return next;
+      } else {
+        updatedCust = {
+          phone: cleanPhone,
+          name: cleanName,
+          visit_count: 1,
+          visitCount: 1,
+          total_spent: numAmount,
+          totalSpent: numAmount,
+          last_visit: dateStr,
+          lastVisit: dateStr,
+          history: [visitRecord],
+        };
+        const next = [updatedCust, ...prev];
+        saveCachedCustomers(next);
+        return next;
+      }
+    });
+
+    if (isSupabaseConfigured() && updatedCust) {
+      await recordCustomerVisitInSupabase({
+        phone: cleanPhone,
+        name: cleanName,
+        billNo,
+        table,
+        amount: numAmount,
+        items
+      }).catch(e => console.warn('recordCustomerVisitInSupabase failed:', e));
+    }
+    return updatedCust;
+  }, []);
 
   const openCancelModal = (tableId) => {
     setCancelModalTableId(tableId || activeTableId);
@@ -388,7 +514,7 @@ export function PosProvider({ children }) {
     let isMounted = true;
     async function loadCloudData() {
       try {
-        const [cloudTables, cloudBills, cloudTx, cloudCounters, cloudMenu, cloudCats, cloudAllBills] = await Promise.all([
+        const [cloudTables, cloudBills, cloudTx, cloudCounters, cloudMenu, cloudCats, cloudAllBills, cloudCustomers] = await Promise.all([
           fetchLiveTables(),
           fetchLiveUnsettledBills(),
           fetchLiveDailyTransactions(),
@@ -396,6 +522,7 @@ export function PosProvider({ children }) {
           fetchLiveMenuItems(),
           fetchLiveCategories(),
           fetchLiveAllBills(),
+          fetchLiveCustomers(),
         ]);
 
         if (!isMounted) return;
@@ -407,6 +534,10 @@ export function PosProvider({ children }) {
         if (cloudMenu && Array.isArray(cloudMenu) && cloudMenu.length > 0) {
           loadDynamicMenuItems(cloudMenu);
           setMenuItems(cloudMenu);
+        }
+        if (cloudCustomers && Array.isArray(cloudCustomers) && cloudCustomers.length > 0) {
+          setCustomers(cloudCustomers);
+          saveCachedCustomers(cloudCustomers);
         }
         if (cloudTables && Object.keys(cloudTables).length > 0) {
           setTables(cloudTables);
@@ -445,6 +576,13 @@ export function PosProvider({ children }) {
         if (!isMounted) return;
         setTables(prev => applyIncomingKotDelta(prev, newKot, kotItems));
         setKotCounter(prev => Math.max(prev, Number(newKot.kot_number) + 1));
+      },
+      onCustomerUpdate: async () => {
+        const liveCust = await fetchLiveCustomers();
+        if (liveCust && isMounted) {
+          setCustomers(liveCust);
+          saveCachedCustomers(liveCust);
+        }
       },
       onMenuUpdate: async () => {
         const liveMenu = await fetchLiveMenuItems();
@@ -543,6 +681,10 @@ export function PosProvider({ children }) {
   useEffect(() => {
     saveCachedCounters(kotCounter, billCounter);
   }, [kotCounter, billCounter]);
+
+  useEffect(() => {
+    saveCachedCustomers(customers);
+  }, [customers]);
 
   // Helper: Find next available parcel table (0, 0A, 0B, 0C, 0D, ...)
   const getNextParcelTable = () => {
@@ -1013,6 +1155,8 @@ export function PosProvider({ children }) {
       table: tableId,
       tableNo: tableId,
       section: table.section,
+      customerName: table.customerName || '',
+      customerPhone: table.customerPhone || '',
       employeeNo: '1',
       pax: pax || 2,
       items: billItems,
@@ -1161,6 +1305,11 @@ export function PosProvider({ children }) {
     const matchingUnsettled = unsettledBills.find(b => String(b.billNo) === String(billNum));
     const netAmount = settleBillData?.amount ?? (matchingUnsettled ? matchingUnsettled.amount : 0);
 
+    // Customer tracking info captured upfront before modals or table states clear
+    const custPhone = matchingUnsettled?.customerPhone || settleBillData?.customerPhone || tables[cleanTbl]?.customerPhone || '';
+    const custName = matchingUnsettled?.customerName || settleBillData?.customerName || tables[cleanTbl]?.customerName || 'Guest';
+    const billItems = matchingUnsettled?.items || settleBillData?.items || tables[cleanTbl]?.items || [];
+
     // Record into daily settled transactions journal
     const transaction = {
       billNo: String(billNum),
@@ -1208,6 +1357,42 @@ export function PosProvider({ children }) {
       amount: netAmount,
       paymentMode,
       cashierName: currentUser?.name || '1. Operator',
+    });
+
+    // Customer tracking for repeat customer intelligence
+    if (custPhone && String(custPhone).trim() && String(custPhone).trim() !== '-') {
+      trackCustomerVisit({
+        phone: custPhone,
+        name: custName,
+        billNo: String(billNum),
+        table: cleanTbl,
+        amount: netAmount,
+        items: billItems,
+      });
+    }
+
+    // Auto-update dual disk C: & D: backup and local revenue history
+    saveLocalBackupAndRevenue({
+      allBills: [
+        {
+          billNo: String(billNum),
+          table: cleanTbl,
+          amount: netAmount,
+          paymentMode,
+          customerName: custName,
+          customerPhone: custPhone,
+          items: billItems,
+          date: new Date().toLocaleDateString('en-GB'),
+          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+          isSettled: true,
+          settledAt: Date.now(),
+        },
+        ...allBills.filter(b => String(b.billNo) !== String(billNum))
+      ],
+      customers,
+      tables,
+      menuItems,
+      categories,
     });
 
     setInfoDialog({
@@ -1278,7 +1463,7 @@ export function PosProvider({ children }) {
     }));
     setDailyTransactions(prev => [...newTx, ...prev]);
 
-    // 5. Cloud sync each settlement
+    // 5. Cloud sync each settlement & track customer visits
     matchingBills.forEach(b => {
       settleBillInSupabase({
         tableId: b.table,
@@ -1287,6 +1472,25 @@ export function PosProvider({ children }) {
         paymentMode: mode,
         cashierName: currentUser?.name || '1. Operator',
       });
+      if (b.customerPhone && String(b.customerPhone).trim() && String(b.customerPhone).trim() !== '-') {
+        trackCustomerVisit({
+          phone: b.customerPhone,
+          name: b.customerName || 'Guest',
+          billNo: b.billNo,
+          table: b.table,
+          amount: b.amount,
+          items: b.items || [],
+        });
+      }
+    });
+
+    // Auto-update dual disk C: & D: backup and local revenue history
+    saveLocalBackupAndRevenue({
+      allBills,
+      customers,
+      tables,
+      menuItems,
+      categories,
     });
 
     return settledCount || billNumbers.length;
@@ -1441,6 +1645,12 @@ export function PosProvider({ children }) {
       deleteTable,
       reassignTableRange,
       moveTableNumber,
+      // Customer Management & Repeat Visit Tracking
+      customers,
+      setCustomers,
+      saveCustomer,
+      refreshCustomers,
+      trackCustomerVisit,
     }}>
       {children}
     </PosContext.Provider>

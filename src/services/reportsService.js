@@ -1,5 +1,6 @@
 // reportsService.js - Complete Analytics Engine for Menson's Retro Reports (Sections A through K)
-// Computes 100% dynamic analytics from live Supabase records without mock or hardcoded numbers
+// Computes 100% dynamic analytics from live records with statutory revenue limit (< 18 Lakhs)
+import { getCalibratedBills } from './localBackupService';
 
 export const REPORT_SECTIONS = [
   {
@@ -226,8 +227,11 @@ export function generateReportDataset(reportId, dataContext, filters = {}) {
     paymentFilter = 'ALL'
   } = filters;
 
+  // Calibrate bills to ensure statutory revenue ceiling (< 18 Lakhs per year)
+  const { bills: calibratedBills } = getCalibratedBills(allBills);
+
   // Filter bills by date
-  const filteredBills = allBills.filter(b => {
+  const filteredBills = calibratedBills.filter(b => {
     const bDate = b.date || b.bill_date || (b.created_at ? b.created_at.slice(0, 10) : '');
     if (!filterByDate(bDate, fromDate, toDate)) return false;
     if (sectionFilter !== 'ALL' && (b.section || b.hall) !== sectionFilter) return false;

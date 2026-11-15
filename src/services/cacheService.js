@@ -19,6 +19,7 @@ const KEYS = {
   KOT_COUNTER: 'inamdar_kot_counter',
   BILL_COUNTER: 'inamdar_bill_counter',
   MENU: 'inamdar_cached_menu',
+  CUSTOMERS: 'inamdar_customers',
 };
 
 // Check if running in Electron environment
@@ -136,6 +137,16 @@ export function getCachedCounters() {
 export function saveCachedCounters(kotCounter, billCounter) {
   if (kotCounter !== undefined) localStorage.setItem(KEYS.KOT_COUNTER, String(kotCounter));
   if (billCounter !== undefined) localStorage.setItem(KEYS.BILL_COUNTER, String(billCounter));
+}
+
+export function getCachedCustomers() {
+  enforceScratchResetIfNeeded();
+  const custs = getFromStorage(KEYS.CUSTOMERS, null);
+  return Array.isArray(custs) ? custs : [];
+}
+
+export function saveCachedCustomers(customers) {
+  saveToStorage(KEYS.CUSTOMERS, customers);
 }
 
 // 3. Fine-Grained Delta Updates (Production Realtime Sync)

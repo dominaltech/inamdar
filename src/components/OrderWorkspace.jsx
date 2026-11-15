@@ -2176,14 +2176,16 @@ export default function OrderWorkspace() {
                   type="button"
                   className="win-btn"
                   onClick={() => {
-                    if (activeTableId) {
+                    const targetTbl = activeTableId || memoTableLoaded || tableInput.trim().toUpperCase();
+                    if (targetTbl) {
                       setPaxPrompt({
                         show: true,
-                        tableId: activeTableId,
+                        tableId: targetTbl,
                         onConfirm: (pax) => {
-                          printCashMemo(activeTableId, pax);
+                          printCashMemo(targetTbl, pax);
                           setTableInput('');
                           switchTable('');
+                          setMemoTableLoaded(null);
                           focusTableInput();
                         }
                       });

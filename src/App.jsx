@@ -7,6 +7,8 @@ import OrderWorkspace from './components/OrderWorkspace';
 import ReportsView from './components/ReportsView';
 import MenuManagementView from './components/MenuManagementView';
 import TableManagementView from './components/TableManagementView';
+import CustomersManagementView from './components/CustomersManagementView';
+import SettingsView from './components/SettingsView';
 import LoginModal from './components/LoginModal';
 import TableShiftModal from './components/TableShiftModal';
 import CancelAuthModal from './components/CancelAuthModal';
@@ -58,6 +60,10 @@ function PosAppContent() {
           <MenuManagementView />
         ) : screenMode === 'TABLES' ? (
           <TableManagementView />
+        ) : screenMode === 'CUSTOMERS' ? (
+          <CustomersManagementView />
+        ) : screenMode === 'SETTINGS' ? (
+          <SettingsView />
         ) : (
           <OrderWorkspace />
         )}

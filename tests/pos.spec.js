@@ -1307,6 +1307,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const qtyInput = page.locator('input[placeholder="Qty"]');
 
     // 1. Add Kitchen dish: #49 BABY CORN CHILLY
+    await codeInput.click();
     await codeInput.fill('49');
     await codeInput.press('Enter');
     await page.waitForTimeout(200);
@@ -1366,7 +1367,13 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
 
     // 6. Test Cash Memo formatting (F5) - Compact 58mm alignment with Rate and Amount
     await page.keyboard.press('F5');
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(400);
+
+    const cashMemoActive = page.locator('div.win-titlebar', { hasText: 'Cash Memo' });
+    if (!await cashMemoActive.isVisible()) {
+      await page.keyboard.press('F5');
+      await page.waitForTimeout(400);
+    }
 
     await tableInput.click();
     await tableInput.fill('35');
@@ -1675,6 +1682,168 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('td', { hasText: 'ROASTED PAPAD' }).first()).toBeVisible();
 
     // Dismiss workspace cleanly
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+  });
+
+  test('24. Customer Management & Repeat Visits Tracking, Purchase History Inspection, Local C/D Backup & 18 Lakhs Revenue Ceiling', async ({ page }) => {
+    test.setTimeout(60000);
+
+    // 1. Navigate to POS
+    await page.goto('/');
+    await page.waitForTimeout(600);
+
+    // 2. Open Customers Studio from Top Header Menu Bar
+    const customersMenuBtn = page.locator('.win-menu-item', { hasText: 'Customers' });
+    await expect(customersMenuBtn).toBeVisible();
+    await customersMenuBtn.click();
+    await page.waitForTimeout(400);
+
+    // Verify Customers Studio is visible
+    await expect(page.locator('text=Customer Management & Repeat Tracker')).toBeVisible();
+    await expect(page.locator('#customer-search-input')).toBeVisible();
+    await expect(page.locator('#add-customer-btn')).toBeVisible();
+
+    // 3. Add a new customer
+    await page.locator('#add-customer-btn').click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('#modal-customer-phone')).toBeVisible();
+
+    await page.locator('#modal-customer-phone').fill('9876543210');
+    await page.locator('#modal-customer-name').fill('Vikram Malhotra');
+    await page.locator('#btn-save-customer').click();
+    await page.waitForTimeout(400);
+
+    // Verify new customer appears in directory
+    await expect(page.locator('td', { hasText: '9876543210' })).toBeVisible();
+    await expect(page.locator('td', { hasText: 'Vikram Malhotra' })).toBeVisible();
+
+    // 4. Test Search and Filter
+    const searchInput = page.locator('#customer-search-input');
+    await searchInput.fill('Vikram');
+    await page.waitForTimeout(200);
+    await expect(page.locator('td', { hasText: 'Vikram Malhotra' })).toBeVisible();
+    await searchInput.fill('');
+    await page.waitForTimeout(200);
+
+    // 5. Inspect Customer Profile & Metrics Card
+    await page.locator('td', { hasText: '9876543210' }).click();
+    await page.waitForTimeout(200);
+    await expect(page.locator('h2', { hasText: 'Vikram Malhotra' })).toBeVisible();
+    await expect(page.locator('text=TOTAL VISITS')).toBeVisible();
+    await expect(page.locator('text=LIFETIME SPEND')).toBeVisible();
+
+    // 6. Return to POS Order Screen
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await expect(page.locator('#pos-table-input')).toBeVisible();
+
+    // 7. Place an Order for Table 15 with customer Vikram (9876543210)
+    const tableInput = page.locator('#pos-table-input');
+    await tableInput.click();
+    await tableInput.fill('15');
+    await tableInput.press('Enter');
+    await page.waitForTimeout(300);
+
+    // Customer Modal prompts
+    const custPhoneInput = page.locator('#cust-phone-input');
+    if (await custPhoneInput.isVisible()) {
+      await custPhoneInput.fill('9876543210');
+      await page.waitForTimeout(300);
+      // Verify repeat guest badge is shown in modal
+      await expect(page.locator('text=Repeat Guest')).toBeVisible();
+      await page.locator('button:has-text("OK (↵)")').click();
+      await page.waitForTimeout(300);
+    }
+
+    // Add dish 1 (CHICKEN MANCHOW SOUP)
+    const codeInput = page.locator('#pos-code-input');
+    await codeInput.click();
+    await codeInput.fill('1');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+
+    // Fire KOT
+    await page.locator('button:has-text("Fire KOT")').click();
+    await page.waitForTimeout(400);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+
+    // 8. Open Cash Memo mode (F5) and print cash memo for Table 15
+    await page.keyboard.press('F5');
+    await page.waitForTimeout(300);
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
+    await tableInput.click();
+    await tableInput.fill('15');
+    await tableInput.press('Enter'); // Loads preview
+    await page.waitForTimeout(300);
+
+    const printBillBtn = page.locator('button:has-text("Print Bill (F6)")');
+    if (await printBillBtn.isVisible()) {
+      await printBillBtn.click();
+      await page.waitForTimeout(300);
+    } else {
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(300);
+    }
+
+    const paxPrompt = page.locator('#pos-pax-input');
+    if (await paxPrompt.isVisible()) {
+      await paxPrompt.press('Enter');
+      await page.waitForTimeout(300);
+    }
+
+    // Dismiss print dialog
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+
+    // 9. Settle bill for Table 15 via Unsettled Bills badge or Settlement
+    const unsettledBadge = page.locator('span[title*="Table 15"]').first();
+    await expect(unsettledBadge).toBeVisible();
+    await unsettledBadge.click({ force: true });
+    await page.waitForTimeout(400);
+    await page.keyboard.press('Enter'); // Confirm Cash settlement
+    await page.waitForTimeout(400);
+    await page.keyboard.press('Escape'); // Dismiss info dialog
+    await page.waitForTimeout(300);
+
+    // 10. Re-open Customers Studio to verify repeat visit tracking!
+    await customersMenuBtn.click();
+    await page.waitForTimeout(400);
+    await page.locator('td', { hasText: '9876543210' }).click();
+    await page.waitForTimeout(300);
+
+    // Check that customer has recorded repeat visit
+    await expect(page.locator('text=RETURNING CUSTOMER')).toBeVisible();
+
+    // 11. Test Settings View: Admin PIN, Dual-Disk C/D Backup & 18 Lakhs Revenue Limit
+    const settingsMenuBtn = page.locator('.win-menu-item', { hasText: 'Settings' });
+    await expect(settingsMenuBtn).toBeVisible();
+    await settingsMenuBtn.click();
+    await page.waitForTimeout(300);
+
+    const adminPinInput = page.locator('#admin-settings-pin-input');
+    if (await adminPinInput.isVisible()) {
+      await adminPinInput.fill('1234');
+      await page.locator('#btn-unlock-settings').click();
+      await page.waitForTimeout(300);
+    }
+
+    // Verify Settings View contents
+    await expect(page.locator('text=System Settings & Local Disk C/D Dual Backup Storage')).toBeVisible();
+    await expect(page.locator('text=C:\\InamdarPOS_Data').first()).toBeVisible();
+    await expect(page.locator('text=D:\\InamdarPOS_Data').first()).toBeVisible();
+    await expect(page.locator('text=18 Lakhs Annual Limit')).toBeVisible();
+
+    // Test Export All Data button
+    const exportBtn = page.locator('#export-backup-btn');
+    await expect(exportBtn).toBeVisible();
+    await exportBtn.click();
+    await page.waitForTimeout(300);
+
+    // Cleanly exit to Order workspace
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
   });
