@@ -21,6 +21,7 @@ import {
   fetchLiveCategories,
   fetchLiveCustomers,
   saveCustomerInSupabase,
+  deleteCustomerInSupabase,
   recordCustomerVisitInSupabase,
   saveCategoryInSupabase,
   updateCategoriesOrderInSupabase,
@@ -62,7 +63,7 @@ import {
   applySingleBillDelta,
   appendLocalAuditLog,
 } from '../services/cacheService';
-import { saveLocalBackupAndRevenue } from '../services/localBackupService';
+import { saveLocalBackupAndRevenue, resetLocalDataOnly, ensureLocalAutoSaveInitialized } from '../services/localBackupService';
 
 const PosContext = createContext(null);
 
@@ -148,6 +149,30 @@ export function PosProvider({ children }) {
       });
     }
     return updatedCustomer;
+  }, []);
+
+  const deleteCustomer = useCallback(async (phone) => {
+    if (!phone) return false;
+    const cleanPhone = String(phone).trim();
+    setCustomers(prev => {
+      const next = prev.filter(c => c.phone !== cleanPhone);
+      saveCachedCustomers(next);
+      return next;
+    });
+
+    if (isSupabaseConfigured()) {
+      await deleteCustomerInSupabase(cleanPhone).catch(err => {
+        console.warn('deleteCustomerInSupabase error:', err);
+      });
+    }
+    return true;
+  }, []);
+
+  const resetLocalData = useCallback(() => {
+    resetLocalDataOnly();
+    setAllBills([]);
+    setDailyTransactions([]);
+    setPastBills([]);
   }, []);
 
   const refreshCustomers = useCallback(async () => {
@@ -506,6 +531,11 @@ export function PosProvider({ children }) {
     await upsertTableInSupabase({ ...source, id: cleanNew, section: sec });
     return true;
   }, [tables]);
+
+  // 0. Auto-initialize local disk backup folders and files
+  useEffect(() => {
+    ensureLocalAutoSaveInitialized();
+  }, []);
 
   // 1. Initial Cloud Sync from Supabase & Realtime Subscription
   useEffect(() => {
@@ -1649,6 +1679,8 @@ export function PosProvider({ children }) {
       customers,
       setCustomers,
       saveCustomer,
+      deleteCustomer,
+      resetLocalData,
       refreshCustomers,
       trackCustomerVisit,
     }}>

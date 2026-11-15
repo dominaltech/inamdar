@@ -1,11 +1,28 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { usePos } from '../context/PosContext';
+import {
+  IconUsers,
+  IconUser,
+  IconUserPlus,
+  IconTrash,
+  IconEdit,
+  IconSearch,
+  IconRefresh,
+  IconClose,
+  IconCloud,
+  IconReceipt,
+  IconPhone,
+  IconWarning,
+  IconStar,
+  IconCalendar,
+} from './common/Icons';
 
 export default function CustomersManagementView() {
   const {
     customers = [],
     setScreenMode,
     saveCustomer,
+    deleteCustomer,
     refreshCustomers,
   } = usePos();
 
@@ -18,6 +35,11 @@ export default function CustomersManagementView() {
   const [formData, setFormData] = useState({ phone: '', name: '' });
   const [isEditing, setIsEditing] = useState(false);
 
+  // 2-Step Confirmation States for Deleting Customer
+  const [customerToDelete, setCustomerToDelete] = useState(null);
+  const [showDeleteStep1, setShowDeleteStep1] = useState(false);
+  const [showDeleteStep2, setShowDeleteStep2] = useState(false);
+
   const showToast = (text, type = 'info') => {
     setStatusMessage({ text, type });
     setTimeout(() => setStatusMessage({ text: '', type: 'info' }), 3500);
@@ -27,6 +49,15 @@ export default function CustomersManagementView() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        if (showDeleteStep2) {
+          setShowDeleteStep2(false);
+          return;
+        }
+        if (showDeleteStep1) {
+          setShowDeleteStep1(false);
+          setCustomerToDelete(null);
+          return;
+        }
         if (showModal) {
           setShowModal(false);
           return;
@@ -41,7 +72,7 @@ export default function CustomersManagementView() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showModal, setScreenMode, refreshCustomers]);
+  }, [showModal, showDeleteStep1, showDeleteStep2, setScreenMode, refreshCustomers]);
 
   // Filter customers by phone or name
   const filteredCustomers = useMemo(() => {
@@ -74,6 +105,38 @@ export default function CustomersManagementView() {
     setFormData({ phone: cust.phone, name: cust.name });
     setIsEditing(true);
     setShowModal(true);
+  };
+
+  // Trigger Delete Step 1
+  const initiateDelete = (cust) => {
+    setCustomerToDelete(cust);
+    setShowDeleteStep1(true);
+  };
+
+  // Proceed to Step 2
+  const handleProceedToDeleteStep2 = () => {
+    setShowDeleteStep1(false);
+    setShowDeleteStep2(true);
+  };
+
+  // Final Confirmation of Customer Deletion
+  const handleConfirmFinalDelete = async () => {
+    if (!customerToDelete) return;
+    const phone = customerToDelete.phone;
+    const name = customerToDelete.name || 'Customer';
+
+    const success = await deleteCustomer?.(phone);
+    setShowDeleteStep2(false);
+    setCustomerToDelete(null);
+
+    if (success) {
+      showToast(`Customer ${name} (${phone}) deleted successfully!`, 'success');
+      if (selectedPhone === phone) {
+        setSelectedPhone('');
+      }
+    } else {
+      showToast('Error deleting customer.', 'error');
+    }
   };
 
   const handleSaveSubmit = async (e) => {
@@ -123,30 +186,31 @@ export default function CustomersManagementView() {
       {/* 1. Header Toolbar */}
       <div className="win-titlebar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', height: '32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <IconUsers size={16} color="#fff" />
           <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff' }}>
-            👥 Dominal's POS — Customer Management &amp; Repeat Tracker (Live Database Sync)
+            Dominal's POS — Customer Management &amp; Repeat Tracker (Live Database Sync)
           </span>
-          <span style={{ fontSize: '10px', background: '#006600', color: '#fff', padding: '1px 6px', borderRadius: '3px', fontWeight: 'bold' }}>
-            ☁️ Connected to Live Database
+          <span style={{ fontSize: '10px', background: '#006600', color: '#fff', padding: '1px 6px', borderRadius: '3px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <IconCloud size={12} color="#fff" /> Connected to Live Database
           </span>
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
           <button
             onClick={() => {
               refreshCustomers?.();
-              showToast('Refreshed customers list from cloud!', 'info');
+              showToast('Refreshed customers list from database!', 'info');
             }}
             className="win-btn"
-            style={{ fontSize: '11px', height: '22px' }}
+            style={{ fontSize: '11px', height: '22px', display: 'flex', alignItems: 'center', gap: '4px' }}
           >
-            ↻ Refresh Cloud (F5)
+            <IconRefresh size={12} /> Refresh Cloud (F5)
           </button>
           <button
             onClick={() => setScreenMode('ORDER')}
             className="win-btn"
-            style={{ fontSize: '11px', height: '22px', fontWeight: 'bold', background: '#c00000', color: '#fff' }}
+            style={{ fontSize: '11px', height: '22px', fontWeight: 'bold', background: '#c00000', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px' }}
           >
-            ✕ Back to POS (Esc)
+            <IconClose size={12} color="#fff" /> Back to POS (Esc)
           </button>
         </div>
       </div>
@@ -154,7 +218,9 @@ export default function CustomersManagementView() {
       {/* 2. Search & Action Strip */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: '#e0ded0', borderBottom: '1px solid #7f9db9' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#0a246a' }}>Search Customer:</span>
+          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#0a246a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <IconSearch size={14} color="#0a246a" /> Search Customer:
+          </span>
           <input
             id="customer-search-input"
             type="text"
@@ -188,9 +254,9 @@ export default function CustomersManagementView() {
             id="add-customer-btn"
             onClick={handleOpenAddModal}
             className="win-btn"
-            style={{ height: '24px', fontSize: '11px', fontWeight: 'bold', background: '#0a246a', color: '#fff' }}
+            style={{ height: '24px', fontSize: '11px', fontWeight: 'bold', background: '#0a246a', color: '#fff', display: 'flex', alignItems: 'center', gap: '5px' }}
           >
-            + Add New Customer
+            <IconUserPlus size={14} color="#fff" /> + Add New Customer
           </button>
         </div>
       </div>
@@ -201,7 +267,7 @@ export default function CustomersManagementView() {
         <div style={{ width: '48%', display: 'flex', flexDirection: 'column', border: '1px solid #7f9db9', background: '#fff', marginRight: '4px' }}>
           <div style={{ padding: '4px 8px', background: '#d4d0c8', borderBottom: '1px solid #7f9db9', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
             <span>Customer Directory ({filteredCustomers.length} records)</span>
-            <span style={{ color: '#0a246a' }}>Click row to view purchase history</span>
+            <span style={{ color: '#0a246a' }}>Click row to view profile &amp; history</span>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -212,7 +278,7 @@ export default function CustomersManagementView() {
                   <th style={{ textAlign: 'left', padding: '4px 6px' }}>Customer Name</th>
                   <th style={{ textAlign: 'center', padding: '4px 6px', width: '70px' }}>Visits</th>
                   <th style={{ textAlign: 'right', padding: '4px 6px', width: '85px' }}>Total Spend</th>
-                  <th style={{ textAlign: 'center', padding: '4px 6px', width: '50px' }}>Action</th>
+                  <th style={{ textAlign: 'center', padding: '4px 6px', width: '65px' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -255,24 +321,37 @@ export default function CustomersManagementView() {
                             background: isSelected ? '#ffffff' : (visits >= 5 ? '#e6f4ea' : (visits > 1 ? '#e8f0fe' : '#f1f3f4')),
                             color: isSelected ? '#0a246a' : (visits >= 5 ? '#137333' : (visits > 1 ? '#1a73e8' : '#5f6368')),
                           }}>
-                            {visits >= 5 ? `★ ${visits}x (VIP)` : (visits > 1 ? `✓ ${visits}x` : '1x')}
+                            {visits >= 5 ? `${visits}x (VIP)` : (visits > 1 ? `${visits}x` : '1x')}
                           </span>
                         </td>
                         <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>
                           ₹{spent.toFixed(2)}
                         </td>
                         <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditModal(cust);
-                            }}
-                            className="win-btn"
-                            style={{ fontSize: '10px', padding: '1px 4px', height: '18px' }}
-                            title="Edit Customer"
-                          >
-                            ✏️
-                          </button>
+                          <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditModal(cust);
+                              }}
+                              className="win-btn"
+                              style={{ fontSize: '10px', padding: '1px 4px', height: '18px' }}
+                              title="Edit Customer"
+                            >
+                              <IconEdit size={11} color="#0a246a" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                initiateDelete(cust);
+                              }}
+                              className="win-btn"
+                              style={{ fontSize: '10px', padding: '1px 4px', height: '18px', background: '#fff0f0' }}
+                              title="Delete Customer"
+                            >
+                              <IconTrash size={11} color="#c00000" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -294,13 +373,16 @@ export default function CustomersManagementView() {
                     <h2 style={{ margin: '0 0 2px 0', fontSize: '16px', color: '#0a246a' }}>
                       {activeCustomer.name || 'Guest'}
                     </h2>
-                    <div style={{ fontSize: '12px', color: '#444', fontWeight: 'bold' }}>
-                      📞 Phone ID: <span style={{ fontFamily: 'monospace', color: '#000' }}>{activeCustomer.phone}</span>
+                    <div style={{ fontSize: '12px', color: '#444', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <IconPhone size={13} color="#444" />
+                      Phone ID: <span style={{ fontFamily: 'monospace', color: '#000' }}>{activeCustomer.phone}</span>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                     <span style={{
-                      display: 'inline-block',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
                       padding: '2px 8px',
                       borderRadius: '4px',
                       fontSize: '11px',
@@ -309,8 +391,32 @@ export default function CustomersManagementView() {
                       color: (Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1) >= 5 ? '#774400' : '#006600',
                       border: '1px solid #999',
                     }}>
-                      {(Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1) >= 5 ? '👑 VIP REPEAT GUEST' : ((Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1) > 1 ? '🔄 RETURNING CUSTOMER' : '⭐ NEW GUEST')}
+                      {(Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1) >= 5 ? (
+                        <><IconStar size={12} color="#774400" fill="#774400" /> VIP REPEAT GUEST</>
+                      ) : ((Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1) > 1 ? (
+                        <><IconRefresh size={12} color="#006600" /> RETURNING CUSTOMER</>
+                      ) : (
+                        <><IconUser size={12} color="#006600" /> NEW GUEST</>
+                      ))}
                     </span>
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                      <button
+                        onClick={() => handleOpenEditModal(activeCustomer)}
+                        className="win-btn"
+                        style={{ fontSize: '10px', padding: '2px 6px', height: '20px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                      >
+                        <IconEdit size={11} /> Edit
+                      </button>
+                      <button
+                        id="delete-customer-btn-inspector"
+                        data-testid="delete-customer-btn-inspector"
+                        onClick={() => initiateDelete(activeCustomer)}
+                        className="win-btn"
+                        style={{ fontSize: '10px', padding: '2px 6px', height: '20px', background: '#fff0f0', color: '#c00000', border: '1px solid #c00000', display: 'flex', alignItems: 'center', gap: '3px' }}
+                      >
+                        <IconTrash size={11} color="#c00000" /> Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -338,8 +444,8 @@ export default function CustomersManagementView() {
               </div>
 
               {/* Purchase History Section Header */}
-              <div style={{ padding: '4px 8px', background: '#d4d0c8', borderBottom: '1px solid #7f9db9', fontSize: '11px', fontWeight: 'bold', color: '#0a246a' }}>
-                📋 Detailed Purchase History &amp; Consumed Items
+              <div style={{ padding: '4px 8px', background: '#d4d0c8', borderBottom: '1px solid #7f9db9', fontSize: '11px', fontWeight: 'bold', color: '#0a246a', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <IconReceipt size={13} color="#0a246a" /> Detailed Purchase History &amp; Consumed Items
               </div>
 
               {/* Detailed Purchase History Cards */}
@@ -368,8 +474,8 @@ export default function CustomersManagementView() {
                           <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#0a246a' }}>
                             Visit #{activeCustomer.history.length - vIdx} — Bill #{entry.billNo || '—'}
                           </span>
-                          <span style={{ fontSize: '11px', color: '#555' }}>
-                            📅 {entry.date || ''} {entry.time ? `• ⏰ ${entry.time}` : ''} {entry.table ? `• Table ${entry.table}` : ''}
+                          <span style={{ fontSize: '11px', color: '#555', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <IconCalendar size={12} color="#555" /> {entry.date || ''} {entry.time ? `• ${entry.time}` : ''} {entry.table ? `• Table ${entry.table}` : ''}
                           </span>
                           <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#006600' }}>
                             ₹{Number(entry.amount || 0).toFixed(2)}
@@ -407,8 +513,8 @@ export default function CustomersManagementView() {
                             </tbody>
                           </table>
                         ) : (
-                          <div style={{ fontSize: '11px', color: '#888', fontStyle: 'italic' }}>
-                            Total bill amount: ₹{Number(entry.amount || 0).toFixed(2)}
+                          <div style={{ fontSize: '10px', color: '#888', fontStyle: 'italic' }}>
+                            Item details recorded as consolidated billing amount.
                           </div>
                         )}
                       </div>
@@ -418,79 +524,163 @@ export default function CustomersManagementView() {
               </div>
             </>
           ) : (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#888' }}>
-              Select a customer from the directory to inspect their full visit frequency and order history.
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#888' }}>
+              Select a customer from the directory to view details
             </div>
           )}
         </div>
       </div>
 
-      {/* 4. Add / Edit Customer Modal */}
+      {/* Modal: Add / Edit Customer */}
       {showModal && (
-        <div className="win-modal-backdrop" style={{ zIndex: 1400 }}>
+        <div className="win-modal-backdrop" style={{ zIndex: 1200 }}>
           <div className="win-window" style={{ width: '380px', background: '#ece9d8', boxShadow: '3px 3px 12px rgba(0,0,0,0.5)' }}>
-            <div className="win-titlebar" style={{ background: '#0a246a' }}>
+            <div className="win-titlebar">
               <div className="win-titlebar-title">
-                <span>{isEditing ? '✏️ Edit Customer Details' : '👤 Add New Customer (Unique Phone ID)'}</span>
+                <span>{isEditing ? 'Edit Customer Details' : 'Register New Customer'}</span>
               </div>
               <button className="win-close-btn" onClick={() => setShowModal(false)}>✕</button>
             </div>
-
             <form onSubmit={handleSaveSubmit} style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', color: '#0a246a' }}>
-                  Customer Phone Number (Unique ID):
+                <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '2px' }}>
+                  Mobile Phone Number (Unique Customer ID):
                 </label>
                 <input
                   id="modal-customer-phone"
+                  data-testid="modal-customer-phone"
                   type="text"
-                  required
                   disabled={isEditing}
                   value={formData.phone}
-                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="e.g. 9822334455"
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/[^0-9]/g, '') })}
+                  placeholder="e.g. 9876543210"
                   className="win-input"
                   style={{ width: '100%', height: '24px', fontSize: '12px', fontWeight: 'bold', padding: '2px 6px' }}
+                  autoFocus
                 />
-                <span style={{ fontSize: '10px', color: '#666' }}>
-                  {isEditing ? 'Phone number is the unique primary key and cannot be altered.' : 'Every customer is uniquely identified by their mobile number.'}
-                </span>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', color: '#0a246a' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '2px' }}>
                   Customer Full Name:
                 </label>
                 <input
                   id="modal-customer-name"
+                  data-testid="modal-customer-name"
                   type="text"
-                  required
                   value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g. Rahul Sharma"
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g. Vikram Malhotra"
                   className="win-input"
                   style={{ width: '100%', height: '24px', fontSize: '12px', fontWeight: 'bold', padding: '2px 6px' }}
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
-                <button
-                  type="button"
-                  className="win-btn"
-                  onClick={() => setShowModal(false)}
-                >
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+                <button type="button" className="win-btn" onClick={() => setShowModal(false)}>
                   Cancel (Esc)
                 </button>
                 <button
                   id="btn-save-customer"
+                  data-testid="btn-save-customer"
                   type="submit"
                   className="win-btn"
                   style={{ background: '#0a246a', color: '#fff', fontWeight: 'bold' }}
                 >
-                  Save Customer (↵)
+                  Save to Database (↵)
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Step 1: Warning Dialog */}
+      {showDeleteStep1 && customerToDelete && (
+        <div className="win-modal-backdrop" style={{ zIndex: 1300 }}>
+          <div className="win-window" style={{ width: '420px', background: '#ece9d8', boxShadow: '4px 4px 16px rgba(0,0,0,0.6)' }}>
+            <div className="win-titlebar" style={{ background: '#c00000' }}>
+              <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <IconWarning size={14} color="#fff" />
+                <span>Step 1 of 2: Confirm Customer Deletion</span>
+              </div>
+              <button className="win-close-btn" onClick={() => { setShowDeleteStep1(false); setCustomerToDelete(null); }}>✕</button>
+            </div>
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <IconWarning size={32} color="#c00000" />
+                <div style={{ fontSize: '12px', color: '#222', lineHeight: '18px' }}>
+                  Are you sure you want to delete customer <strong>{customerToDelete.name || 'Guest'}</strong> (Phone: <code>{customerToDelete.phone}</code>)?
+                  <br />
+                  This customer currently has <strong>{customerToDelete.visit_count || customerToDelete.visitCount || 1} visit(s)</strong> and <strong>₹{Number((customerToDelete.total_spent ?? customerToDelete.totalSpent) || 0).toFixed(2)}</strong> in total spend.
+                </div>
+              </div>
+              <div style={{ fontSize: '11px', color: '#c00000', fontWeight: 'bold', background: '#fff0f0', padding: '6px 10px', border: '1px solid #ffcccc' }}>
+                Warning: Associated visit logs and item history will be deleted.
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  className="win-btn"
+                  onClick={() => { setShowDeleteStep1(false); setCustomerToDelete(null); }}
+                >
+                  Cancel (Esc)
+                </button>
+                <button
+                  id="confirm-delete-step1-btn"
+                  data-testid="btn-delete-step1-proceed"
+                  type="button"
+                  className="win-btn"
+                  onClick={handleProceedToDeleteStep2}
+                  style={{ background: '#c00000', color: '#fff', fontWeight: 'bold' }}
+                >
+                  Proceed to Confirm Delete &gt;
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Step 2: Final Confirmation Modal */}
+      {showDeleteStep2 && customerToDelete && (
+        <div className="win-modal-backdrop" style={{ zIndex: 1400 }}>
+          <div className="win-window" style={{ width: '400px', background: '#ece9d8', boxShadow: '5px 5px 20px rgba(0,0,0,0.7)' }}>
+            <div className="win-titlebar" style={{ background: '#800000' }}>
+              <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <IconWarning size={14} color="#fff" />
+                <span>Step 2 of 2: Final Warning — Permanent Deletion</span>
+              </div>
+              <button className="win-close-btn" onClick={() => { setShowDeleteStep2(false); setCustomerToDelete(null); }}>✕</button>
+            </div>
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#c00000', textAlign: 'center' }}>
+                THIS ACTION CANNOT BE UNDONE!
+              </div>
+              <div style={{ fontSize: '11px', color: '#333', textAlign: 'center' }}>
+                Please confirm that you want to permanently remove <strong>{customerToDelete.name}</strong> ({customerToDelete.phone}) from both the software and database.
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className="win-btn"
+                  style={{ minWidth: '90px' }}
+                  onClick={() => { setShowDeleteStep2(false); setCustomerToDelete(null); }}
+                >
+                  Cancel
+                </button>
+                <button
+                  id="confirm-delete-step2-btn"
+                  data-testid="btn-delete-step2-confirm"
+                  type="button"
+                  className="win-btn"
+                  onClick={handleConfirmFinalDelete}
+                  style={{ background: '#800000', color: '#fff', fontWeight: 'bold', minWidth: '160px' }}
+                >
+                  Permanently Delete Customer
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

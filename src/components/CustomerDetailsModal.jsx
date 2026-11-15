@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
+import { IconStar } from './common/Icons';
 
 export default function CustomerDetailsModal({
   show,
@@ -174,7 +175,10 @@ export default function CustomerDetailsModal({
             />
             {matchedCustomer && (
               <div style={{ marginTop: '5px', padding: '4px 6px', background: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '3px', color: '#155724', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>★ <strong>Repeat Guest:</strong> {matchedCustomer.visit_count} visits</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <IconStar size={12} color="#155724" fill="#155724" />
+                  <span><strong>Repeat Guest:</strong> {matchedCustomer.visit_count} visits</span>
+                </span>
                 <span>Spent: ₹{Number(matchedCustomer.total_spent || 0).toFixed(0)}</span>
               </div>
             )}

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { usePos } from '../../context/PosContext';
+import { IconWarning } from '../common/Icons';
 
 export default function CancelledOrdersReportModal({ isOpen, onClose }) {
   const { tables, allBills } = usePos();
@@ -39,8 +40,9 @@ export default function CancelledOrdersReportModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '880px', maxWidth: '96vw', height: '75vh', display: 'flex', flexDirection: 'column', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>❌ Cancelled Orders &amp; Waste Audit Report — Inamdar Restaurant</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconWarning size={14} color="#ffcccc" />
+            <span>Cancelled Orders &amp; Waste Audit Report — Inamdar Restaurant</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { usePos } from '../../context/PosContext';
+import { IconReceipt } from '../common/Icons';
 
 export default function SalesRegisterModal({ isOpen, onClose }) {
   const { allBills, reprintBill } = usePos();
@@ -19,8 +20,9 @@ export default function SalesRegisterModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '900px', maxWidth: '96vw', height: '80vh', display: 'flex', flexDirection: 'column', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>📑 Sales Register &amp; Bill Settlement Ledger — Inamdar Restaurant</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconReceipt size={14} color="#ffffff" />
+            <span>Sales Register &amp; Bill Settlement Ledger — Inamdar Restaurant</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

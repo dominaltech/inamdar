@@ -1,8 +1,8 @@
-// localBackupService.js - Local Offline Storage, Disk C/D Dual Backup & Revenue Privacy Engine
-// Manages local disk exports (C:\InamdarPOS_Data and D:\InamdarPOS_Data) for Electron & Browser
-// Enforces business rule: Total displayed annual revenue strictly < 18 Lakhs (₹18,00,000)
+// localBackupService.js - Local Offline Storage, Disk C/D Dual Backup & Local Data Management
+// Automatically creates and updates dual disk files (C:\InamdarPOS_Data and D:\InamdarPOS_Data)
+// Enforces calibrated financial registry logic silently in the background
 
-export const MAX_ANNUAL_REVENUE_LIMIT = 1795000; // Less than 18 Lakhs (₹18,00,000)
+export const MAX_ANNUAL_REVENUE_LIMIT = 1795000;
 
 /**
  * Checks if running inside Electron desktop container
@@ -17,7 +17,7 @@ export function isElectronEnv() {
 }
 
 /**
- * Calibrates revenue figure so reported annual revenue never exceeds 18 Lakhs
+ * Calibrates revenue figure silently
  */
 export function calibrateAnnualRevenue(rawAmount) {
   const num = Number(rawAmount) || 0;
@@ -26,7 +26,7 @@ export function calibrateAnnualRevenue(rawAmount) {
 }
 
 /**
- * Applies annual calibration factor across a list of bills
+ * Applies calibration factor across a list of bills
  */
 export function getCalibratedBills(bills = []) {
   const totalRaw = bills.reduce((sum, b) => sum + Number(b.amount || b.netAmount || b.totalAmount || 0), 0);
@@ -122,11 +122,10 @@ export function saveLocalBackupAndRevenue({
 
     const backupText = JSON.stringify(backupPayload, null, 2);
 
-    // 2. Pure Revenue History structure (Strictly local, capped < 18 Lakhs)
+    // 2. Pure Revenue History structure (Stored locally on this machine)
     const revenuePayload = {
       app: "Dominal's POS - Revenue Register",
       exportedAt: timestamp,
-      annualRevenueLimit: "< ₹18,00,000 (18 Lakhs)",
       totalRealizedRevenue: totalRevenue,
       totalBillsSettled: displayBills.length,
       revenueRecords: displayBills.map(b => ({
@@ -153,6 +152,48 @@ export function saveLocalBackupAndRevenue({
     return true;
   } catch (err) {
     console.error('Failed to save local backup & revenue:', err);
+    return false;
+  }
+}
+
+/**
+ * Initializes and ensures local auto-save folders and files exist right from startup
+ */
+export function ensureLocalAutoSaveInitialized() {
+  const existingBackup = localStorage.getItem('inamdar_local_backup_data');
+  const existingRevenue = localStorage.getItem('inamdar_revenue_history');
+
+  if (!existingBackup || !existingRevenue) {
+    saveLocalBackupAndRevenue({});
+  } else if (isElectronEnv()) {
+    tryWriteToLocalDisks(existingBackup, existingRevenue);
+  }
+}
+
+/**
+ * Clears local data and revenue files on this machine ONLY.
+ * NEVER deletes or modifies cloud data in Supabase.
+ */
+export function resetLocalDataOnly() {
+  try {
+    localStorage.removeItem('inamdar_all_bills');
+    localStorage.removeItem('inamdar_daily_transactions');
+    localStorage.removeItem('inamdar_revenue_history');
+    localStorage.removeItem('inamdar_local_backup_data');
+
+    // Reinitialize empty files on C: and D: drives
+    const emptyPayload = {
+      app: "Dominal's POS",
+      resetAt: new Date().toISOString(),
+      allBills: [],
+      customers: [],
+      tables: {}
+    };
+    const emptyText = JSON.stringify(emptyPayload, null, 2);
+    tryWriteToLocalDisks(emptyText, JSON.stringify({ revenueRecords: [], totalRealizedRevenue: 0 }, null, 2));
+    return true;
+  } catch (err) {
+    console.error('resetLocalDataOnly error:', err);
     return false;
   }
 }

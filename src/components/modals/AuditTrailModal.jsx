@@ -1,10 +1,26 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { usePos } from '../../context/PosContext';
+import { fetchLiveAuditLogs } from '../../services/supabaseService';
+import { IconShield } from '../common/Icons';
 
 export default function AuditTrailModal({ isOpen, onClose }) {
   const { dailyTransactions, currentUser } = usePos();
+  const [cloudLogs, setCloudLogs] = useState([]);
 
-  // Combine dynamic audit actions and settlements
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+    fetchLiveAuditLogs().then(logs => {
+      if (isMounted && logs && logs.length > 0) {
+        setCloudLogs(logs);
+      }
+    }).catch(err => {
+      console.warn('Live audit fetch error:', err);
+    });
+    return () => { isMounted = false; };
+  }, [isOpen]);
+
+  // Combine dynamic audit actions, settlements, and Supabase cloud logs
   const auditLogs = useMemo(() => {
     let savedLogs = [];
     try {
@@ -15,6 +31,17 @@ export default function AuditTrailModal({ isOpen, onClose }) {
     }
 
     const logs = [...savedLogs];
+
+    // Merge Supabase audit logs
+    cloudLogs.forEach(cl => {
+      logs.push({
+        timestamp: cl.created_at ? new Date(cl.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Today',
+        action: cl.action_type || cl.action || 'AUDIT_EVENT',
+        tableId: cl.table_id || cl.tableNo || '-',
+        details: cl.details ? (typeof cl.details === 'object' ? JSON.stringify(cl.details) : cl.details) : 'Audit action recorded',
+        operator: cl.operator || 'System',
+      });
+    });
 
     // Settlements from live dailyTransactions
     (dailyTransactions || []).forEach(tx => {
@@ -33,7 +60,7 @@ export default function AuditTrailModal({ isOpen, onClose }) {
     });
 
     return logs.reverse();
-  }, [dailyTransactions, currentUser]);
+  }, [dailyTransactions, currentUser, cloudLogs]);
 
   if (!isOpen) return null;
 
@@ -41,8 +68,9 @@ export default function AuditTrailModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '850px', maxWidth: '96vw', height: '75vh', display: 'flex', flexDirection: 'column', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>🛡️ System Audit Trail &amp; Alteration Register — Inamdar POS</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconShield size={14} color="#ffffff" />
+            <span>System Audit Trail &amp; Alteration Register — Inamdar POS</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

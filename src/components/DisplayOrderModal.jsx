@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
+import { IconArrowLeftRight } from './common/Icons';
 
 export default function DisplayOrderModal() {
   const {
@@ -472,7 +473,9 @@ export default function DisplayOrderModal() {
               </div>
 
               <div style={{ padding: '16px', fontSize: '12px', textAlign: 'center', lineHeight: '1.5' }}>
-                <div style={{ marginBottom: '10px', fontSize: '24px' }}>❓</div>
+                <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center' }}>
+                  <IconArrowLeftRight size={32} color="#0a246a" />
+                </div>
                 <div>
                   Transfer KOT #{confirmTransferData.kotNo} from <b>Table {confirmTransferData.from}</b> to <b>Table {confirmTransferData.to}</b>?
                 </div>

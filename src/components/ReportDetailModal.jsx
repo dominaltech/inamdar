@@ -1,6 +1,7 @@
 // ReportDetailModal.jsx - Retro Windows 98/2000 Detailed Analytics Viewer Modal
 import React, { useState, useMemo, useEffect } from 'react';
 import { generateReportDataset, REPORTS_BY_ID } from '../services/reportsService';
+import { IconReceipt, IconPrinter, IconFolder } from './common/Icons';
 
 export default function ReportDetailModal({
   show,
@@ -123,9 +124,10 @@ export default function ReportDetailModal({
       >
         {/* Title Bar */}
         <div className="win-titlebar" style={{ height: '24px', padding: '2px 8px' }}>
-          <div className="win-titlebar-title" style={{ fontSize: '11px', fontWeight: 'bold' }}>
+          <div className="win-titlebar-title" style={{ fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconReceipt size={13} color="#ffffff" />
             <span>
-              📋 {reportMeta.code || reportMeta.sectionCode}: {reportMeta.name} — [Period: {fromDate || 'Any'} To: {toDate || 'Today'}]
+              {reportMeta.code || reportMeta.sectionCode}: {reportMeta.name} — [Period: {fromDate || 'Any'} To: {toDate || 'Today'}]
             </span>
           </div>
           <button
@@ -331,25 +333,28 @@ export default function ReportDetailModal({
               type="button"
               className="win-btn"
               onClick={() => handlePrint('pos')}
-              style={{ minWidth: '90px', height: '24px', fontSize: '11px', fontWeight: 'bold' }}
+              style={{ minWidth: '95px', height: '24px', fontSize: '11px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
             >
-              🧾 POS Print
+              <IconReceipt size={12} />
+              <span>POS Print</span>
             </button>
             <button
               type="button"
               className="win-btn"
               onClick={() => handlePrint('graphic')}
-              style={{ minWidth: '95px', height: '24px', fontSize: '11px' }}
+              style={{ minWidth: '100px', height: '24px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
             >
-              🖨️ Graphic Print
+              <IconPrinter size={12} />
+              <span>Graphic Print</span>
             </button>
             <button
               type="button"
               className="win-btn"
               onClick={handleExportCSV}
-              style={{ minWidth: '85px', height: '24px', fontSize: '11px' }}
+              style={{ minWidth: '95px', height: '24px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
             >
-              📁 Export CSV
+              <IconFolder size={12} />
+              <span>Export CSV</span>
             </button>
             <button
               type="button"

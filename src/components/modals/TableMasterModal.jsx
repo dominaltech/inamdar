@@ -1,5 +1,6 @@
 import React from 'react';
 import { usePos } from '../../context/PosContext';
+import { IconUtensils } from '../common/Icons';
 
 export default function TableMasterModal({ isOpen, onClose }) {
   const { tables, switchTable, setScreenMode } = usePos();
@@ -77,8 +78,9 @@ export default function TableMasterModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '950px', maxWidth: '96vw', height: '82vh', display: 'flex', flexDirection: 'column', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>🍽️ Restaurant Tables Master &amp; Layout Inspector — Inamdar POS</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconUtensils size={14} color="#ffffff" />
+            <span>Restaurant Tables Master &amp; Layout Inspector — Inamdar POS</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

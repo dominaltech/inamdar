@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePos } from '../context/PosContext';
+import { IconCloud, IconMonitor } from './common/Icons';
 
 export default function StatusBar() {
   const { currentUser, isCloudConnected } = usePos();
@@ -34,9 +35,22 @@ export default function StatusBar() {
           color: isCloudConnected ? '#006600' : '#885500',
           fontWeight: 'bold',
           userSelect: 'none',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
         }}
       >
-        {isCloudConnected ? '☁️ Live Database' : '💻 Local Database'}
+        {isCloudConnected ? (
+          <>
+            <IconCloud size={13} color="#006600" />
+            <span>Live Database</span>
+          </>
+        ) : (
+          <>
+            <IconMonitor size={13} color="#885500" />
+            <span>Local Database</span>
+          </>
+        )}
       </div>
 
       <div className="win-status-pane" style={{ minWidth: '120px', fontWeight: 'bold' }}>

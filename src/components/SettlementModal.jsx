@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
+import { IconCash, IconSmartphone, IconCreditCard, IconCheck } from './common/Icons';
 
 const PAYMENT_MODES = [
-  { id: 'Cash', label: 'Cash', keyNum: '1', keyChar: 'C', icon: '💵' },
-  { id: 'UPI', label: 'UPI / QR', keyNum: '2', keyChar: 'U', icon: '📱' },
-  { id: 'Card', label: 'Credit / Debit Card', keyNum: '3', keyChar: 'D', icon: '💳' },
+  { id: 'Cash', label: 'Cash', keyNum: '1', keyChar: 'C', iconType: 'CASH' },
+  { id: 'UPI', label: 'UPI / QR', keyNum: '2', keyChar: 'U', iconType: 'UPI' },
+  { id: 'Card', label: 'Credit / Debit Card', keyNum: '3', keyChar: 'D', iconType: 'CARD' },
 ];
 
 export default function SettlementModal() {
@@ -200,7 +201,9 @@ export default function SettlementModal() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '16px' }}>{mode.icon}</span>
+                      {mode.iconType === 'CASH' && <IconCash size={16} color={isSelected ? '#ffffff' : '#006600'} />}
+                      {mode.iconType === 'UPI' && <IconSmartphone size={16} color={isSelected ? '#ffffff' : '#0a246a'} />}
+                      {mode.iconType === 'CARD' && <IconCreditCard size={16} color={isSelected ? '#ffffff' : '#002266'} />}
                       <span style={{ fontSize: '13px' }}>{mode.label}</span>
                     </div>
                     <div style={{
@@ -228,10 +231,21 @@ export default function SettlementModal() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
             <button
               className="win-btn"
-              style={{ minWidth: '90px', fontWeight: 'bold', background: '#dcf5dc', height: '24px', fontSize: '11px' }}
+              style={{
+                minWidth: '95px',
+                fontWeight: 'bold',
+                background: '#dcf5dc',
+                height: '24px',
+                fontSize: '11px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                justifyContent: 'center',
+              }}
               onClick={() => handleSettleConfirm(PAYMENT_MODES[selectedIndex].id)}
             >
-              ✓ Settle (Enter)
+              <IconCheck size={12} color="#008000" />
+              <span>Settle (Enter)</span>
             </button>
             <button
               className="win-btn"

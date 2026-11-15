@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CANCEL_REASONS } from '../../data/initialData';
+import { IconSettings } from '../common/Icons';
 
 export default function ReasonMasterModal({ isOpen, onClose }) {
   const [reasons, setReasons] = useState(() => {
@@ -38,8 +39,9 @@ export default function ReasonMasterModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '500px', maxWidth: '96vw', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>⚙️ Cancel KOT Reason Master</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconSettings size={14} color="#ffffff" />
+            <span>Cancel KOT Reason Master</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

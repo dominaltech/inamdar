@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { usePos } from '../context/PosContext';
+import { IconUtensils, IconCloud, IconEdit, IconTrash } from './common/Icons';
 
 const SECTIONS = [
-  { id: 'ALL', name: '🌐 ALL SECTIONS' },
-  { id: 'AC', name: '❄️ AC (Normal Dine-In)' },
-  { id: 'FAMILY AC', name: '👨‍👩‍👧‍👦 FAMILY AC' },
+  { id: 'ALL', name: 'ALL SECTIONS' },
+  { id: 'AC', name: 'AC (Normal Dine-In)' },
+  { id: 'FAMILY AC', name: 'FAMILY AC' },
 ];
 
 // Helper: Filter out temporary delivery, parcel orders, and dynamic sub-tables
@@ -248,7 +249,7 @@ export default function TableManagementView() {
         fontSize: '13px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>🍽️</span>
+          <IconUtensils size={16} color="#ffffff" />
           <span>Dominal's POS — Restaurant Tables Studio (Live Database Management)</span>
           <span style={{
             fontSize: '11px',
@@ -256,9 +257,13 @@ export default function TableManagementView() {
             color: '#fff',
             padding: '1px 6px',
             borderRadius: '3px',
-            marginLeft: '8px'
+            marginLeft: '8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
           }}>
-            ☁️ Connected to Live Database
+            <IconCloud size={12} color="#ffffff" />
+            Connected to Live Database
           </span>
         </div>
 
@@ -411,7 +416,7 @@ export default function TableManagementView() {
             fontWeight: 'bold',
             fontSize: '12px'
           }}>
-            🏢 Restaurant Sections
+            Restaurant Sections
           </div>
 
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
@@ -452,7 +457,7 @@ export default function TableManagementView() {
           </div>
 
           <div style={{ padding: '8px', backgroundColor: '#e8e4d9', borderTop: '1px solid #999', fontSize: '10.5px', color: '#555', lineHeight: '1.4' }}>
-            💡 <b>Section Order:</b><br />
+            <b>Section Order:</b><br />
             1-20: AC Normal<br />
             21-42: FAMILY AC
           </div>
@@ -477,7 +482,7 @@ export default function TableManagementView() {
             </div>
 
             <div style={{ fontSize: '11px', color: '#333' }}>
-              💡 Click ✎ to rename or change section, ⇄ to batch reassign ranges
+              Click Edit to rename or change section, Reassign to batch change ranges
             </div>
           </div>
 
@@ -571,10 +576,14 @@ export default function TableManagementView() {
                             border: '1px outset #fff',
                             cursor: 'pointer',
                             fontSize: '11px',
-                            fontWeight: 'bold'
+                            fontWeight: 'bold',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
                           }}
                         >
-                          ✎ Edit
+                          <IconEdit size={11} />
+                          <span>Edit</span>
                         </button>
                         <button
                           onClick={() => handleDelete(tbl)}
@@ -588,10 +597,13 @@ export default function TableManagementView() {
                             fontSize: '11px',
                             color: '#c00000',
                             fontWeight: 'bold',
-                            opacity: isOccupied ? 0.4 : 1
+                            opacity: isOccupied ? 0.4 : 1,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                           }}
                         >
-                          🗑
+                          <IconTrash size={12} color="#c00000" />
                         </button>
                       </div>
                     </div>
@@ -671,8 +683,8 @@ export default function TableManagementView() {
                   }}
                   style={{ width: '100%', padding: '4px 6px', border: '2px inset #808080', backgroundColor: '#ffffff', fontWeight: 'bold' }}
                 >
-                  <option value="AC">❄️ AC (Normal Dine-In)</option>
-                  <option value="FAMILY AC">👨‍👩‍👧‍👦 FAMILY AC</option>
+                  <option value="AC">AC (Normal Dine-In)</option>
+                  <option value="FAMILY AC">FAMILY AC</option>
                 </select>
               </div>
 
@@ -803,8 +815,8 @@ export default function TableManagementView() {
                   onChange={(e) => setRangeFormData({ ...rangeFormData, targetSection: e.target.value })}
                   style={{ width: '100%', padding: '4px 6px', border: '2px inset #808080', backgroundColor: '#ffffff', fontWeight: 'bold' }}
                 >
-                  <option value="AC">❄️ AC (Normal Dine-In)</option>
-                  <option value="FAMILY AC">👨‍👩‍👧‍👦 FAMILY AC</option>
+                  <option value="AC">AC (Normal Dine-In)</option>
+                  <option value="FAMILY AC">FAMILY AC</option>
                 </select>
               </div>
 
@@ -903,8 +915,8 @@ export default function TableManagementView() {
                   onChange={(e) => setMoveFormData({ ...moveFormData, targetSection: e.target.value })}
                   style={{ width: '100%', padding: '4px 6px', border: '2px inset #808080', backgroundColor: '#ffffff', fontWeight: 'bold' }}
                 >
-                  <option value="AC">❄️ AC (Normal Dine-In)</option>
-                  <option value="FAMILY AC">👨‍👩‍👧‍👦 FAMILY AC</option>
+                  <option value="AC">AC (Normal Dine-In)</option>
+                  <option value="FAMILY AC">FAMILY AC</option>
                 </select>
               </div>
 

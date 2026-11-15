@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePos } from '../../context/PosContext';
-import { fetchLiveCreditAccounts } from '../../services/supabaseService';
+import { fetchLiveCreditAccounts, saveCreditAccountInSupabase } from '../../services/supabaseService';
+import { IconCreditCard } from '../common/Icons';
 
 export default function CreditLedgerModal({ isOpen, onClose }) {
   const { setInfoDialog } = usePos();
@@ -44,9 +45,10 @@ export default function CreditLedgerModal({ isOpen, onClose }) {
     const updated = [...accounts, newAcc];
     setAccounts(updated);
     localStorage.setItem('inamdar_credit_accounts', JSON.stringify(updated));
+    saveCreditAccountInSupabase(newAcc);
     setInfoDialog({
       title: "Credit Account Created",
-      message: `Account ${newAcc.id} created for ${newAcc.name} with limit ₹${newAcc.creditLimit}.`,
+      message: `Account ${newAcc.id} created for ${newAcc.name} with limit ₹${newAcc.creditLimit} and synced to database.`,
     });
   };
 
@@ -55,14 +57,19 @@ export default function CreditLedgerModal({ isOpen, onClose }) {
     if (!amount || isNaN(amount) || Number(amount) <= 0) return;
 
     const payAmt = Number(amount);
+    let updatedAcc = null;
     const updated = accounts.map(a => {
       if (a.id === acc.id) {
-        return { ...a, balance: Math.max(0, a.balance - payAmt) };
+        updatedAcc = { ...a, balance: Math.max(0, a.balance - payAmt) };
+        return updatedAcc;
       }
       return a;
     });
     setAccounts(updated);
     localStorage.setItem('inamdar_credit_accounts', JSON.stringify(updated));
+    if (updatedAcc) {
+      saveCreditAccountInSupabase(updatedAcc);
+    }
 
     setInfoDialog({
       title: "Credit Payment Received",
@@ -78,8 +85,9 @@ export default function CreditLedgerModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '800px', maxWidth: '96vw', height: '75vh', display: 'flex', flexDirection: 'column', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>💳 Customer Credit Accounts &amp; Ledger — Inamdar Restaurant</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconCreditCard size={14} color="#ffffff" />
+            <span>Customer Credit Accounts &amp; Ledger — Inamdar Restaurant</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

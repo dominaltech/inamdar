@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
+import { IconWarning } from './common/Icons';
 
 export default function TableShiftModal() {
   const { showShiftModal, setShowShiftModal, tables, transferTable, activeTableId, setInfoDialog, triggerTableFocus } = usePos();
@@ -223,7 +224,7 @@ export default function TableShiftModal() {
               <button className="win-close-btn" onClick={() => setShowConfirm(false)}>✕</button>
             </div>
             <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <span style={{ fontSize: '32px' }}>⚠️</span>
+              <IconWarning size={28} color="#cc0000" />
               <span style={{ fontSize: '13px', fontWeight: 'bold' }}>
                 Transfer Table {sourceTable} to {targetTable}?
               </span>

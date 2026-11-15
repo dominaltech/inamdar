@@ -973,13 +973,14 @@ export async function fetchLiveReportsBundle() {
   if (!isSupabaseConfigured()) return null;
 
   try {
-    const [billsRes, txRes, itemsRes, kotsRes, creditsRes, menuRes] = await Promise.all([
+    const [billsRes, txRes, itemsRes, kotsRes, creditsRes, menuRes, customersRes] = await Promise.all([
       supabase.from('bills').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('daily_transactions').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('order_items').select('*').order('created_at', { ascending: false }).limit(1000),
       supabase.from('kots').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('credit_accounts').select('*').order('customer_name', { ascending: true }),
-      supabase.from('menu_items').select('*').order('item_code', { ascending: true }),
+      supabase.from('menu_items').select('*').order('code', { ascending: true }),
+      supabase.from('customers').select('*').order('last_visit', { ascending: false }).limit(500),
     ]);
 
     const formattedBills = (billsRes.data || []).map(b => ({
@@ -1015,15 +1016,16 @@ export async function fetchLiveReportsBundle() {
       orderItems: itemsRes.data || [],
       kots: kotsRes.data || [],
       creditAccounts: creditsRes.data || [],
+      customers: customersRes.data || [],
       menuItems: (menuRes.data || []).map(m => ({
-        code: m.item_code,
-        name: m.item_name,
+        code: String(m.code),
+        name: m.name,
         category: m.category,
-        rate: Number(m.rate || 0),
+        rate: Number(m.ac_rate || m.hall_rate || 0),
         rates: {
-          AC: Number(m.ac_rate || m.rate || 0),
-          'FAMILY AC': Number(m.family_ac_rate || m.rate || 0),
-          PARCEL: Number(m.parcel_rate || m.rate || 0),
+          AC: Number(m.ac_rate || 0),
+          'FAMILY AC': Number(m.hall_rate || m.ac_rate || 0),
+          PARCEL: Number(m.ac_rate || 0),
         }
       }))
     };
@@ -1210,6 +1212,100 @@ export async function recordCustomerVisitInSupabase({ phone, name, billNo, table
     return false;
   }
 }
+
+// 18. Delete Customer in Supabase
+export async function deleteCustomerInSupabase(phone) {
+  if (!isSupabaseConfigured() || !phone) return false;
+  try {
+    const cleanPhone = String(phone).trim();
+    const { error } = await supabase
+      .from('customers')
+      .delete()
+      .eq('phone', cleanPhone);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('deleteCustomerInSupabase error:', err);
+    return false;
+  }
+}
+
+// 19. Save / Upsert Credit Account in Supabase
+export async function saveCreditAccountInSupabase(account) {
+  if (!isSupabaseConfigured() || !account) return false;
+  try {
+    const { error } = await supabase
+      .from('credit_accounts')
+      .upsert({
+        id: String(account.id),
+        customer_name: String(account.name || account.customer_name || 'Customer'),
+        phone: String(account.phone || ''),
+        balance: Number(account.balance || 0),
+        credit_limit: Number(account.creditLimit || account.credit_limit || 15000),
+        status: account.status || 'ACTIVE',
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('saveCreditAccountInSupabase error:', err);
+    return false;
+  }
+}
+
+// 20. Live Staff Users
+export async function fetchLiveStaffUsers() {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const { data, error } = await supabase
+      .from('staff_users')
+      .select('*')
+      .order('id', { ascending: true });
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.warn('fetchLiveStaffUsers error:', err);
+    return null;
+  }
+}
+
+export async function saveStaffUserInSupabase(staff) {
+  if (!isSupabaseConfigured() || !staff?.id) return false;
+  try {
+    const { error } = await supabase
+      .from('staff_users')
+      .upsert({
+        id: String(staff.id),
+        name: String(staff.name),
+        role: staff.role || 'WAITER',
+        pin: String(staff.pin || '1234'),
+        is_active: staff.isActive !== false,
+      }, { onConflict: 'id' });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('saveStaffUserInSupabase error:', err);
+    return false;
+  }
+}
+
+// 21. Live Audit Logs
+export async function fetchLiveAuditLogs() {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.warn('fetchLiveAuditLogs error:', err);
+    return null;
+  }
+}
+
 
 
 

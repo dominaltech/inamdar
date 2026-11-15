@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { usePos } from '../../context/PosContext';
+import { logAuditActionInSupabase } from '../../services/supabaseService';
+import { IconBuilding } from '../common/Icons';
 
 export default function RoomPostModal({ isOpen, onClose }) {
-  const { setInfoDialog } = usePos();
+  const { setInfoDialog, currentUser } = usePos();
   const [roomPostings, setRoomPostings] = useState(() => {
     try {
       const saved = localStorage.getItem('inamdar_room_posts');
@@ -30,6 +32,16 @@ export default function RoomPostModal({ isOpen, onClose }) {
     const updated = [entry, ...roomPostings];
     setRoomPostings(updated);
     localStorage.setItem('inamdar_room_posts', JSON.stringify(updated));
+
+    // Audit log to Supabase
+    logAuditActionInSupabase('ROOM_POST_CHARGE', `Room ${entry.roomNo}`, {
+      roomNo: entry.roomNo,
+      guestName: entry.guestName,
+      billNo: entry.billNo,
+      amount: entry.amount,
+      operator: currentUser?.name || 'Counter Staff'
+    });
+
     setNewPost({ roomNo: '', guestName: '', billNo: '', amount: '' });
     setInfoDialog({
       title: "Room Post Successful",
@@ -45,8 +57,9 @@ export default function RoomPostModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '750px', maxWidth: '96vw', height: '70vh', display: 'flex', flexDirection: 'column', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>🏨 Hotel Room Post Ledger &amp; Charge Transfer — Inamdar POS</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconBuilding size={14} color="#ffffff" />
+            <span>Hotel Room Post Ledger &amp; Charge Transfer — Inamdar POS</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
+import { IconSettings, IconLock } from './common/Icons';
 
 export default function HeaderMenuBar() {
   const { 
@@ -350,7 +351,8 @@ export default function HeaderMenuBar() {
           className={`win-menu-item ${screenMode === 'SETTINGS' ? 'active' : ''}`} 
           onClick={() => handleMenuClick('Settings')}
         >
-          ⚙ <u>S</u>ettings
+          <IconSettings size={13} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }} />
+          <u>S</u>ettings
         </div>
       </div>
 
@@ -359,8 +361,9 @@ export default function HeaderMenuBar() {
         <div className="win-modal-backdrop" style={{ zIndex: 9999 }}>
           <div className="win-window" style={{ width: '320px', background: '#ece9d8' }}>
             <div className="win-titlebar" style={{ background: '#0a246a' }}>
-              <div className="win-titlebar-title">
-                <span>🔒 Admin Authentication Required</span>
+              <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <IconLock size={13} color="#ffffff" />
+                <span>Admin Authentication Required</span>
               </div>
               <button className="win-close-btn" onClick={() => setShowAdminPinModal(false)}>✕</button>
             </div>

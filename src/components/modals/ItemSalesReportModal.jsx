@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { usePos } from '../../context/PosContext';
 import { getAllMenuItems } from '../../data/menuService';
+import { IconChart } from '../common/Icons';
 
 export default function ItemSalesReportModal({ isOpen, onClose }) {
   const { allBills } = usePos();
@@ -69,8 +70,9 @@ export default function ItemSalesReportModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '850px', maxWidth: '96vw', height: '80vh', display: 'flex', flexDirection: 'column', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>📊 Item Sales Report — Inamdar Restaurant</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconChart size={14} color="#ffffff" />
+            <span>Item Sales Report — Inamdar Restaurant</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

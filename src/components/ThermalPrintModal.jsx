@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { usePos } from '../context/PosContext';
+import { IconPrinter } from './common/Icons';
 
 export default function ThermalPrintModal() {
   const { printData, setPrintData, triggerTableFocus } = usePos();
@@ -322,12 +323,13 @@ export default function ThermalPrintModal() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#ece9d8', borderTop: '1px solid #999' }}>
           <div style={{ fontSize: '11px', color: '#555' }}>
             {type === 'KOT' && stationSlips.length > 1
-              ? `📄 Prints ${stationSlips.length} split slips simultaneously`
-              : '📄 58mm / 80mm thermal receipt'}
+              ? `Prints ${stationSlips.length} split slips simultaneously`
+              : '58mm / 80mm thermal receipt'}
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="win-btn" style={{ fontWeight: 'bold', padding: '3px 14px', background: '#0a246a', color: '#fff' }} onClick={handlePrint}>
-              🖨️ Print Slip
+            <button className="win-btn" style={{ fontWeight: 'bold', padding: '3px 14px', background: '#0a246a', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={handlePrint}>
+              <IconPrinter size={13} color="#ffffff" />
+              <span>Print Slip</span>
             </button>
             <button className="win-btn" style={{ padding: '3px 14px' }} onClick={handleClose}>
               Close (Esc/↵)

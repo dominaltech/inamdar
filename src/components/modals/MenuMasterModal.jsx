@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { usePos } from '../../context/PosContext';
 import { getAllMenuItems, loadDynamicMenuItems } from '../../data/menuService';
 import { saveMenuItemInSupabase } from '../../services/supabaseService';
+import { IconBookOpen } from '../common/Icons';
 
 export default function MenuMasterModal({ isOpen, onClose }) {
   const { setInfoDialog } = usePos();
@@ -85,8 +86,9 @@ export default function MenuMasterModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '920px', maxWidth: '96vw', height: '82vh', display: 'flex', flexDirection: 'column', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>📖 Menu Card Master — Inamdar Restaurant (Dynamic Supabase Sync)</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconBookOpen size={14} color="#ffffff" />
+            <span>Menu Card Master — Inamdar Restaurant (Dynamic Supabase Sync)</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>
@@ -152,7 +154,7 @@ export default function MenuMasterModal({ isOpen, onClose }) {
                       border: item.isKitchen ? '1px solid #99c2ff' : '1px solid #ffcc80',
                       color: item.isKitchen ? '#003399' : '#cc6600',
                     }}>
-                      {item.isKitchen ? '🍳 KITCHEN' : '🍹 PANTRY'}
+                      {item.isKitchen ? 'KITCHEN' : 'PANTRY'}
                     </span>
                   </td>
                   <td style={{ padding: '4px 8px', textAlign: 'center' }}>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { usePos } from '../../context/PosContext';
+import { IconPrinter } from '../common/Icons';
 
 export default function PrinterSetupModal({ isOpen, onClose }) {
   const { setInfoDialog, setPrintData } = usePos();
@@ -70,8 +71,9 @@ export default function PrinterSetupModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '600px', maxWidth: '96vw', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>🖨️ Thermal Printer Setup &amp; Department Routing — Inamdar POS</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconPrinter size={14} color="#ffffff" />
+            <span>Thermal Printer Setup &amp; Department Routing — Inamdar POS</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

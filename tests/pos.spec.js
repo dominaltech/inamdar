@@ -1686,7 +1686,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(200);
   });
 
-  test('24. Customer Management & Repeat Visits Tracking, Purchase History Inspection, Local C/D Backup & 18 Lakhs Revenue Ceiling', async ({ page }) => {
+  test('24. Customer Management, 2-Step Deletion Warning, Purchase History, Local C/D Backup & Secret Revenue Calibration', async ({ page }) => {
     test.setTimeout(60000);
 
     // 1. Navigate to POS
@@ -1733,12 +1733,40 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('text=TOTAL VISITS')).toBeVisible();
     await expect(page.locator('text=LIFETIME SPEND')).toBeVisible();
 
-    // 6. Return to POS Order Screen
+    // 6. Test 2-Step Customer Deletion Confirmation Modals on a temporary customer
+    await page.locator('#add-customer-btn').click();
+    await page.waitForTimeout(200);
+    await page.locator('#modal-customer-phone').fill('9999900000');
+    await page.locator('#modal-customer-name').fill('Temp To Delete');
+    await page.locator('#btn-save-customer').click();
+    await page.waitForTimeout(300);
+
+    await page.locator('td', { hasText: '9999900000' }).click();
+    await page.waitForTimeout(200);
+    const deleteBtn = page.locator('#delete-customer-btn-inspector');
+    await expect(deleteBtn).toBeVisible();
+    await deleteBtn.click();
+    await page.waitForTimeout(200);
+
+    // Step 1 Warning Modal
+    await expect(page.locator('text=Step 1 of 2: Confirm Customer Deletion')).toBeVisible();
+    await page.locator('#confirm-delete-step1-btn').click();
+    await page.waitForTimeout(200);
+
+    // Step 2 Final Warning Modal
+    await expect(page.locator('text=Step 2 of 2: Final Warning — Permanent Deletion')).toBeVisible();
+    await page.locator('#confirm-delete-step2-btn').click();
+    await page.waitForTimeout(300);
+
+    // Verify customer deleted
+    await expect(page.locator('td', { hasText: '9999900000' })).not.toBeVisible();
+
+    // 7. Return to POS Order Screen
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     await expect(page.locator('#pos-table-input')).toBeVisible();
 
-    // 7. Place an Order for Table 15 with customer Vikram (9876543210)
+    // 8. Place an Order for Table 15 with customer Vikram (9876543210)
     const tableInput = page.locator('#pos-table-input');
     await tableInput.click();
     await tableInput.fill('15');
@@ -1771,7 +1799,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
 
-    // 8. Open Cash Memo mode (F5) and print cash memo for Table 15
+    // 9. Open Cash Memo mode (F5) and print cash memo for Table 15
     await page.keyboard.press('F5');
     await page.waitForTimeout(300);
     await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
@@ -1799,7 +1827,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
 
-    // 9. Settle bill for Table 15 via Unsettled Bills badge or Settlement
+    // 10. Settle bill for Table 15 via Unsettled Bills badge or Settlement
     const unsettledBadge = page.locator('span[title*="Table 15"]').first();
     await expect(unsettledBadge).toBeVisible();
     await unsettledBadge.click({ force: true });
@@ -1809,7 +1837,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.keyboard.press('Escape'); // Dismiss info dialog
     await page.waitForTimeout(300);
 
-    // 10. Re-open Customers Studio to verify repeat visit tracking!
+    // 11. Re-open Customers Studio to verify repeat visit tracking!
     await customersMenuBtn.click();
     await page.waitForTimeout(400);
     await page.locator('td', { hasText: '9876543210' }).click();
@@ -1818,7 +1846,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Check that customer has recorded repeat visit
     await expect(page.locator('text=RETURNING CUSTOMER')).toBeVisible();
 
-    // 11. Test Settings View: Admin PIN, Dual-Disk C/D Backup & 18 Lakhs Revenue Limit
+    // 12. Test Settings View: Admin PIN, Dual-Disk C/D Backup & Secret Revenue Calibration
     const settingsMenuBtn = page.locator('.win-menu-item', { hasText: 'Settings' });
     await expect(settingsMenuBtn).toBeVisible();
     await settingsMenuBtn.click();
@@ -1835,13 +1863,35 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('text=System Settings & Local Disk C/D Dual Backup Storage')).toBeVisible();
     await expect(page.locator('text=C:\\InamdarPOS_Data').first()).toBeVisible();
     await expect(page.locator('text=D:\\InamdarPOS_Data').first()).toBeVisible();
-    await expect(page.locator('text=18 Lakhs Annual Limit')).toBeVisible();
+    await expect(page.locator('text=Financial & Revenue Ledger Summary')).toBeVisible();
+    await expect(page.locator('text=REALIZED NET REVENUE')).toBeVisible();
+
+    // Verify that "18 Lakhs" and "Turnover limit" are completely scrubbed / secret
+    await expect(page.locator('text=18 Lakhs Annual Limit')).not.toBeVisible();
+    await expect(page.locator('text=turnover limit')).not.toBeVisible();
 
     // Test Export All Data button
     const exportBtn = page.locator('#export-backup-btn');
     await expect(exportBtn).toBeVisible();
     await exportBtn.click();
     await page.waitForTimeout(300);
+
+    // Test 2-step Reset Local Data
+    const resetLocalBtn = page.locator('#reset-local-data-btn');
+    await expect(resetLocalBtn).toBeVisible();
+    await resetLocalBtn.click();
+    await page.waitForTimeout(200);
+
+    // Step 1 Reset Modal
+    await expect(page.locator('text=Step 1 of 2: Confirm Reset Local Data')).toBeVisible();
+    await page.locator('#reset-pin-input').fill('1234');
+    await page.locator('#proceed-reset-step1-btn').click();
+    await page.waitForTimeout(200);
+
+    // Step 2 Reset Modal (Final Warning)
+    await expect(page.locator('text=Step 2 of 2: Final Confirmation — Reset Local Device Data')).toBeVisible();
+    await page.locator('#cancel-reset-step2-btn').click(); // Safely dismiss
+    await page.waitForTimeout(200);
 
     // Cleanly exit to Order workspace
     await page.keyboard.press('Escape');

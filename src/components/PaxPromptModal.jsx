@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
+import { IconUsers } from './common/Icons';
 
 export default function PaxPromptModal() {
   const { paxPrompt, setPaxPrompt, triggerTableFocus } = usePos();
@@ -76,8 +77,8 @@ export default function PaxPromptModal() {
 
         <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
           {/* Authentic Pax Graphic (People Icon) */}
-          <div style={{ fontSize: '26px', userSelect: 'none' }}>
-            👥
+          <div style={{ userSelect: 'none', display: 'flex', alignItems: 'center' }}>
+            <IconUsers size={28} color="#0a246a" />
           </div>
 
           <div style={{ flex: 1 }}>

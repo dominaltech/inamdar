@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePos } from '../context/PosContext';
 import { DEFAULT_USERS } from '../data/initialData';
+import { IconLock } from './common/Icons';
 
 export default function LoginModal() {
   const { showLoginModal, setShowLoginModal, currentUser, setCurrentUser } = usePos();
@@ -92,7 +93,7 @@ export default function LoginModal() {
           {/* Header Row: Key Icon & Red Date Time */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '24px' }}>🔑</span>
+              <IconLock size={22} color="#0a246a" />
             </div>
             <div style={{ color: '#d00000', fontWeight: 'bold', fontSize: '14px' }}>
               Thu, 08-Oct-26 &nbsp;&nbsp; 02:11 AM

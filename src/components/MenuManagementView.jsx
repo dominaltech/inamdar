@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { usePos } from '../context/PosContext';
+import { IconBookOpen, IconCloud, IconEdit, IconTrash, IconCheck } from './common/Icons';
 
 export default function MenuManagementView() {
   const {
@@ -353,7 +354,7 @@ export default function MenuManagementView() {
         fontSize: '13px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>📖</span>
+          <IconBookOpen size={16} color="#ffffff" />
           <span>Dominal's POS — Menu &amp; Categories Studio (Live Database Management)</span>
           <span style={{
             fontSize: '11px',
@@ -361,9 +362,13 @@ export default function MenuManagementView() {
             color: '#fff',
             padding: '1px 6px',
             borderRadius: '3px',
-            marginLeft: '8px'
+            marginLeft: '8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
           }}>
-            ☁️ Connected to Live Database
+            <IconCloud size={12} color="#ffffff" />
+            Connected to Live Database
           </span>
         </div>
 
@@ -510,7 +515,7 @@ export default function MenuManagementView() {
             alignItems: 'center'
           }}>
             <div>
-              <div style={{ fontWeight: 'bold', fontSize: '12px' }}>📁 Categories Order</div>
+              <div style={{ fontWeight: 'bold', fontSize: '12px' }}>Categories Order</div>
               <div style={{ fontSize: '10px', color: '#555' }}>Dictates KOT &amp; Bill course sorting (Drag ⠿ to reorder)</div>
             </div>
             <span style={{ fontSize: '11px', fontWeight: 'bold', backgroundColor: '#e0e0e0', padding: '1px 6px', border: '1px solid #999' }}>
@@ -533,7 +538,7 @@ export default function MenuManagementView() {
               alignItems: 'center'
             }}
           >
-            <span>🌐 ALL CATEGORIES</span>
+            <span>ALL CATEGORIES</span>
             <span style={{
               fontSize: '11px',
               backgroundColor: selectedCategory === 'ALL' ? 'rgba(255,255,255,0.3)' : '#ece9d8',
@@ -640,7 +645,7 @@ export default function MenuManagementView() {
                       {cat.name}
                     </div>
                     <div style={{ fontSize: '10px', color: isSelected ? '#d0e0ff' : '#666' }}>
-                      {cat.department === 'PANTRY' ? '🍹 Counter/Pantry' : '🍳 Kitchen'} • {count} dishes
+                      {cat.department === 'PANTRY' ? 'Counter / Pantry' : 'Kitchen'} • {count} dishes
                     </div>
                   </div>
 
@@ -696,10 +701,13 @@ export default function MenuManagementView() {
                         backgroundColor: '#ece9d8',
                         border: '1px outset #fff',
                         cursor: 'pointer',
-                        fontSize: '11px'
+                        fontSize: '11px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
                     >
-                      ✎
+                      <IconEdit size={11} />
                     </button>
                     <button
                       title="Delete Category"
@@ -743,7 +751,7 @@ export default function MenuManagementView() {
             </div>
 
             <div style={{ fontSize: '11px', color: '#333' }}>
-              💡 Click status pill to toggle In Stock / Out of Stock
+              Click status pill to toggle In Stock / Out of Stock
             </div>
           </div>
 
@@ -815,7 +823,7 @@ export default function MenuManagementView() {
                             backgroundColor: it.isKitchen !== false ? '#e3f2fd' : '#fff3e0',
                             color: it.isKitchen !== false ? '#0d47a1' : '#e65100'
                           }}>
-                            {it.isKitchen !== false ? '🍳 KITCHEN' : '🍹 PANTRY'}
+                            {it.isKitchen !== false ? 'KITCHEN' : 'PANTRY'}
                           </span>
                         </td>
                         <td style={{ padding: '5px 8px', textAlign: 'center' }}>
@@ -831,10 +839,20 @@ export default function MenuManagementView() {
                               cursor: 'pointer',
                               backgroundColor: isAvailable ? '#e8f5e9' : '#ffebee',
                               color: isAvailable ? '#2e7d32' : '#c62828',
-                              borderColor: isAvailable ? '#a5d6a7' : '#ef9a9a'
+                              borderColor: isAvailable ? '#a5d6a7' : '#ef9a9a',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
                             }}
                           >
-                            {isAvailable ? '✓ In Stock' : '✗ Out of Stock'}
+                            {isAvailable ? (
+                              <>
+                                <IconCheck size={11} color="#2e7d32" />
+                                <span>In Stock</span>
+                              </>
+                            ) : (
+                              <span>Out of Stock</span>
+                            )}
                           </button>
                         </td>
                         <td style={{ padding: '5px 8px', textAlign: 'center' }}>
@@ -848,10 +866,13 @@ export default function MenuManagementView() {
                                 border: '1px outset #fff',
                                 cursor: 'pointer',
                                 fontWeight: 'bold',
-                                fontSize: '11px'
+                                fontSize: '11px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                             >
-                              ✎
+                              <IconEdit size={11} />
                             </button>
                             <button
                               onClick={() => handleDeleteDish(it)}
@@ -863,10 +884,13 @@ export default function MenuManagementView() {
                                 cursor: 'pointer',
                                 fontWeight: 'bold',
                                 fontSize: '11px',
-                                color: '#c00000'
+                                color: '#c00000',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                             >
-                              🗑
+                              <IconTrash size={12} color="#c00000" />
                             </button>
                           </div>
                         </td>
@@ -1179,8 +1203,8 @@ export default function MenuManagementView() {
                     fontSize: '12px'
                   }}
                 >
-                  <option value="KITCHEN">🍳 Kitchen (Main Chef KDS)</option>
-                  <option value="PANTRY">🍹 Pantry / Bar / Counter (Desserts, Drinks, Water)</option>
+                  <option value="KITCHEN">Kitchen (Main Chef KDS)</option>
+                  <option value="PANTRY">Pantry / Bar / Counter (Desserts, Drinks, Water)</option>
                 </select>
               </div>
 

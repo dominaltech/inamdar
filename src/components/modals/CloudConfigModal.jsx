@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { usePos } from '../../context/PosContext';
+import { IconCloud } from '../common/Icons';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, isSupabaseConfigured, saveSupabaseCredentials } from '../../supabaseClient';
 
 export default function CloudConfigModal({ isOpen, onClose }) {
@@ -28,8 +29,9 @@ export default function CloudConfigModal({ isOpen, onClose }) {
     <div className="win-modal-backdrop" style={{ zIndex: 1500 }}>
       <div className="win-window" style={{ width: '560px', maxWidth: '96vw', background: '#ece9d8' }}>
         <div className="win-titlebar">
-          <div className="win-titlebar-title">
-            <span>☁️ Supabase Cloud Database Configuration — Inamdar POS</span>
+          <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconCloud size={14} color="#ffffff" />
+            <span>Supabase Cloud Database Configuration — Inamdar POS</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

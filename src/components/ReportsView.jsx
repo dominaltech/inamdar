@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { usePos } from '../context/PosContext';
 import { REPORT_SECTIONS, REPORTS_BY_ID } from '../services/reportsService';
 import { fetchLiveReportsBundle } from '../services/supabaseService';
+import { IconCloud } from './common/Icons';
 import ReportDetailModal from './ReportDetailModal';
 
 export default function ReportsView() {
@@ -169,8 +170,9 @@ export default function ReportsView() {
           <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#0a246a' }}>
             REPORTS
           </div>
-          <div style={{ fontSize: '10px', color: '#006600', fontWeight: 'bold' }}>
-            {isLoading ? '⏳ Syncing Cloud Analytics...' : `☁️ LIVE DATABASE: ${liveBundle.bills.length} Bills | ${liveBundle.orderItems.length} Items`}
+          <div style={{ fontSize: '10px', color: '#006600', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <IconCloud size={12} color="#006600" />
+            <span>{isLoading ? 'Syncing Cloud Analytics...' : `LIVE DATABASE: ${liveBundle.bills.length} Bills | ${liveBundle.orderItems.length} Items`}</span>
           </div>
         </div>
 
