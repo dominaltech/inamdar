@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { usePos } from '../context/PosContext';
 import {
   IconBarChart,
@@ -25,6 +25,11 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
   } = usePos();
 
   const [timeFilter, setTimeFilter] = useState('ALL'); // 'ALL' | 'TODAY' | 'WEEK'
+
+  // Fetch live customer records and metrics from Supabase on mount
+  useEffect(() => {
+    refreshCustomers?.();
+  }, [refreshCustomers]);
 
   // Standard Retro Palette for Charts
   const COLORS = [
@@ -67,7 +72,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
       { label: '6x+ (VIP Regulars)', count: cust6plus, color: '#003366' },
     ];
 
-    // C. Category Revenue Breakdown
+    // C. Category Revenue Breakdown & Dish Sales from Live Bills
     const categoryTotals = {};
     const dishSales = {};
 
@@ -91,22 +96,6 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
       });
     });
 
-    // Also factor in customer history for repeat analysis
-    customers.forEach(c => {
-      const h = Array.isArray(c.history) ? c.history : [];
-      h.forEach(order => {
-        const oItems = order.items || [];
-        oItems.forEach(it => {
-          const q = Number(it.qty) || 1;
-          const rate = Number(it.rate ?? it.price) || 0;
-          const amt = q * rate;
-          const cat = (it.category || 'GENERAL').toUpperCase();
-          if (!categoryTotals[cat]) categoryTotals[cat] = 0;
-          categoryTotals[cat] += amt * 0.1; // minor attribution if not in bills
-        });
-      });
-    });
-
     const categoryList = Object.entries(categoryTotals)
       .map(([name, amount], idx) => ({
         name,
@@ -115,7 +104,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
       }))
       .sort((a, b) => b.amount - a.amount);
 
-    const totalCatRevenue = categoryList.reduce((s, c) => s + c.amount, 0) || 1;
+    const totalCatRevenue = categoryList.reduce((s, c) => s + c.amount, 0) || 0;
 
     // D. Top 10 Bestselling Dishes
     const topDishes = Object.values(dishSales)
@@ -154,14 +143,12 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
         else if (hour >= 23) slotKey = '11 PM';
 
         hourlyDistribution[slotKey] = (hourlyDistribution[slotKey] || 0) + 1;
-      } else {
-        hourlyDistribution['08 PM'] = (hourlyDistribution['08 PM'] || 0) + 1;
       }
     });
 
     const maxHourly = Math.max(...Object.values(hourlyDistribution), 1);
 
-    // F. Payment Mode Breakdown
+    // F. Real Payment Mode Breakdown from Settled Bills & Transactions
     let payCash = 0;
     let payUPI = 0;
     let payCard = 0;
@@ -181,14 +168,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
       }
     });
 
-    // Fallback if no payment methods recorded in bills yet
-    if (payCash === 0 && payUPI === 0 && targetBills.length > 0) {
-      payCash = targetBills.reduce((s, b) => s + Number(b.amount || 0), 0) * 0.65;
-      payUPI = targetBills.reduce((s, b) => s + Number(b.amount || 0), 0) * 0.30;
-      payCard = targetBills.reduce((s, b) => s + Number(b.amount || 0), 0) * 0.05;
-    }
-
-    const totalPay = Math.max(payCash + payUPI + payCard + payCredit, 1);
+    const totalPay = Math.max(payCash + payUPI + payCard + payCredit, 0);
     const paymentBreakdown = [
       { label: 'Cash', amount: Math.round(payCash), color: '#009966', icon: IconCash },
       { label: 'UPI / QR', amount: Math.round(payUPI), color: '#006699', icon: IconSmartphone },
