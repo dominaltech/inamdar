@@ -8,13 +8,13 @@ export default defineConfig({
   workers: 1,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:5180',
     trace: 'off',
     headless: true,
   },
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
+    command: 'npm run dev -- --port 5180',
+    url: 'http://localhost:5180',
     reuseExistingServer: true,
     timeout: 60000,
   },

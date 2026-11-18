@@ -1106,14 +1106,26 @@ export async function fetchLiveCustomers() {
       return null;
     }
 
-    return (data || []).map(row => ({
-      phone: String(row.phone || '').trim(),
-      name: (row.name || '').trim(),
-      visitCount: Number(row.visit_count) || 1,
-      totalSpent: Number(row.total_spent) || 0,
-      lastVisit: row.last_visit || row.created_at,
-      history: Array.isArray(row.history) ? row.history : (typeof row.history === 'string' ? JSON.parse(row.history || '[]') : []),
-    }));
+    return (data || []).map(row => {
+      const visits = Number(row.visit_count) || 1;
+      const spent = Number(row.total_spent) || 0;
+      const last = row.last_visit || row.created_at || new Date().toISOString();
+      const parsedHistory = Array.isArray(row.history)
+        ? row.history
+        : (typeof row.history === 'string' ? JSON.parse(row.history || '[]') : []);
+
+      return {
+        phone: String(row.phone || '').trim(),
+        name: (row.name || '').trim(),
+        visit_count: visits,
+        visitCount: visits,
+        total_spent: spent,
+        totalSpent: spent,
+        last_visit: last,
+        lastVisit: last,
+        history: parsedHistory,
+      };
+    });
   } catch (err) {
     console.warn('fetchLiveCustomers exception:', err);
     return null;
@@ -1126,15 +1138,20 @@ export async function saveCustomerInSupabase(cust) {
   try {
     const cleanPhone = String(cust.phone).trim();
     const cleanName = String(cust.name || 'Guest').trim();
+    const visits = Number(cust.visit_count ?? cust.visitCount) || 1;
+    const spent = Number(cust.total_spent ?? cust.totalSpent) || 0;
+    const lastVisit = cust.last_visit || cust.lastVisit || new Date().toISOString();
+    const history = Array.isArray(cust.history) ? cust.history : [];
+
     const { error } = await supabase
       .from('customers')
       .upsert({
         phone: cleanPhone,
         name: cleanName,
-        visit_count: Number(cust.visitCount) || 1,
-        total_spent: Number(cust.totalSpent) || 0,
-        last_visit: cust.lastVisit || new Date().toISOString(),
-        history: cust.history || [],
+        visit_count: visits,
+        total_spent: spent,
+        last_visit: lastVisit,
+        history,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'phone' });
 
@@ -1147,12 +1164,14 @@ export async function saveCustomerInSupabase(cust) {
 }
 
 // 17. Record Customer Visit & Order in Supabase
-export async function recordCustomerVisitInSupabase({ phone, name, billNo, table, amount, items = [] }) {
+export async function recordCustomerVisitInSupabase({ phone, name, billNo, kotNo, table, amount, items = [] }) {
   if (!isSupabaseConfigured() || !phone) return false;
   try {
     const cleanPhone = String(phone).trim();
     const cleanName = String(name || 'Guest').trim();
     const now = new Date();
+    const numAmount = Number(amount) || 0;
+    const finalBillNo = billNo ? String(billNo).trim() : (kotNo ? `KOT-${kotNo}` : '');
 
     const { data: existing } = await supabase
       .from('customers')
@@ -1161,25 +1180,53 @@ export async function recordCustomerVisitInSupabase({ phone, name, billNo, table
       .maybeSingle();
 
     const visitEntry = {
-      billNo: billNo || 0,
+      billNo: finalBillNo,
+      kotNo: kotNo ? String(kotNo) : null,
       table: table || '',
       date: now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }),
       time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
-      amount: Number(amount) || 0,
+      amount: numAmount,
       items: (items || []).map(it => ({
-        code: it.code,
-        name: it.name,
-        qty: it.qty,
-        rate: it.rate,
-        amount: (it.qty || 1) * (it.rate || 0),
+        code: it.code || '',
+        name: it.name || '',
+        qty: it.qty || 1,
+        rate: it.rate || 0,
+        amount: Number(it.amount ?? ((it.qty || 1) * (it.rate || 0))),
       })),
     };
 
     if (existing) {
-      const currentHistory = Array.isArray(existing.history) ? existing.history : [];
-      const updatedHistory = [visitEntry, ...currentHistory];
-      const updatedVisits = (Number(existing.visit_count) || 0) + 1;
-      const updatedSpent = (Number(existing.total_spent) || 0) + (Number(amount) || 0);
+      const currentHistory = Array.isArray(existing.history)
+        ? existing.history
+        : (typeof existing.history === 'string' ? JSON.parse(existing.history || '[]') : []);
+
+      // Deduplicate visit if same billNo already recorded
+      const existingIdx = currentHistory.findIndex(h =>
+        finalBillNo && String(h.billNo || '').trim() === finalBillNo
+      );
+
+      let updatedHistory;
+      let updatedVisits;
+      let updatedSpent;
+
+      if (existingIdx >= 0) {
+        // Update existing record and adjust spend difference without double-incrementing visits
+        const prevAmt = Number(currentHistory[existingIdx].amount) || 0;
+        const diff = numAmount - prevAmt;
+        updatedHistory = [...currentHistory];
+        updatedHistory[existingIdx] = {
+          ...updatedHistory[existingIdx],
+          ...visitEntry,
+          amount: numAmount,
+        };
+        updatedVisits = Number(existing.visit_count) || 1;
+        updatedSpent = Math.max(0, (Number(existing.total_spent) || 0) + diff);
+      } else {
+        // New visit! Increment visit_count and total_spent
+        updatedHistory = [visitEntry, ...currentHistory];
+        updatedVisits = (Number(existing.visit_count) || 0) + 1;
+        updatedSpent = (Number(existing.total_spent) || 0) + numAmount;
+      }
 
       await supabase
         .from('customers')
@@ -1199,7 +1246,7 @@ export async function recordCustomerVisitInSupabase({ phone, name, billNo, table
           phone: cleanPhone,
           name: cleanName,
           visit_count: 1,
-          total_spent: Number(amount) || 0,
+          total_spent: numAmount,
           last_visit: now.toISOString(),
           history: [visitEntry],
           created_at: now.toISOString(),

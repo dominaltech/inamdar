@@ -127,23 +127,35 @@ export function PosProvider({ children }) {
   const saveCustomer = useCallback(async (custData) => {
     if (!custData || !custData.phone) return null;
     const cleanPhone = String(custData.phone).trim();
-    const updatedCustomer = {
-      phone: cleanPhone,
-      name: custData.name ? String(custData.name).trim() : 'Guest',
-      visit_count: Number(custData.visit_count) || 1,
-      total_spent: Number(custData.total_spent) || 0,
-      last_visit: custData.last_visit || new Date().toISOString(),
-      history: Array.isArray(custData.history) ? custData.history : [],
-    };
+    if (!cleanPhone || cleanPhone === '-') return null;
 
+    let updatedCustomer = null;
     setCustomers(prev => {
-      const existing = prev.filter(c => c.phone !== cleanPhone);
-      const next = [updatedCustomer, ...existing];
+      const existing = prev.find(c => c.phone === cleanPhone);
+      const visits = Number(custData.visit_count ?? custData.visitCount ?? existing?.visit_count ?? existing?.visitCount) || 1;
+      const spent = Number(custData.total_spent ?? custData.totalSpent ?? existing?.total_spent ?? existing?.totalSpent) || 0;
+      const lastVisit = custData.last_visit || custData.lastVisit || existing?.last_visit || existing?.lastVisit || new Date().toISOString();
+      const history = Array.isArray(custData.history) ? custData.history : (existing?.history || []);
+
+      updatedCustomer = {
+        phone: cleanPhone,
+        name: custData.name ? String(custData.name).trim() : (existing?.name || 'Guest'),
+        visit_count: visits,
+        visitCount: visits,
+        total_spent: spent,
+        totalSpent: spent,
+        last_visit: lastVisit,
+        lastVisit: lastVisit,
+        history,
+      };
+
+      const rest = prev.filter(c => c.phone !== cleanPhone);
+      const next = [updatedCustomer, ...rest];
       saveCachedCustomers(next);
       return next;
     });
 
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && updatedCustomer) {
       await saveCustomerInSupabase(updatedCustomer).catch(err => {
         console.warn('saveCustomerInSupabase error:', err);
       });
@@ -179,8 +191,40 @@ export function PosProvider({ children }) {
     try {
       const live = await fetchLiveCustomers();
       if (live && Array.isArray(live)) {
-        setCustomers(live);
-        saveCachedCustomers(live);
+        setCustomers(prev => {
+          // Merge live customers with local optimistic updates (never downgrade visit_count or total_spent due to in-flight sync)
+          const merged = live.map(remoteCust => {
+            const localCust = prev.find(p => p.phone === remoteCust.phone);
+            if (!localCust) return remoteCust;
+
+            const remoteVisits = Number(remoteCust.visit_count ?? remoteCust.visitCount) || 1;
+            const localVisits = Number(localCust.visit_count ?? localCust.visitCount) || 1;
+            const remoteSpent = Number(remoteCust.total_spent ?? remoteCust.totalSpent) || 0;
+            const localSpent = Number(localCust.total_spent ?? localCust.totalSpent) || 0;
+
+            const finalVisits = Math.max(remoteVisits, localVisits);
+            const finalSpent = Math.max(remoteSpent, localSpent);
+            const finalHistory = (localCust.history?.length || 0) >= (remoteCust.history?.length || 0)
+              ? localCust.history
+              : remoteCust.history;
+
+            return {
+              ...remoteCust,
+              ...localCust,
+              visit_count: finalVisits,
+              visitCount: finalVisits,
+              total_spent: finalSpent,
+              totalSpent: finalSpent,
+              history: finalHistory,
+            };
+          });
+
+          const remotePhones = new Set(live.map(c => c.phone));
+          const localOnly = prev.filter(c => !remotePhones.has(c.phone));
+          const result = [...merged, ...localOnly];
+          saveCachedCustomers(result);
+          return result;
+        });
         return live;
       }
     } catch (e) {
@@ -189,7 +233,7 @@ export function PosProvider({ children }) {
     return null;
   }, []);
 
-  const trackCustomerVisit = useCallback(async ({ phone, name, billNo, table, amount, items }) => {
+  const trackCustomerVisit = useCallback(async ({ phone, name, billNo, kotNo, table, amount, items }) => {
     if (!phone || String(phone).trim() === '' || String(phone).trim() === '-') return null;
     const cleanPhone = String(phone).trim();
     const cleanName = name ? String(name).trim() : 'Guest';
@@ -197,7 +241,8 @@ export function PosProvider({ children }) {
     const dateStr = new Date().toISOString();
 
     const visitRecord = {
-      billNo: billNo || '',
+      billNo: billNo ? String(billNo) : (kotNo ? `KOT-${kotNo}` : ''),
+      kotNo: kotNo ? String(kotNo) : null,
       table: table || '',
       amount: numAmount,
       date: dateStr,
@@ -206,7 +251,7 @@ export function PosProvider({ children }) {
         name: i.name || '',
         qty: i.qty || 1,
         rate: i.rate || 0,
-        amount: i.amount || (Number(i.qty || 1) * Number(i.rate || 0))
+        amount: Number(i.amount ?? ((i.qty || 1) * (i.rate || 0)))
       }))
     };
 
@@ -214,17 +259,42 @@ export function PosProvider({ children }) {
     setCustomers(prev => {
       const existing = prev.find(c => c.phone === cleanPhone);
       if (existing) {
-        const nextHistory = [visitRecord, ...(Array.isArray(existing.history) ? existing.history : [])];
-        const currentCount = Number(existing.visit_count ?? existing.visitCount) || 1;
-        const currentSpent = Number(existing.total_spent ?? existing.totalSpent) || 0;
+        const finalBillNo = billNo ? String(billNo).trim() : (kotNo ? `KOT-${kotNo}` : '');
+        const historyArr = Array.isArray(existing.history) ? existing.history : [];
+        const existingIdx = historyArr.findIndex(h =>
+          finalBillNo && String(h.billNo || '').trim() === finalBillNo
+        );
+
+        let nextHistory;
+        let nextVisits;
+        let nextSpent;
+
+        if (existingIdx >= 0) {
+          const prevAmt = Number(historyArr[existingIdx].amount) || 0;
+          const diff = numAmount - prevAmt;
+          nextHistory = [...historyArr];
+          nextHistory[existingIdx] = {
+            ...nextHistory[existingIdx],
+            ...visitRecord,
+            billNo: billNo ? String(billNo) : nextHistory[existingIdx].billNo,
+            amount: numAmount,
+          };
+          nextVisits = Number(existing.visit_count ?? existing.visitCount) || 1;
+          nextSpent = Math.max(0, (Number(existing.total_spent ?? existing.totalSpent) || 0) + diff);
+        } else {
+          nextHistory = [visitRecord, ...historyArr];
+          nextVisits = (Number(existing.visit_count ?? existing.visitCount) || 1) + 1;
+          nextSpent = (Number(existing.total_spent ?? existing.totalSpent) || 0) + numAmount;
+        }
+
         updatedCust = {
           ...existing,
           phone: cleanPhone,
           name: cleanName !== 'Guest' ? cleanName : existing.name,
-          visit_count: currentCount + 1,
-          visitCount: currentCount + 1,
-          total_spent: currentSpent + numAmount,
-          totalSpent: currentSpent + numAmount,
+          visit_count: nextVisits,
+          visitCount: nextVisits,
+          total_spent: nextSpent,
+          totalSpent: nextSpent,
           last_visit: dateStr,
           lastVisit: dateStr,
           history: nextHistory,
@@ -256,6 +326,7 @@ export function PosProvider({ children }) {
         phone: cleanPhone,
         name: cleanName,
         billNo,
+        kotNo,
         table,
         amount: numAmount,
         items
@@ -565,7 +636,7 @@ export function PosProvider({ children }) {
           loadDynamicMenuItems(cloudMenu);
           setMenuItems(cloudMenu);
         }
-        if (cloudCustomers && Array.isArray(cloudCustomers) && cloudCustomers.length > 0) {
+        if (cloudCustomers && Array.isArray(cloudCustomers)) {
           setCustomers(cloudCustomers);
           saveCachedCustomers(cloudCustomers);
         }
@@ -608,10 +679,8 @@ export function PosProvider({ children }) {
         setKotCounter(prev => Math.max(prev, Number(newKot.kot_number) + 1));
       },
       onCustomerUpdate: async () => {
-        const liveCust = await fetchLiveCustomers();
-        if (liveCust && isMounted) {
-          setCustomers(liveCust);
-          saveCachedCustomers(liveCust);
+        if (isMounted) {
+          refreshCustomers();
         }
       },
       onMenuUpdate: async () => {
@@ -789,6 +858,17 @@ export function PosProvider({ children }) {
   // Update customer name & phone for table
   const updateTableCustomer = (tableId, customerName, customerPhone) => {
     if (!tableId) return;
+    const cleanPhone = customerPhone ? String(customerPhone).trim() : '';
+    const cleanName = customerName ? String(customerName).trim() : '';
+
+    if (cleanPhone && cleanPhone !== '-') {
+      // Auto-save customer immediately so new customer is registered in Supabase
+      saveCustomer({
+        phone: cleanPhone,
+        name: cleanName || 'Guest',
+      });
+    }
+
     setTables(prev => {
       const existing = prev[tableId] || {
         id: tableId,
@@ -1141,6 +1221,14 @@ export function PosProvider({ children }) {
       totalItems: itemsToPrint.reduce((acc, it) => acc + (it.qty || 1), 0),
     };
 
+    // If order is placed with customer phone, ensure customer is registered in Supabase
+    if (table.customerPhone && String(table.customerPhone).trim() !== '' && String(table.customerPhone).trim() !== '-') {
+      saveCustomer({
+        phone: table.customerPhone,
+        name: table.customerName || 'Guest',
+      });
+    }
+
     setPrintData({ type: 'KOT', data: kotSlip });
   };
 
@@ -1253,6 +1341,19 @@ export function PosProvider({ children }) {
 
     // Cloud sync bill
     saveBillInSupabase(memoSlip);
+
+    // Track customer visit & purchase history for repeat customer metrics immediately
+    if (memoSlip.customerPhone && String(memoSlip.customerPhone).trim() !== '' && String(memoSlip.customerPhone).trim() !== '-') {
+      trackCustomerVisit({
+        phone: memoSlip.customerPhone,
+        name: memoSlip.customerName,
+        billNo: nextBillNo,
+        kotNo: table.trackedKotNo || null,
+        table: tableId,
+        amount: totalAmount,
+        items: billItems,
+      });
+    }
 
     setPrintData({ type: 'BILL', data: memoSlip });
   };

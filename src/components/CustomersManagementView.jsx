@@ -15,7 +15,9 @@ import {
   IconWarning,
   IconStar,
   IconCalendar,
+  IconBarChart,
 } from './common/Icons';
+import CustomerAnalyticsView from './CustomerAnalyticsView';
 
 export default function CustomersManagementView() {
   const {
@@ -29,6 +31,7 @@ export default function CustomersManagementView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPhone, setSelectedPhone] = useState('');
   const [statusMessage, setStatusMessage] = useState({ text: '', type: 'info' });
+  const [viewMode, setViewMode] = useState('DIRECTORY'); // 'DIRECTORY' | 'ANALYTICS'
 
   // Modal State for Add / Edit Customer
   const [showModal, setShowModal] = useState(false);
@@ -44,6 +47,11 @@ export default function CustomersManagementView() {
     setStatusMessage({ text, type });
     setTimeout(() => setStatusMessage({ text: '', type: 'info' }), 3500);
   };
+
+  // On mount: fetch live customer records from Supabase
+  useEffect(() => {
+    refreshCustomers?.();
+  }, [refreshCustomers]);
 
   // Keyboard navigation & Esc hotkey
   useEffect(() => {
@@ -251,6 +259,23 @@ export default function CustomersManagementView() {
             </span>
           )}
           <button
+            id="customer-analytics-btn"
+            onClick={() => setViewMode(prev => prev === 'DIRECTORY' ? 'ANALYTICS' : 'DIRECTORY')}
+            className="win-btn"
+            style={{
+              height: '24px',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              background: viewMode === 'ANALYTICS' ? '#006600' : '#003366',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+          >
+            <IconBarChart size={14} color="#fff" /> {viewMode === 'ANALYTICS' ? '📋 Customer Directory' : '📊 Customer & POS Analytics'}
+          </button>
+          <button
             id="add-customer-btn"
             onClick={handleOpenAddModal}
             className="win-btn"
@@ -261,16 +286,21 @@ export default function CustomersManagementView() {
         </div>
       </div>
 
-      {/* 3. Main Split Area: Left List + Right Purchase History Details */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', padding: '4px' }}>
-        {/* Left Column: Customer Records Table */}
-        <div style={{ width: '48%', display: 'flex', flexDirection: 'column', border: '1px solid #7f9db9', background: '#fff', marginRight: '4px' }}>
-          <div style={{ padding: '4px 8px', background: '#d4d0c8', borderBottom: '1px solid #7f9db9', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
-            <span>Customer Directory ({filteredCustomers.length} records)</span>
-            <span style={{ color: '#0a246a' }}>Click row to view profile &amp; history</span>
-          </div>
+      {/* 3. Main Body: Customer Directory Split Area OR POS Analytics Engine */}
+      {viewMode === 'ANALYTICS' ? (
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <CustomerAnalyticsView onBackToDirectory={() => setViewMode('DIRECTORY')} />
+        </div>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', padding: '4px' }}>
+          {/* Left Column: Customer Records Table */}
+          <div style={{ width: '48%', display: 'flex', flexDirection: 'column', border: '1px solid #7f9db9', background: '#fff', marginRight: '4px' }}>
+            <div style={{ padding: '4px 8px', background: '#d4d0c8', borderBottom: '1px solid #7f9db9', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Customer Directory ({filteredCustomers.length} records)</span>
+              <span style={{ color: '#0a246a' }}>Click row to view profile &amp; history</span>
+            </div>
 
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
             <table className="order-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
               <thead>
                 <tr style={{ background: '#ece9d8', borderBottom: '1px solid #7f9db9', position: 'sticky', top: 0 }}>
@@ -530,6 +560,7 @@ export default function CustomersManagementView() {
           )}
         </div>
       </div>
+      )}
 
       {/* Modal: Add / Edit Customer */}
       {showModal && (

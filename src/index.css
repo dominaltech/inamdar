@@ -321,6 +321,21 @@ body {
   box-sizing: border-box;
 }
 
+/* Direct Thermal Printing (Popup Suppressed on Screen) */
+@media screen {
+  .thermal-direct-print-wrapper {
+    position: fixed !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    width: 56mm !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    z-index: -9999 !important;
+  }
+}
+
 @page {
   size: auto;
   margin: 0mm !important;
@@ -335,11 +350,22 @@ body {
   body * {
     visibility: hidden;
   }
+  .thermal-direct-print-wrapper,
+  .thermal-direct-print-wrapper *,
   .thermal-receipt-container,
   .thermal-receipt-container *,
   .thermal-receipt-printable, 
   .thermal-receipt-printable * {
-    visibility: visible;
+    visibility: visible !important;
+  }
+  .thermal-direct-print-wrapper {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 56mm !important;
+    height: auto !important;
+    overflow: visible !important;
+    opacity: 1 !important;
   }
   .thermal-receipt-container {
     position: absolute;

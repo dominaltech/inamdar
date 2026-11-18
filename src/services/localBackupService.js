@@ -10,6 +10,7 @@ export const MAX_ANNUAL_REVENUE_LIMIT = 1795000;
 export function isElectronEnv() {
   if (typeof window === 'undefined') return false;
   return Boolean(
+    window.electronAPI?.isElectron ||
     window.process?.versions?.electron ||
     navigator.userAgent?.toLowerCase().includes('electron') ||
     typeof window.require === 'function'
@@ -63,29 +64,42 @@ export function getCalibratedBills(bills = []) {
 function tryWriteToLocalDisks(backupText, revenueText) {
   if (!isElectronEnv()) return false;
 
-  try {
-    const fs = window.require('fs');
-    const path = window.require('path');
-    const targetDirs = ['C:\\InamdarPOS_Data', 'D:\\InamdarPOS_Data'];
-
-    let writtenCount = 0;
-    for (const dir of targetDirs) {
-      try {
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(path.join(dir, 'inamdar_backup_data.txt'), backupText, 'utf-8');
-        fs.writeFileSync(path.join(dir, 'inamdar_revenue_history.txt'), revenueText, 'utf-8');
-        writtenCount++;
-      } catch (e) {
-        console.warn(`Could not write to local disk folder ${dir}:`, e);
-      }
+  // 1. Electron IPC Bridge (Preload Context Isolation)
+  if (window.electronAPI && typeof window.electronAPI.saveLocalBackup === 'function') {
+    try {
+      window.electronAPI.saveLocalBackup({ backupText, revenueText });
+      return true;
+    } catch (err) {
+      console.warn('electronAPI.saveLocalBackup notice:', err);
     }
-    return writtenCount > 0;
+  }
+
+  // 2. Direct Node fs fallback (if nodeIntegration is active)
+  try {
+    if (typeof window.require === 'function') {
+      const fs = window.require('fs');
+      const path = window.require('path');
+      const targetDirs = ['C:\\InamdarPOS_Data', 'D:\\InamdarPOS_Data'];
+
+      let writtenCount = 0;
+      for (const dir of targetDirs) {
+        try {
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+          fs.writeFileSync(path.join(dir, 'inamdar_backup_data.txt'), backupText, 'utf-8');
+          fs.writeFileSync(path.join(dir, 'inamdar_revenue_history.txt'), revenueText, 'utf-8');
+          writtenCount++;
+        } catch (e) {
+          console.warn(`Could not write to local disk folder ${dir}:`, e);
+        }
+      }
+      return writtenCount > 0;
+    }
   } catch (err) {
     console.warn('Electron disk write failed:', err);
-    return false;
   }
+  return false;
 }
 
 /**

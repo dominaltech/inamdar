@@ -1,14 +1,54 @@
 {
-  "name": "temp_app",
+  "name": "inamdar-restaurant-pos",
+  "productName": "Inamdar Restaurant POS",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node ./node_modules/@playwright/test/cli.js test"
+    "test": "node ./node_modules/@playwright/test/cli.js test",
+    "electron": "electron .",
+    "electron:dev": "vite",
+    "electron:pack": "vite build && electron-builder --dir",
+    "electron:build": "vite build && electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.dominals.inamdarpos",
+    "productName": "Inamdar Restaurant POS",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
@@ -21,6 +61,8 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^45.3.4",
+    "electron-builder": "^26.18.0",
     "oxlint": "^1.81.0",
     "vite": "^8.3.0"
   }

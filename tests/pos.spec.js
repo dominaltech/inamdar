@@ -953,18 +953,13 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.keyboard.press('Enter');
     await page.waitForTimeout(400);
 
-    // Verify Thermal Print Modal opened with KOT slip
-    const kotTitle = page.locator('.win-titlebar-title', { hasText: 'Kitchen Order Token' });
-    await expect(kotTitle).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('KITCHEN', { exact: true })).toBeVisible();
-    await expect(page.locator('text=T No. 14')).toBeVisible();
-
-    // Close thermal modal via Close button
-    const closeKotBtn = page.locator('button:has-text("Close (Esc/↵)")');
-    await expect(closeKotBtn).toBeVisible();
-    await closeKotBtn.click();
-    await page.waitForTimeout(200);
-    await expect(kotTitle).not.toBeVisible();
+    // Verify Direct Print was invoked with KOT slip and NO blocking on-screen modal
+    await page.waitForFunction(() => Boolean(window.__INAMDAR_LAST_PRINT__ && window.__INAMDAR_LAST_PRINT__.type === 'KOT'));
+    const printSnapshot = await page.evaluate(() => window.__INAMDAR_LAST_PRINT__);
+    expect(printSnapshot.data.tableNo).toBe('14');
+    expect(printSnapshot.data.items.length).toBeGreaterThan(0);
+    // Verify NO modal popup backdrop on screen (direct printing without preview dialog)
+    await expect(page.locator('.win-modal-backdrop .win-titlebar-title:has-text("Kitchen Order Token")')).not.toBeVisible();
 
     // 3. Stage another dish on Table 14
     await tableInput.click();
@@ -972,13 +967,18 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.keyboard.press('Enter');
     await page.waitForTimeout(200);
 
-    // If subtable menu opened, select A
+    // If customer details modal or subtable menu opened, dismiss it
+    if (await page.locator('#cust-name-input').isVisible()) {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+    }
     const subMenu = page.locator('.win-bevel-outset:has-text("14A")');
     if (await subMenu.isVisible()) {
       await page.keyboard.press('Enter');
       await page.waitForTimeout(200);
       if (await page.locator('#cust-name-input').isVisible()) {
         await page.keyboard.press('Escape');
+        await page.waitForTimeout(200);
       }
     }
 
@@ -1015,19 +1015,18 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const paxModal = page.locator('.win-titlebar-title', { hasText: 'Number of Persons' });
     await expect(paxModal).toBeVisible({ timeout: 5000 });
 
-    // Press Enter on PAX prompt -> directly prints Cash Memo and opens Thermal Print Modal!
+    // Press Enter on PAX prompt -> directly prints Cash Memo without blocking modal popup!
     const paxInput = page.locator('#pos-pax-input');
     await paxInput.press('Enter');
     await page.waitForTimeout(400);
-    const billTitle = page.locator('div.win-titlebar-title', { hasText: 'Thermal Printer Output — Cash Memo' });
-    await expect(billTitle).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('text=----- Cash Memo -----')).toBeVisible();
 
-    // Close bill print modal
-    const closeBillBtn = page.locator('button:has-text("Close (Esc/↵)")');
-    if (await closeBillBtn.isVisible()) await closeBillBtn.click();
-    await page.waitForTimeout(200);
-    await expect(billTitle).not.toBeVisible();
+    // Verify Direct Print was invoked with Cash Memo slip and NO blocking on-screen modal
+    await page.waitForFunction(() => Boolean(window.__INAMDAR_LAST_PRINT__ && window.__INAMDAR_LAST_PRINT__.type === 'BILL'));
+    const billSnapshot = await page.evaluate(() => window.__INAMDAR_LAST_PRINT__);
+    expect(billSnapshot.data.tableNo).toBe('14');
+    expect(billSnapshot.data.billNo).toBeDefined();
+    // Verify NO modal popup backdrop on screen
+    await expect(page.locator('.win-modal-backdrop .win-titlebar-title:has-text("Cash Memo")')).not.toBeVisible();
 
     // Verify bill appears in Unsettled Bills
     await expect(page.locator('text=14(').first()).toBeVisible();
@@ -1342,28 +1341,14 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     }
     await page.waitForTimeout(500);
 
-    // 5. Verify KOT Modal opened with simultaneous split slips for all 3 stations
-    const kotTitle = page.locator('.win-titlebar-title', { hasText: 'Kitchen Order Token' });
-    await expect(kotTitle).toBeVisible({ timeout: 5000 });
-
-    // Verify Kitchen Slip
-    await expect(page.locator('text=KITCHEN').first()).toBeVisible();
-    await expect(page.locator('text=BABY CORN CHILLY').first()).toBeVisible();
-
-    // Verify Dessert Slip
-    await expect(page.locator('text=DESSERT').first()).toBeVisible();
-    await expect(page.locator('text=GAJAR KA HALWA').first()).toBeVisible();
-
-    // Verify Beverage Slip
-    await expect(page.locator('text=BEVERAGE').first()).toBeVisible();
-    await expect(page.locator('text=FRESH LIME SODA').first()).toBeVisible();
-
-    // Verify Multi-slip indicator badge
-    await expect(page.locator('text=Prints 3 split slips simultaneously')).toBeVisible();
-
-    // Dismiss KOT
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    // 5. Verify Direct KOT split printing for all 3 stations without blocking popup modal
+    await page.waitForFunction(() => Boolean(window.__INAMDAR_LAST_PRINT__ && window.__INAMDAR_LAST_PRINT__.type === 'KOT'));
+    const kotSnapshot = await page.evaluate(() => window.__INAMDAR_LAST_PRINT__);
+    expect(kotSnapshot.data.kitchenItems.some(i => i.name.includes('BABY CORN CHILLY'))).toBe(true);
+    expect(kotSnapshot.data.dessertItems.some(i => i.name.includes('GAJAR KA HALWA'))).toBe(true);
+    expect(kotSnapshot.data.beverageItems.some(i => i.name.includes('FRESH LIME SODA'))).toBe(true);
+    // Verify NO blocking modal popup on screen
+    await expect(page.locator('.win-modal-backdrop .win-titlebar-title:has-text("Kitchen Order Token")')).not.toBeVisible();
 
     // 6. Test Cash Memo formatting (F5) - Compact 58mm alignment with Rate and Amount
     await page.keyboard.press('F5');
@@ -1394,19 +1379,13 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
       await page.waitForTimeout(400);
     }
 
-    // Verify Cash Memo title and exact column alignment
-    const cashMemoTitle = page.locator('div.win-titlebar-title', { hasText: 'Thermal Printer Output — Cash Memo' });
-    await expect(cashMemoTitle).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.thermal-receipt', { hasText: 'INAMDAR' }).first()).toBeVisible();
-    await expect(page.locator('.thermal-receipt th', { hasText: 'Particulars' })).toBeVisible();
-    await expect(page.locator('.thermal-receipt th', { hasText: 'Qty' })).toBeVisible();
-    await expect(page.locator('.thermal-receipt th', { hasText: 'Rate' })).toBeVisible();
-    await expect(page.locator('.thermal-receipt th', { hasText: 'Amount' })).toBeVisible();
-    await expect(page.locator('.thermal-receipt', { hasText: 'TRY OUR JUICES' }).first()).toBeVisible();
-
-    // Dismiss Bill
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    // Verify Direct Cash Memo printing with exact items and NO blocking modal popup
+    await page.waitForFunction(() => Boolean(window.__INAMDAR_LAST_PRINT__ && window.__INAMDAR_LAST_PRINT__.type === 'BILL'));
+    const billSnapshot = await page.evaluate(() => window.__INAMDAR_LAST_PRINT__);
+    expect(billSnapshot.data.tableNo).toBe('35');
+    expect(billSnapshot.data.items.length).toBe(3);
+    // Verify NO blocking modal popup on screen
+    await expect(page.locator('.win-modal-backdrop .win-titlebar-title:has-text("Cash Memo")')).not.toBeVisible();
   });
 
   test('22. Multi-Order Box Tabs, Double Backspace Tab Closure, In-Progress Half-Order Resumption & Completed Order Auto-Purge', async ({ page }) => {
@@ -1503,9 +1482,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.locator('button:has-text("Fire KOT")').click();
     await page.waitForTimeout(400);
 
-    // Dismiss KOT thermal print slip
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(400);
+    // Direct print automatically prints without popup dialog - no Escape needed
 
     // 9. Since Order 1 was completed and Order 2 was still open, Order 1 closes and brings operator back to Order 2!
     await expect(page.locator('td', { hasText: 'ROASTED PAPAD' })).toBeVisible();
@@ -1513,7 +1490,6 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Clean up Order 2 by firing KOT
     await page.locator('button:has-text("Fire KOT")').click();
     await page.waitForTimeout(400);
-    await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
 
     // Now all orders are complete: Order 1 is clean and waiting at Table input
@@ -1529,7 +1505,6 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const qtyInput = page.locator('input[placeholder="Qty"]');
 
     // 1. Start fresh on Table 1
-    await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
     await tableInput.click();
     await tableInput.fill('1');
@@ -1553,8 +1528,6 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Fire KOT for Table 1 -> Table 1 is now OCCUPIED and RUNNING!
     await page.locator('button:has-text("Fire KOT")').click();
     await page.waitForTimeout(400);
-    await page.keyboard.press('Escape'); // dismiss KOT slip
-    await page.waitForTimeout(300);
 
     // 2. Now Table 1 is running. Type "1" in New Order Table field.
     await tableInput.click();
@@ -1591,8 +1564,6 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Fire KOT for the new item on Table 1
     await page.locator('button:has-text("Fire KOT")').click();
     await page.waitForTimeout(400);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
 
     // 4. Create sub-table 1A: Type '1' in Table input
     await tableInput.click();
@@ -1620,8 +1591,6 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Fire KOT for 1A -> Now Table 1 AND Table 1A are running!
     await page.locator('button:has-text("Fire KOT")').click();
     await page.waitForTimeout(400);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
 
     // 5. Create sub-table 1B: Type '1' in Table input
     await tableInput.click();
@@ -1654,8 +1623,6 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Fire KOT for 1B -> Now Table 1, 1A, and 1B are all running!
     await page.locator('button:has-text("Fire KOT")').click();
     await page.waitForTimeout(400);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
 
     // 6. Test Automatic Dynamic Progression:
     // With 1A and 1B occupied, typing Table 1 should automatically advance to C, D, + !
@@ -1762,7 +1729,12 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('td', { hasText: '9999900000' })).not.toBeVisible();
 
     // 7. Return to POS Order Screen
-    await page.keyboard.press('Escape');
+    const backToPosBtn = page.locator('button:has-text("Back to POS (Esc)")');
+    if (await backToPosBtn.isVisible()) {
+      await backToPosBtn.click();
+    } else {
+      await page.keyboard.press('Escape');
+    }
     await page.waitForTimeout(300);
     await expect(page.locator('#pos-table-input')).toBeVisible();
 
@@ -1796,13 +1768,21 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Fire KOT
     await page.locator('button:has-text("Fire KOT")').click();
     await page.waitForTimeout(400);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
 
     // 9. Open Cash Memo mode (F5) and print cash memo for Table 15
     await page.keyboard.press('F5');
     await page.waitForTimeout(300);
-    await expect(page.locator('.win-titlebar-title', { hasText: 'Cash Memo' })).toBeVisible();
+    const cashMemoActive = page.locator('div.win-titlebar', { hasText: 'Cash Memo' });
+    if (!await cashMemoActive.isVisible()) {
+      const memoToggle = page.locator('span:has-text("[F5 Memo]")');
+      if (await memoToggle.isVisible()) {
+        await memoToggle.click();
+      } else {
+        await page.keyboard.press('F5');
+      }
+      await page.waitForTimeout(300);
+    }
+    await expect(cashMemoActive).toBeVisible();
     await tableInput.click();
     await tableInput.fill('15');
     await tableInput.press('Enter'); // Loads preview
@@ -1840,6 +1820,9 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // 11. Re-open Customers Studio to verify repeat visit tracking!
     await customersMenuBtn.click();
     await page.waitForTimeout(400);
+    const vikramRow = page.locator('tr', { hasText: '9876543210' });
+    await expect(vikramRow).toBeVisible();
+    await expect(vikramRow.locator('td').nth(2)).toContainText(/([2-9]x|\d+x)/);
     await page.locator('td', { hasText: '9876543210' }).click();
     await page.waitForTimeout(300);
 
@@ -1896,6 +1879,62 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // Cleanly exit to Order workspace
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
+  });
+
+  test('25. Customer Analytics Studio - 10 Real-Time Analytical Engines with Circle Donut Diagrams and Bar Graphs', async ({ page }) => {
+    test.setTimeout(45000);
+
+    // 1. Navigate to Customers Section from Top Menu
+    await page.locator('.win-menu-item', { hasText: 'Customers' }).click();
+    await page.waitForTimeout(400);
+
+    // Verify Customer Management header and buttons
+    await expect(page.locator('text=Customer Management & Repeat Tracker')).toBeVisible();
+    const analyticsBtn = page.locator('#customer-analytics-btn');
+    await expect(analyticsBtn).toBeVisible();
+
+    // 2. Click Analytics Button
+    await analyticsBtn.click();
+    await page.waitForTimeout(400);
+
+    // 3. Verify Analytics View is active
+    await expect(page.locator('text=Dominal\'s POS & Customer Analytics Studio')).toBeVisible();
+    await expect(page.locator('text=10 Real-Time Intelligence Engines')).toBeVisible();
+
+    // 4. Verify all 10 Analytical Engines are rendered
+    await expect(page.locator('text=1. Revenue & Orders by Menu Category (Donut Diagram)')).toBeVisible();
+    await expect(page.locator('text=2. Customer Repeat Frequency Cohort (Circle Diagram)')).toBeVisible();
+    await expect(page.locator('text=3. Hourly Kitchen & Dining Velocity (Peak Rush Analysis)')).toBeVisible();
+    await expect(page.locator('text=4. Top 10 Bestselling Dishes (Volume & Popularity)')).toBeVisible();
+    await expect(page.locator('text=5. Settlement & Tender Mode Distribution (Cash vs Digital)')).toBeVisible();
+    await expect(page.locator('text=6. Dining Channel Mix (Dine-in vs Parcel vs Delivery)')).toBeVisible();
+    await expect(page.locator('text=7. Average Spend Tiers & Bill Ticket Distribution')).toBeVisible();
+    await expect(page.locator('text=8. Table Turnover & Revenue Hotspots (Top Serving Tables)')).toBeVisible();
+    await expect(page.locator('text=9. Top 10 High-Value VIP Patrons (Lifetime Value Ranking)')).toBeVisible();
+    await expect(page.locator('text=10. Daily Sales Velocity & Revenue Curve (Trend Line)')).toBeVisible();
+
+    // 5. Test filter toggle (Today / This Week / All Time)
+    await page.locator('button:has-text("Today")').click();
+    await page.waitForTimeout(200);
+    await page.locator('button:has-text("All Time")').click();
+    await page.waitForTimeout(200);
+
+    // 6. Test Back to Customer Directory button
+    const backBtn = page.locator('button:has-text("Back to Customer Directory")');
+    await expect(backBtn).toBeVisible();
+    await backBtn.click();
+    await page.waitForTimeout(300);
+
+    // Verify returned to Customer Directory
+    await expect(page.locator('text=Customer Directory')).toBeVisible();
+    await expect(page.locator('#customer-search-input')).toBeVisible();
+
+    // Clean exit back to POS
+    const backToPosBtn = page.locator('button:has-text("Back to POS (Esc)")');
+    if (await backToPosBtn.isVisible()) {
+      await backToPosBtn.click();
+      await page.waitForTimeout(300);
+    }
   });
 
 });

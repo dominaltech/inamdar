@@ -32,6 +32,7 @@ export default function OrderWorkspace() {
     activeModal,
     showCancelModal,
     updateTableCustomer,
+    saveCustomer,
   } = usePos();
 
   // Multi-Order Tabs State (F1 key creates or cycles between concurrent order drafts)
@@ -931,6 +932,13 @@ export default function OrderWorkspace() {
     switchTable(targetTable);
     setTableInput(targetTable);
     updateTableCustomer?.(targetTable, custName, custPhone);
+
+    if (custPhone && custPhone !== '-') {
+      saveCustomer?.({
+        phone: custPhone,
+        name: custName || 'Guest',
+      });
+    }
 
     // Update current draft
     setOrderDrafts(prev => {
