@@ -1899,9 +1899,18 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
 
     // 3. Verify Analytics View is active
     await expect(page.locator('text=Dominal\'s POS & Customer Analytics Studio')).toBeVisible();
-    await expect(page.locator('text=10 Real-Time Intelligence Engines')).toBeVisible();
+    await expect(page.locator('text=Live Supabase Intelligence')).toBeVisible();
 
-    // 4. Verify all 10 Analytical Engines are rendered
+    // 4. Verify Independent Takeaway & Home Delivery Analytics Engine is rendered
+    const offPremiseSection = page.locator('#takeaway-delivery-analytics-section');
+    await expect(offPremiseSection).toBeVisible();
+    await expect(page.locator('text=Independent Engine: Takeaway & Home Delivery Analytics')).toBeVisible();
+    await expect(page.locator('text=TAKEAWAY (PARCEL) REVENUE')).toBeVisible();
+    await expect(page.locator('text=HOME DELIVERY REVENUE')).toBeVisible();
+    await expect(page.locator('text=TOTAL OFF-PREMISE VOLUME')).toBeVisible();
+    await expect(page.locator('text=PHONE CAPTURE RATE')).toBeVisible();
+
+    // 5. Verify all 10 Core Analytical Engines are rendered
     await expect(page.locator('text=1. Revenue & Orders by Menu Category (Donut Diagram)')).toBeVisible();
     await expect(page.locator('text=2. Customer Repeat Frequency Cohort (Circle Diagram)')).toBeVisible();
     await expect(page.locator('text=3. Hourly Kitchen & Dining Velocity (Peak Rush Analysis)')).toBeVisible();

@@ -233,6 +233,20 @@ export function PosProvider({ children }) {
     return null;
   }, []);
 
+  const refreshBills = useCallback(async () => {
+    try {
+      const live = await fetchLiveAllBills();
+      if (live && Array.isArray(live)) {
+        setAllBills(live);
+        saveCachedAllBills(live);
+        return live;
+      }
+    } catch (e) {
+      console.warn('refreshBills error:', e);
+    }
+    return null;
+  }, []);
+
   const trackCustomerVisit = useCallback(async ({ phone, name, billNo, kotNo, table, amount, items }) => {
     if (!phone || String(phone).trim() === '' || String(phone).trim() === '-') return null;
     const cleanPhone = String(phone).trim();
@@ -1743,6 +1757,7 @@ export function PosProvider({ children }) {
       // All Bills & Details of Bill
       allBills,
       setAllBills,
+      refreshBills,
       // F12 Settlement Menu & Batch Settle
       showSettlementMenu,
       setShowSettlementMenu,
