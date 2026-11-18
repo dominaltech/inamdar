@@ -16,23 +16,23 @@ export default function ThermalPrintModal() {
       };
     }
 
-    // Direct Printing: Call electron silent print or window.print() directly without blocking popup modal dialog
+    // Direct Printing: Trigger direct hardware/silent print without any popup or window console
     const printTimer = setTimeout(() => {
       try {
         if (window.electronAPI && typeof window.electronAPI.directPrint === 'function') {
+          // Direct Silent Printing in Desktop App to physical thermal printer
           window.electronAPI.directPrint({ silent: true });
-        } else {
+        } else if (typeof window !== 'undefined' && window.__INAMDAR_FORCE_BROWSER_PRINT__) {
+          // Optional manual browser print dialog fallback only if explicitly toggled
           window.print();
         }
       } catch (err) {
-        console.warn('Direct print execution:', err);
+        // Silent handling without console noise
       }
-      // Auto-clear printData after print dialog opens so DOM resets and cashier continues
-      setTimeout(() => {
-        setPrintData(null);
-        triggerTableFocus?.();
-      }, 350);
-    }, 60);
+      // Immediate clean reset: never show printing console or blocking dialog
+      setPrintData(null);
+      triggerTableFocus?.();
+    }, 40);
 
     return () => clearTimeout(printTimer);
   }, [printData, setPrintData, triggerTableFocus]);
