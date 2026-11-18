@@ -8,8 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+# Build outputs
 dist
 dist-ssr
+dist-electron
+*.exe
 *.local
 .env
 .env.*.local

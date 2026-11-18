@@ -14,7 +14,7 @@
     "electron": "electron .",
     "electron:dev": "vite",
     "electron:pack": "vite build && electron-builder --dir",
-    "electron:build": "vite build && electron-builder --win --x64"
+    "electron:build": "vite build && node scripts/build-electron.cjs"
   },
   "build": {
     "appId": "com.dominals.inamdarpos",
