@@ -3,18 +3,37 @@ import rawMenuData from './menuData.json';
 // Category sequence map for KOT culinary course ordering
 export const CATEGORY_ORDER = {
   'SOUP': 1,
+  'SOUPS': 1,
   'STARTERS': 2,
+  'STARTER': 2,
   'SEA FOOD': 3,
   'KABAB': 4,
+  'KEBAB': 4,
   'MAIN COURSE': 5,
+  'GRAVY': 5,
   'ANDE KA FUNDA': 6,
+  'EGG': 6,
   'RICE AND NOODLES': 7,
+  'NOODLES': 7,
   'BIRYANI AND PULAO': 8,
+  'BIRYANI': 8,
+  'PULAO': 8,
   'ROTI': 9,
+  'BREAD': 9,
+  'BREADS': 9,
   'SALAD': 10,
+  'PAPAD': 10,
   'DESSERTS /MOCKTAL': 11,
-  'BIRYANI': 12,
-  'SOFT DRINKS': 13,
+  'DESSERT': 11,
+  'DESSERTS': 11,
+  'SWEETS': 11,
+  'ICE CREAM': 11,
+  'SOFT DRINKS': 12,
+  'SOFT DRINK': 12,
+  'BEVERAGES': 12,
+  'BEVERAGE': 12,
+  'JUICE': 12,
+  'PANTRY': 12,
 };
 
 // Dynamic in-memory category order and categories list
@@ -173,9 +192,12 @@ export function searchMenuItems(query) {
 }
 
 export function sortItemsByCourse(items) {
+  if (!items || !Array.isArray(items)) return [];
   return [...items].sort((a, b) => {
-    const orderA = a.categoryOrder ?? (DYNAMIC_CATEGORY_ORDER[a.category] || 99);
-    const orderB = b.categoryOrder ?? (DYNAMIC_CATEGORY_ORDER[b.category] || 99);
+    const catA = (a.category || '').toUpperCase().trim();
+    const catB = (b.category || '').toUpperCase().trim();
+    const orderA = Number(a.categoryOrder) || DYNAMIC_CATEGORY_ORDER[catA] || (DYNAMIC_CATEGORY_ORDER[a.category] || 99);
+    const orderB = Number(b.categoryOrder) || DYNAMIC_CATEGORY_ORDER[catB] || (DYNAMIC_CATEGORY_ORDER[b.category] || 99);
     if (orderA !== orderB) return orderA - orderB;
     return (Number(a.code) || 0) - (Number(b.code) || 0);
   });

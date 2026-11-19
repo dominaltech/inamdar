@@ -225,9 +225,12 @@ ipcMain.handle('app:read-local-backup', async () => {
   return readFromLocalDisks();
 });
 
-// 3. Direct Thermal Printing (Silent, without popup dialogs)
+// 3. Direct Thermal Printing (Silent, 7.6cm printable width, dynamic height, zero popups)
 ipcMain.handle('app:direct-print', async (event, options = {}) => {
   if (!mainWindow) return { success: false, error: 'Window not found' };
+
+  const printWidth = options.width || 76000; // 7.6cm width in microns
+  const printHeight = options.height || 100000; // Dynamic height based on item count
 
   return new Promise((resolve) => {
     mainWindow.webContents.print({
@@ -235,8 +238,8 @@ ipcMain.handle('app:direct-print', async (event, options = {}) => {
       printBackground: true,
       deviceName: options.deviceName || '',
       pageSize: {
-        width: 58000, // 58mm thermal width in microns
-        height: options.height || 150000,
+        width: printWidth,
+        height: printHeight,
       },
       margins: {
         marginType: 'none',

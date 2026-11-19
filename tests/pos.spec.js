@@ -1347,10 +1347,12 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     expect(kotSnapshot.data.kitchenItems.some(i => i.name.includes('BABY CORN CHILLY'))).toBe(true);
     expect(kotSnapshot.data.dessertItems.some(i => i.name.includes('GAJAR KA HALWA'))).toBe(true);
     expect(kotSnapshot.data.beverageItems.some(i => i.name.includes('FRESH LIME SODA'))).toBe(true);
+    expect(kotSnapshot.slipCount).toBe(3); // 3 independent physical slips with separate cuts
+    expect(kotSnapshot.width).toBe('7.6cm'); // Exact 7.6cm width specification
     // Verify NO blocking modal popup on screen
     await expect(page.locator('.win-modal-backdrop .win-titlebar-title:has-text("Kitchen Order Token")')).not.toBeVisible();
 
-    // 6. Test Cash Memo formatting (F5) - Compact 58mm alignment with Rate and Amount
+    // 6. Test Cash Memo formatting (F5) - Single Unified Bill strictly sorted by category order across 7.6cm centered layout
     await page.keyboard.press('F5');
     await page.waitForTimeout(400);
 
@@ -1384,6 +1386,12 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     const billSnapshot = await page.evaluate(() => window.__INAMDAR_LAST_PRINT__);
     expect(billSnapshot.data.tableNo).toBe('35');
     expect(billSnapshot.data.items.length).toBe(3);
+    expect(billSnapshot.slipCount).toBe(1); // Single unified bill, NOT split into 3 slips
+    expect(billSnapshot.width).toBe('7.6cm');
+    // Verify items in bill strictly follow category order: Starters -> Desserts -> Soft Drinks
+    expect(billSnapshot.data.items[0].name).toContain('BABY CORN CHILLY');
+    expect(billSnapshot.data.items[1].name).toContain('GAJAR KA HALWA');
+    expect(billSnapshot.data.items[2].name).toContain('FRESH LIME SODA');
     // Verify NO blocking modal popup on screen
     await expect(page.locator('.win-modal-backdrop .win-titlebar-title:has-text("Cash Memo")')).not.toBeVisible();
   });

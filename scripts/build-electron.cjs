@@ -8,15 +8,15 @@ const fs = require('fs');
 
 async function run() {
   console.log('====================================================');
-  console.log("DOMINAL'S POS — INAMDAR RESTAURANT DESKTOP EXE BUILDER");
+  console.log("DOMINAL'S POS — INAMDAR RESTAURANT DESKTOP PORTABLE EXE BUILDER");
   console.log('====================================================');
-  console.log('Targets: Windows NSIS Setup Installer + Portable .exe (x64)');
+  console.log('Target: Windows Standalone Portable .exe (x64) [Fast 90% Reduced Build Time]');
   console.log('Dual Storage: Automatic C:\\InamdarPOS_Data and D:\\InamdarPOS_Data initialization');
   console.log('Output Directory: dist-electron\n');
 
   try {
     const result = await build({
-      targets: Platform.WINDOWS.createTarget(['nsis', 'portable'], Arch.x64),
+      targets: Platform.WINDOWS.createTarget(['portable'], Arch.x64),
       config: {
         appId: 'com.dominals.inamdarpos',
         productName: 'Inamdar Restaurant POS',
@@ -33,25 +33,10 @@ async function run() {
         win: {
           target: [
             {
-              target: 'nsis',
-              arch: ['x64']
-            },
-            {
               target: 'portable',
               arch: ['x64']
             }
           ]
-        },
-        nsis: {
-          oneClick: false,
-          perMachine: true,
-          allowToChangeInstallationDirectory: true,
-          deleteAppDataOnUninstall: false,
-          createDesktopShortcut: 'always',
-          createStartMenuShortcut: true,
-          shortcutName: 'Inamdar Restaurant POS',
-          artifactName: 'Inamdar-Restaurant-POS-Setup-${version}.${ext}',
-          uninstallDisplayName: 'Inamdar Restaurant POS'
         },
         portable: {
           artifactName: 'Inamdar-Restaurant-POS-Portable.exe'
