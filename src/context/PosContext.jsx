@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { DEFAULT_USERS, EMPLOYEES, INITIAL_TABLES, INITIAL_UNSETTLED_BILLS, INITIAL_ALL_BILLS } from '../data/initialData';
 import { 
   MENU_BY_CODE, 
@@ -91,6 +91,17 @@ export function PosProvider({ children }) {
   const [dailyTransactions, setDailyTransactions] = useState(getCachedDailyTransactions);
   const [pastBills, setPastBills] = useState(getCachedPastBills);
   const [allBills, setAllBills] = useState(getCachedAllBills);
+  const allBillsRef = useRef(allBills);
+  useEffect(() => {
+    allBillsRef.current = allBills;
+  }, [allBills]);
+
+  const isMatchPhone = (p1, p2) => {
+    if (!p1 || !p2) return false;
+    const s1 = String(p1).replace(/\D/g, '');
+    const s2 = String(p2).replace(/\D/g, '');
+    return (s1.length > 0 && s1 === s2) || String(p1).trim() === String(p2).trim();
+  };
 
   const initialCounters = getCachedCounters();
   const [kotCounter, setKotCounter] = useState(initialCounters.kotCounter);
@@ -131,11 +142,28 @@ export function PosProvider({ children }) {
 
     let updatedCustomer = null;
     setCustomers(prev => {
-      const existing = prev.find(c => c.phone === cleanPhone);
-      const visits = Number(custData.visit_count ?? custData.visitCount ?? existing?.visit_count ?? existing?.visitCount) || 1;
-      const spent = Number(custData.total_spent ?? custData.totalSpent ?? existing?.total_spent ?? existing?.totalSpent) || 0;
+      const existing = prev.find(c => isMatchPhone(c.phone, cleanPhone));
+      const matchingBills = (allBillsRef.current || []).filter(b => isMatchPhone(b.customerPhone || b.customer_phone, cleanPhone));
+      const billsVisits = matchingBills.length;
+      const billsSpent = matchingBills.reduce((s, b) => s + Number(b.amount || b.netAmount || b.totalAmount || 0), 0);
+
+      const visits = Math.max(
+        billsVisits,
+        custData.visit_count !== undefined ? Number(custData.visit_count) : 0,
+        custData.visitCount !== undefined ? Number(custData.visitCount) : 0,
+        Number(existing?.visit_count ?? existing?.visitCount) || 0,
+        1
+      );
+      const spent = Math.max(
+        billsSpent,
+        custData.total_spent !== undefined ? Number(custData.total_spent) : 0,
+        custData.totalSpent !== undefined ? Number(custData.totalSpent) : 0,
+        Number(existing?.total_spent ?? existing?.totalSpent) || 0
+      );
       const lastVisit = custData.last_visit || custData.lastVisit || existing?.last_visit || existing?.lastVisit || new Date().toISOString();
-      const history = Array.isArray(custData.history) ? custData.history : (existing?.history || []);
+      const history = Array.isArray(custData.history) && custData.history.length > 0
+        ? custData.history
+        : (existing?.history || []);
 
       updatedCustomer = {
         phone: cleanPhone,
@@ -149,8 +177,9 @@ export function PosProvider({ children }) {
         history,
       };
 
-      const rest = prev.filter(c => c.phone !== cleanPhone);
-      const next = [updatedCustomer, ...rest];
+      const next = existing
+        ? prev.map(c => isMatchPhone(c.phone, cleanPhone) ? updatedCustomer : c)
+        : [updatedCustomer, ...prev];
       saveCachedCustomers(next);
       return next;
     });
@@ -167,7 +196,7 @@ export function PosProvider({ children }) {
     if (!phone) return false;
     const cleanPhone = String(phone).trim();
     setCustomers(prev => {
-      const next = prev.filter(c => c.phone !== cleanPhone);
+      const next = prev.filter(c => !isMatchPhone(c.phone, cleanPhone));
       saveCachedCustomers(next);
       return next;
     });
@@ -271,7 +300,7 @@ export function PosProvider({ children }) {
 
     let updatedCust = null;
     setCustomers(prev => {
-      const existing = prev.find(c => c.phone === cleanPhone);
+      const existing = prev.find(c => isMatchPhone(c.phone, cleanPhone));
       if (existing) {
         const finalBillNo = billNo ? String(billNo).trim() : (kotNo ? `KOT-${kotNo}` : '');
         const historyArr = Array.isArray(existing.history) ? existing.history : [];
@@ -313,8 +342,7 @@ export function PosProvider({ children }) {
           lastVisit: dateStr,
           history: nextHistory,
         };
-        const rest = prev.filter(c => c.phone !== cleanPhone);
-        const next = [updatedCust, ...rest];
+        const next = prev.map(c => isMatchPhone(c.phone, cleanPhone) ? updatedCust : c);
         saveCachedCustomers(next);
         return next;
       } else {

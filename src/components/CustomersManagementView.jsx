@@ -22,6 +22,7 @@ import CustomerAnalyticsView from './CustomerAnalyticsView';
 export default function CustomersManagementView() {
   const {
     customers = [],
+    allBills = [],
     setScreenMode,
     saveCustomer,
     deleteCustomer,
@@ -32,6 +33,55 @@ export default function CustomersManagementView() {
   const [selectedPhone, setSelectedPhone] = useState('');
   const [statusMessage, setStatusMessage] = useState({ text: '', type: 'info' });
   const [viewMode, setViewMode] = useState('DIRECTORY'); // 'DIRECTORY' | 'ANALYTICS'
+
+  // Helper: Normalize phone numbers for strict, safe equality
+  const isSamePhone = (p1, p2) => {
+    if (!p1 || !p2) return false;
+    const s1 = String(p1).replace(/\D/g, '');
+    const s2 = String(p2).replace(/\D/g, '');
+    return (s1.length > 0 && s1 === s2) || String(p1).trim() === String(p2).trim();
+  };
+
+  // Helper: Calculate strictly isolated visits and total spend for a specific customer
+  const getCustomerStats = (cust) => {
+    if (!cust || !cust.phone) return { visits: 1, spent: 0 };
+    const cleanPhone = String(cust.phone).trim();
+
+    // 1. Gather all matching bills in allBills strictly for this phone
+    const matchingBills = (allBills || []).filter(b =>
+      isSamePhone(b.customerPhone || b.customer_phone, cleanPhone)
+    );
+
+    // 2. Gather recorded visits from customer's own purchase history
+    const historyList = Array.isArray(cust.history) ? cust.history : [];
+
+    // 3. Deduplicate orders by billNo
+    const uniqueBillsMap = new Map();
+    matchingBills.forEach(b => {
+      if (b.billNo) {
+        uniqueBillsMap.set(String(b.billNo), Number(b.amount || b.netAmount || b.totalAmount || 0));
+      }
+    });
+    historyList.forEach(h => {
+      if (h.billNo && !uniqueBillsMap.has(String(h.billNo))) {
+        uniqueBillsMap.set(String(h.billNo), Number(h.amount || 0));
+      }
+    });
+
+    const computedVisits = uniqueBillsMap.size;
+    const computedSpent = Array.from(uniqueBillsMap.values()).reduce((sum, amt) => sum + amt, 0);
+
+    const storedVisits = Number(cust.visit_count ?? cust.visitCount) || 0;
+    const storedSpent = Number(cust.total_spent ?? cust.totalSpent) || 0;
+
+    const finalVisits = Math.max(computedVisits, storedVisits);
+    const finalSpent = Math.max(computedSpent, storedSpent);
+
+    return {
+      visits: finalVisits > 0 ? finalVisits : 1,
+      spent: finalSpent,
+    };
+  };
 
   // Modal State for Add / Edit Customer
   const [showModal, setShowModal] = useState(false);
@@ -48,7 +98,7 @@ export default function CustomersManagementView() {
     setTimeout(() => setStatusMessage({ text: '', type: 'info' }), 3500);
   };
 
-  // On mount: fetch live customer records from Supabase
+  // On mount: fetch live customer records from database
   useEffect(() => {
     refreshCustomers?.();
   }, [refreshCustomers]);
@@ -100,8 +150,12 @@ export default function CustomersManagementView() {
   }, [filteredCustomers, selectedPhone]);
 
   const activeCustomer = useMemo(() => {
-    return customers.find(c => c.phone === selectedPhone) || filteredCustomers[0] || null;
+    return customers.find(c => isSamePhone(c.phone, selectedPhone)) || filteredCustomers[0] || null;
   }, [customers, selectedPhone, filteredCustomers]);
+
+  const activeStats = useMemo(() => {
+    return getCustomerStats(activeCustomer);
+  }, [activeCustomer, allBills]);
 
   const handleOpenAddModal = () => {
     setFormData({ phone: '', name: '' });
@@ -161,9 +215,10 @@ export default function CustomersManagementView() {
       return;
     }
 
-    const existing = customers.find(c => c.phone === cleanPhone);
-    const existingVisits = Number(existing?.visit_count ?? existing?.visitCount) || 1;
-    const existingSpent = Number(existing?.total_spent ?? existing?.totalSpent) || 0;
+    const existing = customers.find(c => isSamePhone(c.phone, cleanPhone));
+    const calculatedStats = getCustomerStats(existing);
+    const existingVisits = calculatedStats.visits;
+    const existingSpent = calculatedStats.spent;
     const existingLastVisit = existing?.last_visit || existing?.lastVisit || new Date().toISOString();
     const existingHistory = existing?.history || [];
 
@@ -273,7 +328,11 @@ export default function CustomersManagementView() {
               gap: '5px'
             }}
           >
-            <IconBarChart size={14} color="#fff" /> {viewMode === 'ANALYTICS' ? '📋 Customer Directory' : '📊 Customer & POS Analytics'}
+            {viewMode === 'ANALYTICS' ? (
+              <><IconUsers size={14} color="#fff" /> Customer Directory</>
+            ) : (
+              <><IconBarChart size={14} color="#fff" /> Customer &amp; POS Analytics</>
+            )}
           </button>
           <button
             id="add-customer-btn"
@@ -320,9 +379,10 @@ export default function CustomersManagementView() {
                   </tr>
                 ) : (
                   filteredCustomers.map(cust => {
-                    const isSelected = cust.phone === activeCustomer?.phone;
-                    const visits = Number(cust.visit_count ?? cust.visitCount) || 1;
-                    const spent = Number(cust.total_spent ?? cust.totalSpent) || 0;
+                    const isSelected = isSamePhone(cust.phone, activeCustomer?.phone);
+                    const stats = getCustomerStats(cust);
+                    const visits = stats.visits;
+                    const spent = stats.spent;
                     const isRepeat = visits > 1;
 
                     return (
@@ -417,13 +477,13 @@ export default function CustomersManagementView() {
                       borderRadius: '4px',
                       fontSize: '11px',
                       fontWeight: 'bold',
-                      background: (Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1) >= 5 ? '#ffd700' : '#dcf5dc',
-                      color: (Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1) >= 5 ? '#774400' : '#006600',
+                      background: activeStats.visits >= 5 ? '#ffd700' : '#dcf5dc',
+                      color: activeStats.visits >= 5 ? '#774400' : '#006600',
                       border: '1px solid #999',
                     }}>
-                      {(Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1) >= 5 ? (
+                      {activeStats.visits >= 5 ? (
                         <><IconStar size={12} color="#774400" fill="#774400" /> VIP REPEAT GUEST</>
-                      ) : ((Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1) > 1 ? (
+                      ) : (activeStats.visits > 1 ? (
                         <><IconRefresh size={12} color="#006600" /> RETURNING CUSTOMER</>
                       ) : (
                         <><IconUser size={12} color="#006600" /> NEW GUEST</>
@@ -455,19 +515,19 @@ export default function CustomersManagementView() {
                   <div style={{ flex: 1, background: '#fff', border: '1px inset #808080', padding: '6px 8px', textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#666', fontWeight: 'bold' }}>TOTAL VISITS</div>
                     <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#0a246a' }}>
-                      {Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1}
+                      {activeStats.visits}
                     </div>
                   </div>
                   <div style={{ flex: 1, background: '#fff', border: '1px inset #808080', padding: '6px 8px', textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#666', fontWeight: 'bold' }}>LIFETIME SPEND</div>
                     <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#006600' }}>
-                      ₹{Number((activeCustomer.total_spent ?? activeCustomer.totalSpent) || 0).toFixed(2)}
+                      ₹{activeStats.spent.toFixed(2)}
                     </div>
                   </div>
                   <div style={{ flex: 1, background: '#fff', border: '1px inset #808080', padding: '6px 8px', textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#666', fontWeight: 'bold' }}>AVERAGE ORDER</div>
                     <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#333' }}>
-                      ₹{((Number((activeCustomer.total_spent ?? activeCustomer.totalSpent) || 0)) / Math.max(1, (Number(activeCustomer.visit_count ?? activeCustomer.visitCount) || 1))).toFixed(2)}
+                      ₹{(activeStats.spent / Math.max(1, activeStats.visits)).toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -643,7 +703,7 @@ export default function CustomersManagementView() {
                 <div style={{ fontSize: '12px', color: '#222', lineHeight: '18px' }}>
                   Are you sure you want to delete customer <strong>{customerToDelete.name || 'Guest'}</strong> (Phone: <code>{customerToDelete.phone}</code>)?
                   <br />
-                  This customer currently has <strong>{customerToDelete.visit_count || customerToDelete.visitCount || 1} visit(s)</strong> and <strong>₹{Number((customerToDelete.total_spent ?? customerToDelete.totalSpent) || 0).toFixed(2)}</strong> in total spend.
+                  This customer currently has <strong>{getCustomerStats(customerToDelete).visits} visit(s)</strong> and <strong>₹{getCustomerStats(customerToDelete).spent.toFixed(2)}</strong> in total spend.
                 </div>
               </div>
               <div style={{ fontSize: '11px', color: '#c00000', fontWeight: 'bold', background: '#fff0f0', padding: '6px 10px', border: '1px solid #ffcccc' }}>

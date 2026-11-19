@@ -149,7 +149,7 @@ export default function SettingsView() {
   const handleConfirmFinalReset = () => {
     resetLocalData?.();
     setShowResetStep2(false);
-    showToast('Local offline data and revenue files have been cleared on this machine. Cloud database in Supabase is completely untouched.', 'success');
+    showToast('Local offline data and revenue files have been cleared on this machine. Cloud database is completely untouched.', 'success');
   };
 
   if (!isAuthenticated) {
@@ -369,7 +369,7 @@ export default function SettingsView() {
 
           <p style={{ fontSize: '11px', color: '#555', lineHeight: '16px', margin: '0 0 10px 0' }}>
             Allows management to reset local offline transaction history and local text files on this machine.
-            <strong> Cloud data in Supabase will NOT be cleared or affected.</strong> Active menu items, running tables, and master categories remain intact.
+            <strong> Cloud database data will NOT be cleared or affected.</strong> Active menu items, running tables, and master categories remain intact.
           </p>
 
           <button
@@ -385,6 +385,11 @@ export default function SettingsView() {
           >
             <IconWarning size={13} color="#c00000" /> Reset Local Data &amp; Revenue History...
           </button>
+        </div>
+
+        {/* Dominal Technology Product Branding Footer */}
+        <div style={{ textAlign: 'center', padding: '16px 0 8px 0', fontSize: '12px', fontWeight: 'bold', color: '#0a246a', letterSpacing: '0.5px' }}>
+          A Product of Dominal Technology – dominal.in
         </div>
       </div>
 
@@ -404,7 +409,7 @@ export default function SettingsView() {
                 Are you sure you want to reset local data? This will clear local offline settled bills and revenue files on this machine.
                 <br />
                 <span style={{ color: '#006600', fontWeight: 'bold' }}>
-                  Notice: Cloud database in Supabase will NOT be cleared.
+                  Notice: Cloud database will NOT be cleared or affected.
                 </span>
                 <br /><br />
                 Enter Admin PIN to proceed:
@@ -460,7 +465,7 @@ export default function SettingsView() {
                   Local transaction files on <code>C:\InamdarPOS_Data</code> and <code>D:\InamdarPOS_Data</code> and browser storage will be reset.
                   <br />
                   <span style={{ color: '#006600', fontWeight: 'bold' }}>
-                    Supabase cloud database remains untouched.
+                    Cloud database remains untouched.
                   </span>
                 </div>
               </div>

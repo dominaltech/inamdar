@@ -1132,22 +1132,37 @@ export async function fetchLiveCustomers() {
   }
 }
 
-// 16. Upsert / Save Customer in Supabase
+// 16. Upsert / Save Customer in Database
 export async function saveCustomerInSupabase(cust) {
   if (!isSupabaseConfigured() || !cust || !cust.phone) return false;
   try {
     const cleanPhone = String(cust.phone).trim();
     const cleanName = String(cust.name || 'Guest').trim();
-    const visits = Number(cust.visit_count ?? cust.visitCount) || 1;
-    const spent = Number(cust.total_spent ?? cust.totalSpent) || 0;
+
+    // Query existing record to guarantee visits and spend are never wiped or reduced
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('visit_count, total_spent, history, name')
+      .eq('phone', cleanPhone)
+      .maybeSingle();
+
+    const existingVisits = Number(existing?.visit_count) || 0;
+    const existingSpent = Number(existing?.total_spent) || 0;
+    const passedVisits = (cust.visit_count !== undefined && cust.visit_count !== null) ? Number(cust.visit_count) : 0;
+    const passedSpent = (cust.total_spent !== undefined && cust.total_spent !== null) ? Number(cust.total_spent) : 0;
+
+    const visits = Math.max(passedVisits, existingVisits, 1);
+    const spent = Math.max(passedSpent, existingSpent);
     const lastVisit = cust.last_visit || cust.lastVisit || new Date().toISOString();
-    const history = Array.isArray(cust.history) ? cust.history : [];
+    const history = Array.isArray(cust.history) && cust.history.length > 0
+      ? cust.history
+      : (Array.isArray(existing?.history) ? existing.history : []);
 
     const { error } = await supabase
       .from('customers')
       .upsert({
         phone: cleanPhone,
-        name: cleanName,
+        name: cleanName !== 'Guest' ? cleanName : (existing?.name || cleanName),
         visit_count: visits,
         total_spent: spent,
         last_visit: lastVisit,

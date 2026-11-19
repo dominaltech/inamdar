@@ -56,7 +56,24 @@ export default function StatusBar() {
       <div className="win-status-pane" style={{ minWidth: '120px', fontWeight: 'bold' }}>
         {currentUser?.name || '1. Operator'}
       </div>
-      <div className="win-status-pane" style={{ flexGrow: 1, textAlign: 'right' }}>
+      <div
+        className="win-status-pane"
+        style={{
+          flexGrow: 1,
+          textAlign: 'center',
+          fontWeight: 'bold',
+          color: '#0a246a',
+          letterSpacing: '0.4px',
+          fontSize: '11px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          userSelect: 'none',
+        }}
+      >
+        <span>A Product of Dominal Technology – dominal.in</span>
+      </div>
+      <div className="win-status-pane" style={{ minWidth: '130px', textAlign: 'right' }}>
         {timeStr}
       </div>
       <div className="win-status-pane" style={{ minWidth: '45px', textAlign: 'center', fontWeight: 'bold' }}>

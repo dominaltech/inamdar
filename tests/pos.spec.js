@@ -54,7 +54,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     // 1. Reports Menu -> Opens Retro Reports Center directly with NO dropdown
     await page.locator('.win-menu-item', { hasText: 'Reports' }).click();
     await page.waitForTimeout(200);
-    await expect(page.locator('.win-titlebar-title', { hasText: "Menson's POS 9.08.431" })).toBeVisible();
+    await expect(page.locator('.win-titlebar-title', { hasText: "[ Terminal : SERVER ]" })).toBeVisible();
     await expect(page.locator('.win-dropdown')).not.toBeVisible();
     await page.locator('button:has-text("Exit")').click();
     await page.waitForTimeout(200);
@@ -102,10 +102,10 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await expect(page.locator('.win-titlebar-title', { hasText: 'Hotel Room Post Ledger' })).toBeVisible();
     await page.locator('button:has-text("Close (Esc)")').click();
 
-    // 12. Utilities Menu -> Supabase Cloud Config
+    // 12. Utilities Menu -> Cloud Database Config
     await page.locator('.win-menu-item', { hasText: 'Utilities' }).click();
-    await page.locator('.win-dropdown-row', { hasText: 'Supabase Cloud Database Config' }).click();
-    await expect(page.locator('.win-titlebar-title', { hasText: 'Supabase Cloud Database Configuration' })).toBeVisible();
+    await page.locator('.win-dropdown-row', { hasText: 'Cloud Database Configuration' }).click();
+    await expect(page.locator('.win-titlebar-title', { hasText: 'Cloud Database Configuration' })).toBeVisible();
     await page.locator('button:has-text("Close (Esc)")').click();
   });
 
@@ -854,7 +854,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.waitForTimeout(300);
 
     // Verify Reports Center is displayed with Menson's POS retro title
-    await expect(page.locator('.win-titlebar-title', { hasText: "Menson's POS 9.08.431" })).toBeVisible();
+    await expect(page.locator('.win-titlebar-title', { hasText: "[ Terminal : SERVER ]" })).toBeVisible();
     await expect(page.locator('text=REPORTS').first()).toBeVisible();
 
     // 2. Verify all 11 retro sections A through K are rendered
@@ -1834,8 +1834,8 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
     await page.locator('td', { hasText: '9876543210' }).click();
     await page.waitForTimeout(300);
 
-    // Check that customer has recorded repeat visit
-    await expect(page.locator('text=RETURNING CUSTOMER')).toBeVisible();
+    // Check that customer has recorded repeat visit (Returning Customer or VIP Repeat Guest)
+    await expect(page.locator('text=VIP REPEAT GUEST').or(page.locator('text=RETURNING CUSTOMER'))).toBeVisible();
 
     // 12. Test Settings View: Admin PIN, Dual-Disk C/D Backup & Secret Revenue Calibration
     const settingsMenuBtn = page.locator('.win-menu-item', { hasText: 'Settings' });
@@ -1907,7 +1907,7 @@ test.describe('Inamdar Restaurant POS - Retro Menson\'s Replica Test Suite', () 
 
     // 3. Verify Analytics View is active
     await expect(page.locator('text=Dominal\'s POS & Customer Analytics Studio')).toBeVisible();
-    await expect(page.locator('text=Live Supabase Intelligence')).toBeVisible();
+    await expect(page.locator('text=Live Database Intelligence')).toBeVisible();
 
     // 4. Verify Independent Takeaway & Home Delivery Analytics Engine is rendered
     const offPremiseSection = page.locator('#takeaway-delivery-analytics-section');

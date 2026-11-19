@@ -144,7 +144,7 @@ export default function ReportsView() {
         {/* Title Bar (Authentic Windows 98/2000 Menson's Bar) */}
         <div className="win-titlebar" style={{ height: '22px', padding: '1px 8px' }}>
           <div className="win-titlebar-title" style={{ fontSize: '11px', letterSpacing: '0.2px' }}>
-            <span>Menson's POS 9.08.431 INAMDAR RESTAURANT &amp; TAKEAWAY, SOLAPUR [ Terminal : SERVER ]</span>
+            <span>Dominal's POS - INAMDAR RESTAURANT &amp; TAKEAWAY, SOLAPUR [ Terminal : SERVER ]</span>
           </div>
           <button
             className="win-close-btn"

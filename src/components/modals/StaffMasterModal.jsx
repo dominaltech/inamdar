@@ -78,7 +78,7 @@ export default function StaffMasterModal({ isOpen, onClose }) {
         <div className="win-titlebar">
           <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <IconUsers size={14} color="#ffffff" />
-            <span>Waiters &amp; Staff Master — Inamdar Restaurant (Supabase Live)</span>
+            <span>Waiters &amp; Staff Master — Inamdar Restaurant (Database Live)</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>

@@ -10,12 +10,12 @@ export default function CloudConfigModal({ isOpen, onClose }) {
 
   const handleSave = () => {
     if (!url.trim() || !anonKey.trim()) {
-      alert("Please enter both Supabase URL and Anon Key!");
+      alert("Please enter both Database URL and Anon Key!");
       return;
     }
     saveSupabaseCredentials(url.trim(), anonKey.trim());
     setInfoDialog({
-      title: "Supabase Cloud Config",
+      title: "Cloud Database Config",
       message: "Credentials saved. The page will reload to connect with your live database.",
     });
     setTimeout(() => {
@@ -31,7 +31,7 @@ export default function CloudConfigModal({ isOpen, onClose }) {
         <div className="win-titlebar">
           <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <IconCloud size={14} color="#ffffff" />
-            <span>Supabase Cloud Database Configuration — Inamdar POS</span>
+            <span>Cloud Database Configuration — Inamdar POS</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>
@@ -48,7 +48,7 @@ export default function CloudConfigModal({ isOpen, onClose }) {
             justifyContent: 'space-between',
           }}>
             <span style={{ fontSize: '12px', fontWeight: 'bold', color: isCloudConnected ? '#006600' : '#cc0000' }}>
-              Status: {isCloudConnected ? '● CONNECTED TO SUPABASE REALTIME' : '○ OFFLINE (Local In-Memory Cache Active)'}
+              Status: {isCloudConnected ? '● CONNECTED TO LIVE DATABASE REALTIME' : '○ OFFLINE (Local In-Memory Cache Active)'}
             </span>
             <span style={{ fontSize: '11px', color: '#555' }}>
               Latency: {isCloudConnected ? '0ms (Optimistic)' : 'N/A'}
@@ -57,11 +57,11 @@ export default function CloudConfigModal({ isOpen, onClose }) {
 
           <div>
             <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '3px' }}>
-              Supabase Project URL:
+              Database Project URL:
             </label>
             <input
               type="text"
-              placeholder="https://xyzcompany.supabase.co"
+              placeholder="https://xyzcompany.database.co"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="win-input"
@@ -71,7 +71,7 @@ export default function CloudConfigModal({ isOpen, onClose }) {
 
           <div>
             <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '3px' }}>
-              Supabase Anon / Public Key:
+              Database Anon / Public Key:
             </label>
             <textarea
               rows={3}

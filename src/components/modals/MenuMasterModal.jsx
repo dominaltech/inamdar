@@ -54,7 +54,7 @@ export default function MenuMasterModal({ isOpen, onClose }) {
     setNewDish({ code: '', name: '', category: 'MAIN COURSE', hallRate: '', acRate: '', isKitchen: true });
     setInfoDialog({
       title: "Menu Master",
-      message: `Dish #${payload.code} (${payload.name}) saved successfully and synced with Supabase.`,
+      message: `Dish #${payload.code} (${payload.name}) saved successfully and synced with Database.`,
     });
   };
 
@@ -88,7 +88,7 @@ export default function MenuMasterModal({ isOpen, onClose }) {
         <div className="win-titlebar">
           <div className="win-titlebar-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <IconBookOpen size={14} color="#ffffff" />
-            <span>Menu Card Master — Inamdar Restaurant (Dynamic Supabase Sync)</span>
+            <span>Menu Card Master — Inamdar Restaurant (Dynamic Database Sync)</span>
           </div>
           <button className="win-close-btn" onClick={onClose}>✕</button>
         </div>
@@ -175,7 +175,7 @@ export default function MenuMasterModal({ isOpen, onClose }) {
         {/* Footer */}
         <div style={{ padding: '8px 14px', background: '#d4d0c8', borderTop: '2px solid #808080', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: '11px', color: '#333' }}>
-            Total Registered Dishes: <b>{menuItems.length}</b> items in Supabase
+            Total Registered Dishes: <b>{menuItems.length}</b> items in Database
           </div>
           <button className="win-btn" onClick={onClose} style={{ minWidth: '80px', fontWeight: 'bold' }}>
             Close (Esc)

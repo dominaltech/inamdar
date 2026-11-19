@@ -13,6 +13,7 @@ import {
   IconStar,
   IconRefresh,
   IconCloud,
+  IconPhone,
 } from './common/Icons';
 
 export default function CustomerAnalyticsView({ onBackToDirectory }) {
@@ -27,10 +28,10 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
   } = usePos();
 
   const [timeFilter, setTimeFilter] = useState('ALL'); // 'ALL' | 'TODAY' | 'WEEK'
-  const [syncStatus, setSyncStatus] = useState({ text: 'Connected to Live Supabase', type: 'success' });
+  const [syncStatus, setSyncStatus] = useState({ text: 'Connected to Live Database', type: 'success' });
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Sync fresh records directly from Supabase tables on mount
+  // Sync fresh records directly from Database tables on mount
   useEffect(() => {
     let isMounted = true;
     const loadLive = async () => {
@@ -42,7 +43,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
         if (isMounted) {
           setSyncStatus({ text: 'Live Database Sync Active (Zero Dummy Data)', type: 'success' });
         }
-      } catch (err) {
+      } catch {
         if (isMounted) {
           setSyncStatus({ text: 'Sync notice: Local cache active', type: 'info' });
         }
@@ -54,18 +55,18 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
 
   const handleManualSync = async () => {
     setIsSyncing(true);
-    setSyncStatus({ text: 'Syncing with Supabase...', type: 'info' });
+    setSyncStatus({ text: 'Syncing with Database...', type: 'info' });
     try {
       await Promise.all([
         refreshCustomers?.(),
         refreshBills?.(),
       ]);
-      setSyncStatus({ text: 'Updated from Supabase: 100% Realtime Data', type: 'success' });
+      setSyncStatus({ text: 'Updated from Database: 100% Realtime Data', type: 'success' });
     } catch {
       setSyncStatus({ text: 'Sync error', type: 'error' });
     } finally {
       setIsSyncing(false);
-      setTimeout(() => setSyncStatus({ text: 'Connected to Live Supabase', type: 'success' }), 4000);
+      setTimeout(() => setSyncStatus({ text: 'Connected to Live Database', type: 'success' }), 4000);
     }
   };
 
@@ -74,6 +75,43 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
     '#003366', '#006699', '#3399cc', '#009966', '#ff9900',
     '#cc3300', '#993399', '#666699', '#006600', '#cc6600'
   ];
+
+  // Helper: Normalize phone numbers for strict, safe equality
+  const isSamePhone = (p1, p2) => {
+    if (!p1 || !p2) return false;
+    const s1 = String(p1).replace(/\D/g, '');
+    const s2 = String(p2).replace(/\D/g, '');
+    return s1.length > 0 && s1 === s2;
+  };
+
+  // Helper: Calculate strictly isolated visits and total spend for a customer
+  const getCustomerStats = (cust, targetBillsList) => {
+    if (!cust || !cust.phone) return { visits: 1, spent: 0 };
+    const cleanPhone = String(cust.phone).trim();
+    const matchingBills = (targetBillsList || []).filter(b =>
+      isSamePhone(b.customerPhone || b.customer_phone, cleanPhone)
+    );
+    const historyList = Array.isArray(cust.history) ? cust.history : [];
+    const uniqueBillsMap = new Map();
+    matchingBills.forEach(b => {
+      const bNo = b.billNo ? String(b.billNo).trim() : '';
+      if (bNo) uniqueBillsMap.set(bNo, Number(b.amount || b.netAmount || b.totalAmount || 0));
+    });
+    historyList.forEach(h => {
+      const bNo = h.billNo ? String(h.billNo).trim() : '';
+      if (bNo && !uniqueBillsMap.has(bNo)) uniqueBillsMap.set(bNo, Number(h.amount || 0));
+    });
+
+    const computedVisits = uniqueBillsMap.size;
+    const computedSpent = Array.from(uniqueBillsMap.values()).reduce((sum, amt) => sum + amt, 0);
+    const storedVisits = Number(cust.visit_count ?? cust.visitCount) || 0;
+    const storedSpent = Number(cust.total_spent ?? cust.totalSpent) || 0;
+
+    return {
+      visits: Math.max(computedVisits, storedVisits, 1),
+      spent: Math.max(computedSpent, storedSpent),
+    };
+  };
 
   // 1. Data Aggregations from 100% Real POS Database
   const analyticsData = useMemo(() => {
@@ -84,16 +122,25 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
       targetBills = targetBills.filter(b => b.date === today);
     }
 
-    // B. Customer Repeat Distribution (Strictly from Supabase customers table)
+    // B. Customer Repeat Distribution (Strictly from database customers table)
     let cust1x = 0;
     let cust2x = 0;
     let cust3to5x = 0;
     let cust6plus = 0;
     let totalCustomerSpend = 0;
 
-    customers.forEach(c => {
-      const visits = Number(c.visit_count ?? c.visitCount) || 1;
-      const spent = Number(c.total_spent ?? c.totalSpent) || 0;
+    const customerStatsList = customers.map(c => {
+      const stats = getCustomerStats(c, targetBills);
+      return {
+        ...c,
+        visits: stats.visits,
+        spent: stats.spent,
+      };
+    });
+
+    customerStatsList.forEach(c => {
+      const visits = c.visits;
+      const spent = c.spent;
       totalCustomerSpend += spent;
 
       if (visits === 1) cust1x++;
@@ -134,7 +181,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
       });
     });
 
-    // If targetBills are empty, analyze dishes from settled customer purchase histories in Supabase
+    // If targetBills are empty, analyze dishes from settled customer purchase histories in database
     if (targetBills.length === 0) {
       customers.forEach(c => {
         const h = Array.isArray(c.history) ? c.history : [];
@@ -363,13 +410,9 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
       .slice(0, 8);
     const maxTableRev = Math.max(...topTables.map(t => t.revenue), 1);
 
-    // J. Top 10 High-Value Repeat Patrons (LTV) from Supabase customers
-    const topCustomers = [...customers]
-      .sort((a, b) => {
-        const spendA = Number(a.total_spent ?? a.totalSpent) || 0;
-        const spendB = Number(b.total_spent ?? b.totalSpent) || 0;
-        return spendB - spendA;
-      })
+    // J. Top 10 High-Value Repeat Patrons (LTV) from database customers
+    const topCustomers = [...customerStatsList]
+      .sort((a, b) => b.spent - a.spent)
       .slice(0, 10);
 
     // K. Daily Sales Trend (Real Dates only)
@@ -477,7 +520,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <IconBarChart size={18} color="#003366" />
           <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#003366' }}>
-            Dominal's POS &amp; Customer Analytics Studio (100% Live Supabase Intelligence)
+            Dominal's POS &amp; Customer Analytics Studio (100% Live Database Intelligence)
           </span>
           <span style={{
             fontSize: '10px',
@@ -539,7 +582,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
         <div style={{ flex: 1, background: '#fff', border: '1px solid #7f9db9', padding: '8px 12px', boxShadow: 'inset 1px 1px 0 #fff' }}>
           <div style={{ fontSize: '10px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>Live Customer Base</div>
           <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#003366' }}>{analyticsData.totalCustomers}</div>
-          <div style={{ fontSize: '10px', color: '#006600', fontWeight: 'bold' }}>Supabase 'customers' table</div>
+          <div style={{ fontSize: '10px', color: '#006600', fontWeight: 'bold' }}>Database 'customers' table</div>
         </div>
         <div style={{ flex: 1, background: '#fff', border: '1px solid #7f9db9', padding: '8px 12px', boxShadow: 'inset 1px 1px 0 #fff' }}>
           <div style={{ fontSize: '10px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>Repeat Guest Rate</div>
@@ -582,7 +625,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
             marginBottom: '10px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '18px' }}>🥡</span>
+              <IconUtensils size={18} color="#003366" />
               <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#003366', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Independent Engine: Takeaway &amp; Home Delivery Analytics (Off-Premise Dining)
               </span>
@@ -604,7 +647,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
             {/* 1. Takeaway / Parcel Summary */}
             <div style={{ background: '#fff9e6', border: '1px solid #e0c060', padding: '8px 10px', borderRadius: '3px' }}>
               <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#886600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>🥡</span> TAKEAWAY (PARCEL) REVENUE
+                <IconUtensils size={13} color="#886600" /> TAKEAWAY (PARCEL) REVENUE
               </div>
               <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#cc6600', margin: '4px 0' }}>
                 ₹{analyticsData.secParcelRevenue.toLocaleString('en-IN')}
@@ -617,7 +660,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
             {/* 2. Home Delivery Summary */}
             <div style={{ background: '#f0f8ff', border: '1px solid #70a0d0', padding: '8px 10px', borderRadius: '3px' }}>
               <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#004080', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>🛵</span> HOME DELIVERY REVENUE
+                <IconSmartphone size={13} color="#004080" /> HOME DELIVERY REVENUE
               </div>
               <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#004080', margin: '4px 0' }}>
                 ₹{analyticsData.secDeliveryRevenue.toLocaleString('en-IN')}
@@ -630,7 +673,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
             {/* 3. Off-Premise Volume Total */}
             <div style={{ background: '#eef8f0', border: '1px solid #80c090', padding: '8px 10px', borderRadius: '3px' }}>
               <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#006622', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>📦</span> TOTAL OFF-PREMISE VOLUME
+                <IconReceipt size={13} color="#006622" /> TOTAL OFF-PREMISE VOLUME
               </div>
               <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#006622', margin: '4px 0' }}>
                 {analyticsData.totalOffPremiseOrders} Orders
@@ -643,7 +686,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
             {/* 4. Delivery Contact Capture Rate */}
             <div style={{ background: '#f5f0fa', border: '1px solid #b090d0', padding: '8px 10px', borderRadius: '3px' }}>
               <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#551188', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>📞</span> PHONE CAPTURE RATE
+                <IconPhone size={13} color="#551188" /> PHONE CAPTURE RATE
               </div>
               <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#551188', margin: '4px 0' }}>
                 {analyticsData.secDelivery > 0 ? Math.round((analyticsData.deliveryContactsCaptured / analyticsData.secDelivery) * 100) : 100}%
@@ -665,7 +708,9 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
                 {/* Takeaway Bar */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', marginBottom: '2px' }}>
-                    <span>🥡 Takeaway (Parcel)</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <IconUtensils size={12} color="#cc6600" /> Takeaway (Parcel)
+                    </span>
                     <span style={{ color: '#cc6600' }}>{analyticsData.secParcel} bills (₹{analyticsData.secParcelRevenue.toLocaleString('en-IN')})</span>
                   </div>
                   <div style={{ width: '100%', height: '14px', background: '#eee', borderRadius: '2px', overflow: 'hidden' }}>
@@ -680,7 +725,9 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
                 {/* Delivery Bar */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', marginBottom: '2px' }}>
-                    <span>🛵 Home Delivery</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <IconSmartphone size={12} color="#004080" /> Home Delivery
+                    </span>
                     <span style={{ color: '#004080' }}>{analyticsData.secDelivery} deliveries (₹{analyticsData.secDeliveryRevenue.toLocaleString('en-IN')})</span>
                   </div>
                   <div style={{ width: '100%', height: '14px', background: '#eee', borderRadius: '2px', overflow: 'hidden' }}>
@@ -695,7 +742,9 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
                 {/* Dine-In Bar */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', marginBottom: '2px' }}>
-                    <span>🍽️ Dine-in (Normal &amp; Family AC)</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <IconUsers size={12} color="#006600" /> Dine-in (Normal &amp; Family AC)
+                    </span>
                     <span style={{ color: '#006600' }}>{analyticsData.secDineIn} tables (₹{analyticsData.secDineInRevenue.toLocaleString('en-IN')})</span>
                   </div>
                   <div style={{ width: '100%', height: '14px', background: '#eee', borderRadius: '2px', overflow: 'hidden' }}>
@@ -716,7 +765,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
               </div>
               {analyticsData.topOffPremiseDishesList.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '20px', color: '#888', fontSize: '10px' }}>
-                  No parcel or delivery item orders recorded yet in Supabase.
+                  No parcel or delivery item orders recorded yet in database.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -754,7 +803,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', height: '180px' }}>
             {analyticsData.categoryList.length === 0 ? (
               <div style={{ color: '#888', fontSize: '11px', textAlign: 'center' }}>
-                No category sales recorded yet in Supabase.
+                No category sales recorded yet in database.
               </div>
             ) : (
               <>
@@ -877,7 +926,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
           <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
             {analyticsData.topDishes.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '30px', color: '#888', fontSize: '11px' }}>
-                No dish sales recorded yet in Supabase.
+                No dish sales recorded yet in database.
               </div>
             ) : (
               analyticsData.topDishes.map((dish, idx) => {
@@ -915,7 +964,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', height: '180px' }}>
             {analyticsData.totalPay === 0 ? (
               <div style={{ textAlign: 'center', color: '#888', fontSize: '11px' }}>
-                No settled tenders recorded yet in Supabase.
+                No settled tenders recorded yet in database.
               </div>
             ) : (
               <>
@@ -963,7 +1012,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', height: '180px' }}>
             {analyticsData.totalOrders === 0 ? (
               <div style={{ textAlign: 'center', color: '#888', fontSize: '11px' }}>
-                No orders recorded yet in Supabase.
+                No orders recorded yet in database.
               </div>
             ) : (
               <>
@@ -1035,7 +1084,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
           <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
             {analyticsData.topTables.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '30px', color: '#888', fontSize: '11px' }}>
-                No settled table bills recorded yet in Supabase.
+                No settled table bills recorded yet in database.
               </div>
             ) : (
               analyticsData.topTables.map((tbl, idx) => {
@@ -1059,7 +1108,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
           </div>
         </div>
 
-        {/* 9. Top 10 Repeat Patrons by Lifetime Value (LTV) from Supabase */}
+        {/* 9. Top 10 Repeat Patrons by Lifetime Value (LTV) from database */}
         <div className="win-window" style={{ background: '#fff', border: '1px solid #7f9db9', padding: '10px' }}>
           <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#003366', borderBottom: '1px solid #d4d0c8', paddingBottom: '6px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <IconStar size={14} color="#ff9900" />
@@ -1068,7 +1117,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
           <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
             {analyticsData.topCustomers.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '30px', color: '#888', fontSize: '11px' }}>
-                No customer records found in Supabase.
+                No customer records found in database.
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
@@ -1083,8 +1132,8 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
                 </thead>
                 <tbody>
                   {analyticsData.topCustomers.map((cust, idx) => {
-                    const visits = Number(cust.visit_count ?? cust.visitCount) || 1;
-                    const spent = Number(cust.total_spent ?? cust.totalSpent) || 0;
+                    const visits = Number(cust.visits ?? cust.visit_count ?? cust.visitCount) || 1;
+                    const spent = Number(cust.spent ?? cust.total_spent ?? cust.totalSpent) || 0;
                     return (
                       <tr key={idx} style={{ borderBottom: '1px solid #eee', background: idx % 2 === 0 ? '#fafafa' : '#fff' }}>
                         <td style={{ padding: '3px 4px', fontWeight: 'bold', color: idx < 3 ? '#ff9900' : '#666' }}>#{idx + 1}</td>
@@ -1116,7 +1165,7 @@ export default function CustomerAnalyticsView({ onBackToDirectory }) {
           <div style={{ height: '180px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             {analyticsData.recentDailyTrend.length === 0 ? (
               <div style={{ textAlign: 'center', color: '#888', fontSize: '11px' }}>
-                No daily settlement trends recorded yet in Supabase.
+                No daily settlement trends recorded yet in database.
               </div>
             ) : (
               <div>

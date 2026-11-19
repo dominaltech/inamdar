@@ -241,7 +241,7 @@ export default function HeaderMenuBar() {
           {activeMenu === 'Master' && (
             <div className="win-dropdown">
               <div className="win-dropdown-row" onClick={() => handleAction('MENU_MASTER')}>
-                <span>Menu Card Master (Supabase Sync)</span>
+                <span>Menu Card Master (Database Sync)</span>
               </div>
               <div className="win-dropdown-row" onClick={() => handleAction('TABLE_MASTER')}>
                 <span>Tables Master &amp; Layout Inspector</span>
@@ -310,7 +310,7 @@ export default function HeaderMenuBar() {
                 <span>Tables Master &amp; Occupancy</span>
               </div>
               <div className="win-dropdown-row" onClick={() => handleAction('CLOUD_CONFIG')}>
-                <span>Supabase Cloud Database Config</span>
+                <span>Cloud Database Configuration</span>
               </div>
               <div className="win-dropdown-row" onClick={() => handleAction('PRINTER_SETUP')}>
                 <span>Thermal Printer Routing Setup</span>
