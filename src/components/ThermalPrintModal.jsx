@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { usePos } from '../context/PosContext';
 
 export default function ThermalPrintModal() {
   const { printData, setPrintData, triggerTableFocus } = usePos();
   const [activeSlipIndex, setActiveSlipIndex] = useState(null);
+  const receiptRef = useRef(null);
 
   // Compute stations for multi-KOT split printing (Kitchen, Dessert, Beverage)
   const stationSlips = (() => {
@@ -82,31 +84,52 @@ export default function ThermalPrintModal() {
             if (isCancelled) return;
             setActiveSlipIndex(i);
             // Brief tick for DOM to render the active station slip
-            await new Promise(res => setTimeout(res, 40));
+            await new Promise(res => setTimeout(res, 45));
 
             const slip = stationSlips[i];
-            const itemCount = slip.items ? slip.items.length : 1;
-            // Dynamic longevity strictly dependent on number of items (45mm header/footer + 7mm/item)
-            const dynamicHeightMicrons = Math.max(48000, 45000 + (itemCount * 7000));
+            let heightMicrons = 0;
+            if (receiptRef.current) {
+              const rect = receiptRef.current.getBoundingClientRect();
+              if (rect && rect.height > 10) {
+                // 1 px = 264.58 microns. Add 8mm (8000 microns) cutter buffer
+                heightMicrons = Math.round((rect.height * 264.58) + 8000);
+              }
+            }
+            if (!heightMicrons) {
+              const itemCount = slip.items ? slip.items.length : 1;
+              heightMicrons = Math.max(45000, 38000 + (itemCount * 6500));
+            }
 
             await window.electronAPI.directPrint({
               silent: true,
               width: 76000, // Exact 7.6cm thermal receipt width
-              height: dynamicHeightMicrons,
+              height: heightMicrons,
               station: slip.station,
             });
           }
         } else if (isElectron) {
           // Single Unified Bill (Cash Memo), Cancellation KOT, or single-station KOT
-          const itemCount = printData.type === 'BILL'
-            ? (printData.data.items?.length || 1)
-            : (printData.data.cancelledItem ? 1 : (stationSlips[0]?.items?.length || printData.data.items?.length || 1));
-          const dynamicHeightMicrons = Math.max(52000, 45000 + (itemCount * 7000));
+          await new Promise(res => setTimeout(res, 45));
+
+          let heightMicrons = 0;
+          if (receiptRef.current) {
+            const rect = receiptRef.current.getBoundingClientRect();
+            if (rect && rect.height > 10) {
+              // Exact measured rendered DOM height in microns + 8mm buffer
+              heightMicrons = Math.round((rect.height * 264.58) + 8000);
+            }
+          }
+          if (!heightMicrons) {
+            const itemCount = printData.type === 'BILL'
+              ? (printData.data.items?.length || 1)
+              : (printData.data.cancelledItem ? 1 : (stationSlips[0]?.items?.length || printData.data.items?.length || 1));
+            heightMicrons = Math.max(50000, 42000 + (itemCount * 6500));
+          }
 
           await window.electronAPI.directPrint({
             silent: true,
             width: 76000, // Exact 7.6cm thermal receipt width
-            height: dynamicHeightMicrons,
+            height: heightMicrons,
           });
         } else if (typeof window !== 'undefined' && window.__INAMDAR_FORCE_BROWSER_PRINT__) {
           window.print();
@@ -143,10 +166,11 @@ export default function ThermalPrintModal() {
     ? [stationSlips[activeSlipIndex]]
     : stationSlips;
 
-  return (
+  const modalContent = (
     <div
       className="thermal-direct-print-wrapper"
       id="thermal-direct-print-target"
+      ref={receiptRef}
       data-testid="thermal-direct-print-target"
       data-print-type={type}
       aria-hidden="true"
@@ -158,23 +182,23 @@ export default function ThermalPrintModal() {
             <div style={{ textAlign: 'center', fontSize: '18px', fontWeight: 'bold', letterSpacing: '1px', color: '#aa0000' }}>
               *** CANCEL KOT ***
             </div>
-            <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>
+            <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#000000' }}>
               DEPARTMENT: {data.department || 'KITCHEN'}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', fontWeight: 'bold' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', color: '#000000' }}>
               <span>T No. {data.tableNo}</span>
               <span>E: {data.employee || 'COUNTER'}</span>
               <span>T:SERVER</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', color: '#000000', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '8px' }}>
               <span>Ord No: {data.ordNo}</span>
               <span>Dt:{data.date}</span>
               <span>Time:{data.time}</span>
             </div>
 
             {/* Cancelled Item */}
-            <div style={{ padding: '6px 0', borderBottom: '1px dashed #000', fontSize: '12.5px', fontWeight: 'bold' }}>
+            <div style={{ padding: '6px 0', borderBottom: '1px dashed #000', fontSize: '13px', fontWeight: 'bold' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#aa0000' }}>
                 <span>Qty: {data.cancelledItem?.qty || 1}</span>
                 <span style={{ flex: 1, marginLeft: '8px' }}>{data.cancelledItem?.name || ''}</span>
@@ -182,7 +206,7 @@ export default function ThermalPrintModal() {
             </div>
 
             {/* Reason & Auth */}
-            <div style={{ marginTop: '8px', fontSize: '11.5px', lineHeight: '1.4' }}>
+            <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 'bold', color: '#000000', lineHeight: '1.4' }}>
               <div><b>REASON:</b> {data.cancelledItem?.reason || ''}</div>
               <div><b>AUTH BY:</b> {data.cancelledItem?.authorizedBy || ''}</div>
             </div>
@@ -207,19 +231,19 @@ export default function ThermalPrintModal() {
                   style={{ marginBottom: '16px' }}
                   data-station={stn.station}
                 >
-                  <div style={{ textAlign: 'center', fontSize: '18px', fontWeight: 'bold', letterSpacing: '1.5px' }}>
+                  <div style={{ textAlign: 'center', fontSize: '18px', fontWeight: 'bold', letterSpacing: '1.5px', color: '#000000' }}>
                     {stn.station === 'KITCHEN' ? 'KITCHEN' : stn.station === 'DESSERT' ? 'DESSERTS / PANTRY' : 'BEVERAGES / PANTRY'}
                   </div>
-                  <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>
+                  <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#000000' }}>
                     {data.section || 'AC'}
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', fontWeight: 'bold' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', color: '#000000' }}>
                     <span>T No. {data.tableNo}</span>
                     <span>E: {data.employee || 'COUNTER'}</span>
                     <span>T:SERVER</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', color: '#000000', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '8px' }}>
                     <span>Ord No: {data.ordNo}</span>
                     <span>Dt:{data.date}</span>
                     <span>Time:{data.time}</span>
@@ -228,18 +252,18 @@ export default function ThermalPrintModal() {
                   {/* Station Items list */}
                   <div style={{ lineHeight: '1.35', marginBottom: '8px' }}>
                     {stn.items.map((it, itemIdx) => (
-                      <div key={itemIdx} style={{ display: 'flex', gap: '10px', fontSize: '12.5px', fontWeight: 'bold', padding: '2px 0' }}>
-                        <span style={{ width: '22px', textAlign: 'right' }}>{it.qty}</span>
-                        <span style={{ flex: 1 }}>{it.name}</span>
+                      <div key={itemIdx} style={{ display: 'flex', gap: '10px', fontSize: '13px', fontWeight: 'bold', color: '#000000', padding: '2px 0' }}>
+                        <span style={{ width: '22px', textAlign: 'right', fontWeight: 'bold', color: '#000000' }}>{it.qty}</span>
+                        <span style={{ flex: 1, fontWeight: 'bold', color: '#000000' }}>{it.name}</span>
                       </div>
                     ))}
                   </div>
 
-                  <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginTop: '6px', fontSize: '12.5px', fontWeight: 'bold' }}>
+                  <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginTop: '6px', fontSize: '13px', fontWeight: 'bold', color: '#000000' }}>
                     Total Items : {totalStationQty}
                   </div>
 
-                  <div style={{ marginTop: '10px', fontSize: '15px', fontWeight: 'bold' }}>
+                  <div style={{ marginTop: '10px', fontSize: '15px', fontWeight: 'bold', color: '#000000' }}>
                     Ord: {data.ordNo}
                   </div>
                 </div>
@@ -248,42 +272,42 @@ export default function ThermalPrintModal() {
           </div>
         )}
 
-        {/* 3. Customer Cash Memo Bill Slip - Single Unified Bill (Strict Category Ordering, Centered 7.6cm Width) */}
+        {/* 3. Customer Cash Memo Bill Slip - Single Unified Bill (Strict Category Ordering, Centered 7.6cm Width, Crisp Dark Black) */}
         {type === 'BILL' && (
           <div className="thermal-receipt thermal-receipt-printable">
-            <div style={{ textAlign: 'center', fontSize: '18px', fontWeight: 'bold', letterSpacing: '1px' }}>
+            <div style={{ textAlign: 'center', fontSize: '19px', fontWeight: 'bold', letterSpacing: '1px', color: '#000000' }}>
               INAMDAR
             </div>
-            <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>
+            <div style={{ textAlign: 'center', fontSize: '13.5px', fontWeight: 'bold', color: '#000000' }}>
               Restaurant &amp; Takeaway
             </div>
-            <div style={{ textAlign: 'center', fontSize: '10.5px', marginTop: '2px' }}>
+            <div style={{ textAlign: 'center', fontSize: '11px', fontWeight: 'bold', color: '#000000', marginTop: '2px' }}>
               Square One Apartment's, Near Civil Chowk
             </div>
-            <div style={{ textAlign: 'center', fontSize: '10.5px', marginBottom: '4px' }}>
+            <div style={{ textAlign: 'center', fontSize: '11px', fontWeight: 'bold', color: '#000000', marginBottom: '4px' }}>
               In Front of Court, Solapur 413001
             </div>
-            <div style={{ textAlign: 'center', borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '3px 0', margin: '4px 0', fontSize: '12px', fontWeight: 'bold' }}>
+            <div style={{ textAlign: 'center', borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '3px 0', margin: '4px 0', fontSize: '12.5px', fontWeight: 'bold', color: '#000000' }}>
               ----- Cash Memo -----
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', color: '#000000' }}>
               <span>Date : {data.date}</span>
-              <span style={{ fontWeight: 'bold', fontSize: '12.5px' }}>Bill No. : {data.billNo}</span>
+              <span style={{ fontSize: '12.5px' }}>Bill No. : {data.billNo}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', borderBottom: '1px dashed #000', paddingBottom: '3px', marginBottom: '5px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', color: '#000000', borderBottom: '1px dashed #000', paddingBottom: '3px', marginBottom: '5px' }}>
               <span>T.No.: {data.tableNo}</span>
               <span>Emp. No. : {data.employeeNo || '1'}</span>
             </div>
 
             {/* Items Table - Centered 7.6cm Layout */}
-            <table style={{ width: '100%', fontSize: '11.5px', borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', fontSize: '12px', fontWeight: 'bold', color: '#000000', borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
               <thead>
-                <tr style={{ borderBottom: '1px dashed #000' }}>
-                  <th style={{ padding: '3px 0', width: '50%', fontWeight: 'bold' }}>Particulars</th>
-                  <th style={{ textAlign: 'right', width: '14%', fontWeight: 'bold' }}>Qty</th>
-                  <th style={{ textAlign: 'right', width: '18%', fontWeight: 'bold' }}>Rate</th>
-                  <th style={{ textAlign: 'right', width: '18%', fontWeight: 'bold' }}>Amount</th>
+                <tr style={{ borderBottom: '1px dashed #000', fontWeight: 'bold', color: '#000000' }}>
+                  <th style={{ padding: '3px 0', width: '48%', fontWeight: 'bold', color: '#000000' }}>Particulars</th>
+                  <th style={{ textAlign: 'right', width: '14%', fontWeight: 'bold', color: '#000000' }}>Qty</th>
+                  <th style={{ textAlign: 'right', width: '19%', fontWeight: 'bold', color: '#000000' }}>Rate</th>
+                  <th style={{ textAlign: 'right', width: '19%', fontWeight: 'bold', color: '#000000' }}>Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -291,17 +315,17 @@ export default function ThermalPrintModal() {
                   const rowAmt = Number(row.amount !== undefined ? row.amount : ((row.qty || 1) * (row.rate || 0))).toFixed(0);
                   const rowRate = Number(row.rate ?? 0).toFixed(0);
                   return (
-                    <tr key={idx} style={{ lineHeight: '1.3' }}>
-                      <td style={{ padding: '2px 0', wordBreak: 'break-word', fontWeight: 'bold', fontSize: '11.5px' }}>
+                    <tr key={idx} style={{ lineHeight: '1.3', fontWeight: 'bold', color: '#000000' }}>
+                      <td style={{ padding: '2px 0', wordBreak: 'break-word', fontWeight: 'bold', color: '#000000', fontSize: '12px' }}>
                         {row.name}
                       </td>
-                      <td style={{ textAlign: 'right', verticalAlign: 'top', fontSize: '11.5px' }}>
+                      <td style={{ textAlign: 'right', verticalAlign: 'top', fontWeight: 'bold', color: '#000000', fontSize: '12px' }}>
                         {row.qty}
                       </td>
-                      <td style={{ textAlign: 'right', verticalAlign: 'top', fontSize: '11.5px' }}>
+                      <td style={{ textAlign: 'right', verticalAlign: 'top', fontWeight: 'bold', color: '#000000', fontSize: '12px' }}>
                         {rowRate}
                       </td>
-                      <td style={{ textAlign: 'right', verticalAlign: 'top', fontWeight: 'bold', fontSize: '11.5px' }}>
+                      <td style={{ textAlign: 'right', verticalAlign: 'top', fontWeight: 'bold', color: '#000000', fontSize: '12px' }}>
                         {rowAmt}
                       </td>
                     </tr>
@@ -310,7 +334,7 @@ export default function ThermalPrintModal() {
               </tbody>
             </table>
 
-            {/* Total Line: <TotalItems>/<TotalQty>/<Pax> Total : <TotalAmount> */}
+            {/* Total Line: <TotalItems>/<TotalQty>/<Pax> Total : <TotalAmount> (Tightly Connected) */}
             <div style={{
               borderTop: '1px dashed #000',
               borderBottom: '1px dashed #000',
@@ -319,34 +343,35 @@ export default function ThermalPrintModal() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              fontSize: '11.5px',
-              fontWeight: 'bold'
+              fontSize: '12px',
+              fontWeight: 'bold',
+              color: '#000000'
             }}>
               <span>
                 {data.totalItems || (data.items || []).length}/{data.totalQty || (data.items || []).reduce((s, i) => s + (i.qty || 1), 0)}/{data.pax || 2}
               </span>
-              <span style={{ fontSize: '14px' }}>
+              <span style={{ fontSize: '14.5px', fontWeight: 'bold', color: '#000000' }}>
                 Total : {Number(data.totalAmount ?? data.netAmount ?? 0).toFixed(0)}
               </span>
             </div>
 
             {/* Footer */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', marginTop: '3px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', color: '#000000', marginTop: '3px' }}>
               <span>TIN.</span>
               <span>({data.time})</span>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', marginTop: '2px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', color: '#000000', marginTop: '2px' }}>
               <span>E.&amp;O.E.</span>
               <span>Thank You</span>
               <span>Visit Again</span>
             </div>
 
-            <div style={{ textAlign: 'center', fontSize: '11px', fontWeight: 'bold', marginTop: '4px', letterSpacing: '0.5px' }}>
+            <div style={{ textAlign: 'center', fontSize: '11.5px', fontWeight: 'bold', color: '#000000', marginTop: '4px', letterSpacing: '0.5px' }}>
               TRY OUR JUICES
             </div>
 
-            <div style={{ textAlign: 'center', fontSize: '11.5px', fontWeight: 'bold', marginTop: '2px' }}>
+            <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold', color: '#000000', marginTop: '2px' }}>
               {data.section || 'AC'}
             </div>
           </div>
@@ -354,4 +379,9 @@ export default function ThermalPrintModal() {
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return ReactDOM.createPortal(modalContent, document.body);
+  }
+  return modalContent;
 }

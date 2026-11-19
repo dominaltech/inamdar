@@ -78,6 +78,9 @@ export default function DisplayOrderModal() {
         } else if (e.key === 'n' || e.key === 'N' || e.key === 'Escape') {
           e.preventDefault();
           setConfirmTransferData(null);
+          setShowTransferDialog(false);
+          setScreenMode('ORDER');
+          triggerTableFocus?.();
         }
         return;
       }
@@ -86,6 +89,8 @@ export default function DisplayOrderModal() {
         if (e.key === 'Escape') {
           e.preventDefault();
           setShowTransferDialog(false);
+          setScreenMode('ORDER');
+          triggerTableFocus?.();
         }
         return;
       }
@@ -185,6 +190,8 @@ export default function DisplayOrderModal() {
     setShowTransferDialog(false);
 
     if (success) {
+      setScreenMode('ORDER');
+      triggerTableFocus?.();
       setInfoDialog({
         title: "KOT Transfer",
         message: `KOT #${kotNo} successfully transferred from Table ${from} to Table ${to}.`,
@@ -418,7 +425,7 @@ export default function DisplayOrderModal() {
                 <div className="win-titlebar-title">
                   <span>Transfer KOT</span>
                 </div>
-                <button className="win-close-btn" onClick={() => setShowTransferDialog(false)}>✕</button>
+                <button className="win-close-btn" onClick={() => { setShowTransferDialog(false); setScreenMode('ORDER'); triggerTableFocus?.(); }}>✕</button>
               </div>
 
               <form onSubmit={handleTransferSubmit} style={{ padding: '14px 16px' }}>
@@ -452,7 +459,7 @@ export default function DisplayOrderModal() {
                   <button type="submit" className="win-btn" style={{ fontWeight: 'bold', minWidth: '70px' }}>
                     OK
                   </button>
-                  <button type="button" className="win-btn" onClick={() => setShowTransferDialog(false)} style={{ minWidth: '70px' }}>
+                  <button type="button" className="win-btn" onClick={() => { setShowTransferDialog(false); setScreenMode('ORDER'); triggerTableFocus?.(); }} style={{ minWidth: '70px' }}>
                     Cancel
                   </button>
                 </div>
@@ -469,7 +476,7 @@ export default function DisplayOrderModal() {
                 <div className="win-titlebar-title">
                   <span>Transfer KOTs</span>
                 </div>
-                <button className="win-close-btn" onClick={() => setConfirmTransferData(null)}>✕</button>
+                <button className="win-close-btn" onClick={() => { setConfirmTransferData(null); setShowTransferDialog(false); setScreenMode('ORDER'); triggerTableFocus?.(); }}>✕</button>
               </div>
 
               <div style={{ padding: '16px', fontSize: '12px', textAlign: 'center', lineHeight: '1.5' }}>
@@ -485,10 +492,10 @@ export default function DisplayOrderModal() {
                 <button className="win-btn" style={{ fontWeight: 'bold', minWidth: '65px' }} onClick={executeTransfer}>
                   Yes
                 </button>
-                <button className="win-btn" style={{ minWidth: '65px' }} onClick={() => setConfirmTransferData(null)}>
+                <button className="win-btn" style={{ minWidth: '65px' }} onClick={() => { setConfirmTransferData(null); setShowTransferDialog(false); setScreenMode('ORDER'); triggerTableFocus?.(); }}>
                   No
                 </button>
-                <button className="win-btn" style={{ minWidth: '65px' }} onClick={() => { setConfirmTransferData(null); setShowTransferDialog(false); }}>
+                <button className="win-btn" style={{ minWidth: '65px' }} onClick={() => { setConfirmTransferData(null); setShowTransferDialog(false); setScreenMode('ORDER'); triggerTableFocus?.(); }}>
                   Cancel
                 </button>
               </div>

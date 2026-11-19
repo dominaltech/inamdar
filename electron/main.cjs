@@ -229,8 +229,8 @@ ipcMain.handle('app:read-local-backup', async () => {
 ipcMain.handle('app:direct-print', async (event, options = {}) => {
   if (!mainWindow) return { success: false, error: 'Window not found' };
 
-  const printWidth = options.width || 76000; // 7.6cm width in microns
-  const printHeight = options.height || 100000; // Dynamic height based on item count
+  const printWidth = Math.round(options.width || 76000); // 7.6cm width in microns
+  const printHeight = Math.round(options.height || 95000); // Dynamic height strictly from DOM measurement
 
   return new Promise((resolve) => {
     mainWindow.webContents.print({
