@@ -83,8 +83,19 @@ export default function BillSettlementMenuModal() {
   };
 
   return (
-    <div className="win-modal-backdrop" style={{ zIndex: 1350 }}>
-      <div className="win-window" style={{ width: '380px', background: '#ece9d8' }}>
+    <div
+      className="win-modal-backdrop"
+      style={{
+        zIndex: 1350,
+        backgroundColor: 'transparent',
+        backdropFilter: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        paddingLeft: 'max(24px, calc((100vw - 840px) / 2 + 10px))'
+      }}
+    >
+      <div className="win-window" style={{ width: '380px', background: '#ece9d8', boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)' }}>
         <div className="win-titlebar" style={{ height: '22px', padding: '1px 8px' }}>
           <div className="win-titlebar-title" style={{ fontSize: '11px' }}>
             <span>Bill Settlement</span>

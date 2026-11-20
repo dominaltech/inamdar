@@ -94,9 +94,20 @@ export default function BatchSettlementModal() {
   };
 
   return (
-    <div className="win-modal-backdrop" style={{ zIndex: 1400 }}>
+    <div
+      className="win-modal-backdrop"
+      style={{
+        zIndex: 1400,
+        backgroundColor: 'transparent',
+        backdropFilter: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        paddingLeft: 'max(24px, calc((100vw - 840px) / 2 + 10px))'
+      }}
+    >
       {/* Main Settlement Window (Width ~360px) */}
-      <div className="win-window" style={{ width: '360px', background: '#ece9d8' }}>
+      <div className="win-window" style={{ width: '360px', background: '#ece9d8', boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)' }}>
         <div className="win-titlebar" style={{ height: '22px', padding: '1px 8px' }}>
           <div className="win-titlebar-title" style={{ fontSize: '11px' }}>
             <span>{batchSettleMode}</span>
@@ -169,8 +180,19 @@ export default function BatchSettlementModal() {
 
       {/* Retro Windows Error Box: "X Bill No. [X] Does Not Exist [OK]" */}
       {errorDialog && (
-        <div className="win-modal-backdrop" style={{ zIndex: 1450 }}>
-          <div className="win-window" style={{ width: '310px', background: '#ece9d8' }}>
+        <div
+          className="win-modal-backdrop"
+          style={{
+            zIndex: 1450,
+            backgroundColor: 'transparent',
+            backdropFilter: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            paddingLeft: 'max(24px, calc((100vw - 840px) / 2 + 35px))'
+          }}
+        >
+          <div className="win-window" style={{ width: '310px', background: '#ece9d8', boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)' }}>
             <div className="win-titlebar" style={{ height: '22px' }}>
               <div className="win-titlebar-title" style={{ fontSize: '11px' }}>
                 <span>Dominal's POS</span>
