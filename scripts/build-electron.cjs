@@ -21,7 +21,7 @@ async function run() {
         appId: 'com.dominals.inamdarpos',
         productName: 'Inamdar Restaurant POS',
         electronDist: 'node_modules/electron/dist',
-        compression: 'normal',
+        compression: 'store',
         directories: {
           output: 'dist-electron'
         },
